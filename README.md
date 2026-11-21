@@ -127,6 +127,15 @@ pytest -m integration          # full attack grid against the planted-bug app
 
 `examples/ci/sentri.yml` is a GitHub Actions workflow that runs Sentri on every pull request, comments the score and its change against `main`, and uploads the evidence.
 
+## Troubleshooting
+
+- `sentri doctor` lists anything missing and how to fix it.
+- **Chromium missing:** run `sentri setup` (on Linux CI, `sentri setup --with-deps`).
+- **App starts slowly on macOS** (doctor shows "Local DNS: slow"): Python dev servers do a reverse DNS lookup
+  of 127.0.0.1 while starting. Make sure `/etc/hosts` maps `127.0.0.1` to `localhost`.
+- **Preflight failed:** a flow's happy path did not reach its `success` condition, usually a wrong selector.
+  Fix the contract; Sentri never scores a contract that cannot complete its own flows.
+
 ## Safety
 
 - Only the sandboxed copy of your app is attacked, never a live system.
