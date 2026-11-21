@@ -153,7 +153,9 @@ class RunOrchestrator:
         browser = BrowserManager(headless=self.settings.headless)
         try:
             bus.emit("sandbox_starting", "starting the app in the sandbox")
+            t0 = time.monotonic()
             await sandbox.start()
+            bus.emit("sandbox_ready", f"app ready in {time.monotonic() - t0:.1f}s", seconds=time.monotonic() - t0)
         except SandboxError as exc:
             return self._abort(run_id, bus, started, f"app failed to start: {exc}")
 
@@ -187,6 +189,15 @@ class RunOrchestrator:
                 if cell.applies:
                     regressions += await self._maybe_probe(run_id, cell, runner, prober, bus)
 
+            if runner.reset_seconds:
+                total = sum(runner.reset_seconds)
+                bus.emit(
+                    "timing",
+                    f"{len(runner.reset_seconds)} app resets took {total:.1f}s "
+                    f"(avg {total / len(runner.reset_seconds):.1f}s); run so far {time.monotonic() - started:.1f}s",
+                    resets=len(runner.reset_seconds),
+                    reset_seconds=round(total, 2),
+                )
             breakdown = self._score(run_id, regressions)
             self._finish(run_id, "finished", breakdown, started)
             bus.emit(
@@ -432,6 +443,7 @@ class RunOrchestrator:
                 )
         bug_ids = [b["id"] for b in self.ledger.bugs_for_check(check_id)]
         details = "; ".join(f"{h.detail} [{h.k}/{v.attempts}]" for h in v.hits) or "no oracle fired"
+        details += f" ({outcome.duration_s:.1f}s)"
         shown = score_verdict.upper() if score_verdict == v.verdict else f"{v.verdict.upper()} (intended, scored pass)"
         bus.emit(
             "check_finished",

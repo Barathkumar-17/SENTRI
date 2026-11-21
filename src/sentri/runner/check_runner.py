@@ -113,6 +113,7 @@ class CheckRunner:
         self.workdir = workdir or Path.cwd()
         self.tmp_root = Path(tempfile.mkdtemp(prefix="sentri-"))
         self.sandbox_fresh = True  # the sandbox was just started: the first attempt needs no reset
+        self.reset_seconds: list[float] = []  # time spent resetting the app, for the run summary
 
     # ---- helpers ------------------------------------------------------------------------------------
     def timeouts(self, flow: Flow, attack_id: str) -> tuple[float, int]:
@@ -133,10 +134,12 @@ class CheckRunner:
         if self.sandbox_fresh:
             self.sandbox_fresh = False
             return
+        started = time.monotonic()
         try:
             await self.sandbox.reset()
         except SandboxError as exc:
             raise InfraError(f"sandbox reset failed: {exc}") from None
+        self.reset_seconds.append(time.monotonic() - started)
 
     async def login(self, page: Page, flow: Flow, attempt: int) -> None:
         assert self.contract.auth is not None

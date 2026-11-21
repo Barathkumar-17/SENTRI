@@ -37,7 +37,8 @@ def sentri(*args: str, env: dict[str, str], cwd: Path, check: bool = True) -> su
     cmd = [sys.executable, "-m", "sentri.cli", *args]
     print(f"$ sentri {' '.join(args)}", flush=True)
     proc = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
-    tail = (proc.stdout + proc.stderr).strip().splitlines()[-12:]
+    lines = (proc.stdout + proc.stderr).strip().splitlines()
+    tail = lines if os.environ.get("CI") else lines[-12:]
     print("  " + "\n  ".join(tail), flush=True)
     if check and proc.returncode != 0:
         raise SystemExit(f"FAILED (exit {proc.returncode}): sentri {' '.join(args)}")
