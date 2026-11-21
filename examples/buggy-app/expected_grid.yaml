@@ -1,0 +1,30 @@
+# Expected verdict of every cell when Sentri runs against the buggy app with no FIX_* flags set.
+# The end-to-end test compares the grid exactly.
+signup:
+  empty_input: fail       # blank email -> IndexError -> 500
+  double_submit: fail     # two accounts created
+  expired_session: na     # no login
+  slow_network: pass
+  bad_file: na            # no upload
+  rapid_repeat: fail      # ten accounts created
+create_task:
+  empty_input: pass       # blank title -> handled 400
+  double_submit: pass     # nonce makes the create idempotent
+  expired_session: fail   # KeyError on session -> 500
+  slow_network: fail      # stats fetch aborted -> unhandled rejection in the console
+  bad_file: fail          # 0-byte file -> IndexError -> 500
+  rapid_repeat: fail      # burst of writes -> "database is locked" -> 500
+comment:
+  empty_input: flaky      # fails on exactly one request in three
+  double_submit: pass
+  expired_session: na
+  slow_network: pass
+  bad_file: na
+  rapid_repeat: pass
+profile:
+  empty_input: pass
+  double_submit: pass
+  expired_session: pass   # 401 handled by the page
+  slow_network: pass
+  bad_file: na
+  rapid_repeat: pass

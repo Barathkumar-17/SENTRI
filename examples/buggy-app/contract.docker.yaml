@@ -1,0 +1,50 @@
+# Same contract as contract.yaml, but the app runs in a throwaway Docker container.
+version: 1
+meta:
+  approved_by: "sentri-examples"
+  approved_at: "2026-11-21T00:00:00Z"
+
+app:
+  docker: {context: ".", dockerfile: "Dockerfile", container_port: 5055}
+  port: 5055
+  base_url: "http://127.0.0.1:5055"
+  startup_timeout_s: 120
+  reset: restart
+
+auth:
+  login_flow: login
+
+fixtures:
+  seed_email: "demo@example.test"
+  seed_password: "demo-password"
+
+flows:
+  - id: login
+    start: "/login"
+    attack: false
+    steps:
+      - fill: {selector: "input[name=email]", value: "{seed_email}"}
+      - fill: {selector: "input[name=password]", value: "{seed_password}"}
+      - click: "button[type=submit]"
+    success: {url_contains: "/tasks"}
+  - id: signup
+    description: "User can create an account"
+    start: "/signup"
+    steps:
+      - fill: {selector: "input[name=email]", value: "{email}"}
+      - fill: {selector: "input[name=password]", value: "{password}"}
+      - click: "#signup-btn"
+    success: {url_contains: "/users"}
+    list_selector: "[data-testid=user-row]"
+    list_page: "/users"
+  - id: create_task
+    description: "Logged-in user creates a task and uploads a file"
+    requires_login: true
+    start: "/tasks/new"
+    steps:
+      - fill: {selector: "input[name=title]", value: "{title}"}
+      - upload: {selector: "input[type=file]", file: "{file}"}
+      - click: "button#save"
+    success: {text_visible: "Task created"}
+    list_selector: "[data-testid=task-row]"
+    list_page: "/tasks"

@@ -1,0 +1,78 @@
+# Demo contract for the planted-bug app, in command mode (no Docker needed).
+# For Docker mode, see contract.docker.yaml.
+version: 1
+meta:
+  approved_by: "sentri-examples"
+  approved_at: "2026-11-21T00:00:00Z"
+
+app:
+  run: "{python} app.py"
+  cwd: "."
+  env: {PORT: "5055"}
+  port: 5055
+  base_url: "http://127.0.0.1:5055"
+  startup_timeout_s: 30
+  health_path: "/"
+  reset: restart
+
+auth:
+  login_flow: login
+
+fixtures:
+  seed_email: "demo@example.test"
+  seed_password: "demo-password"
+
+flows:
+  - id: login
+    description: "User can log in"
+    start: "/login"
+    attack: false
+    steps:
+      - fill: {selector: "input[name=email]", value: "{seed_email}"}
+      - fill: {selector: "input[name=password]", value: "{seed_password}"}
+      - click: "button[type=submit]"
+    success: {url_contains: "/tasks"}
+
+  - id: signup
+    description: "User can create an account"
+    start: "/signup"
+    steps:
+      - fill: {selector: "input[name=email]", value: "{email}"}
+      - fill: {selector: "input[name=password]", value: "{password}"}
+      - click: "#signup-btn"
+    success: {url_contains: "/users"}
+    list_selector: "[data-testid=user-row]"
+    list_page: "/users"
+
+  - id: create_task
+    description: "Logged-in user creates a task and uploads a file"
+    requires_login: true
+    start: "/tasks/new"
+    steps:
+      - fill: {selector: "input[name=title]", value: "{title}"}
+      - upload: {selector: "input[type=file]", file: "{file}"}
+      - click: "button#save"
+    success: {text_visible: "Task created"}
+    list_selector: "[data-testid=task-row]"
+    list_page: "/tasks"
+
+  - id: comment
+    description: "Visitor posts a comment"
+    start: "/comments"
+    steps:
+      - fill: {selector: "textarea[name=text]", value: "{text}"}
+      - click: "#comment-btn"
+    success: {text_visible: "Sentri text"}
+    list_selector: "[data-testid=comment-row]"
+    list_page: "/comments"
+
+  - id: profile
+    description: "Logged-in user updates their display name"
+    requires_login: true
+    start: "/profile"
+    steps:
+      - fill: {selector: "input[name=display_name]", value: "{name}"}
+      - click: "#profile-btn"
+    success: {text_visible: "Profile saved"}
+
+attacks_enabled: [empty_input, double_submit, expired_session, slow_network, bad_file, rapid_repeat]
