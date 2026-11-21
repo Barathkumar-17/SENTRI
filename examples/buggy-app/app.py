@@ -302,5 +302,10 @@ def api_profile():
 
 
 if __name__ == "__main__":
+    import socket
+
+    # http.server calls socket.getfqdn() while binding; on some macOS machines (GitHub runners included) the
+    # reverse DNS lookup for 127.0.0.1 takes ~35 s. This demo only binds locally, so skip the lookup.
+    socket.getfqdn = lambda name="": name or "localhost"  # type: ignore[assignment]
     port = int(os.environ.get("PORT", "5055"))
     app.run(host="127.0.0.1" if os.environ.get("BIND_ALL") != "1" else "0.0.0.0", port=port, threaded=True)

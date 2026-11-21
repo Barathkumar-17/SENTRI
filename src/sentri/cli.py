@@ -10,6 +10,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Annotated, Literal, cast
 
@@ -183,6 +184,30 @@ def _check_docker() -> tuple[bool, str]:
         return False, f"daemon not reachable ({str(exc)[:100]}); start Docker Desktop / dockerd"
 
 
+def _check_reverse_dns(limit_s: float = 3.0) -> tuple[bool | None, str]:
+    """Slow reverse DNS for 127.0.0.1 makes Python dev servers (Flask, http.server) start slowly on every reset."""
+    import socket
+    import threading
+
+    result: list[float] = []
+
+    def probe() -> None:
+        t0 = time.monotonic()
+        socket.getfqdn("127.0.0.1")
+        result.append(time.monotonic() - t0)
+
+    thread = threading.Thread(target=probe, daemon=True)
+    thread.start()
+    thread.join(limit_s)
+    if result and result[0] < 1.0:
+        return True, f"reverse lookup of 127.0.0.1 in {result[0]:.2f}s"
+    took = f"{result[0]:.1f}s" if result else f"over {limit_s:g}s"
+    return None, (
+        f"reverse lookup of 127.0.0.1 takes {took}; Flask/http.server dev servers will start that slowly on every "
+        "reset. Fix: make sure /etc/hosts maps 127.0.0.1 to localhost, or bind your dev server without a lookup"
+    )
+
+
 @app.command()
 def doctor(
     llm_provider: ProviderOpt = None,
@@ -198,6 +223,7 @@ def doctor(
         ("Python", py_ok, f"{platform.python_version()} on {platform.system()} {platform.machine()}"),
         ("Chromium", *_check_chromium()),
         ("Docker", *_check_docker()),
+        ("Local DNS", *_check_reverse_dns()),
         (
             "git",
             shutil.which("git") is not None or None,
@@ -219,6 +245,8 @@ def doctor(
         status = "[green]ok[/green]" if ok else ("[yellow]optional[/yellow]" if ok is None else "[red]missing[/red]")
         if name == "Docker" and not ok:
             status = "[yellow]optional[/yellow]"
+        if name == "Local DNS" and ok is None:
+            status = "[yellow]slow[/yellow]"
         table.add_row(name, status, detail)
     console.print(table)
     required_ok = py_ok and rows[1][1]
