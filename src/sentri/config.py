@@ -1,0 +1,49 @@
+"""Runtime settings read from environment variables (see docs/reference/cli.md)."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    return float(raw) if raw not in (None, "") else default
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    return int(raw) if raw not in (None, "") else default
+
+
+@dataclass
+class Settings:
+    db_path: Path = field(default_factory=lambda: Path(os.environ.get("SENTRI_DB", ".sentri/ledger.db")))
+    evidence_dir: Path = field(default_factory=lambda: Path(os.environ.get("SENTRI_EVIDENCE_DIR", "evidence")))
+    live_path: Path = field(default_factory=lambda: Path(".sentri/live.jpg"))
+    api_key: str | None = field(
+        default_factory=lambda: (
+            os.environ.get("SENTRI_LLM_API_KEY")
+            or os.environ.get("LLM_API_KEY")
+            or (
+                os.environ.get("OPENAI_API_KEY")
+                if os.environ.get("SENTRI_LLM_PROVIDER") == "openai_compatible"
+                else os.environ.get("ANTHROPIC_API_KEY")
+            )
+            or None
+        )
+    )
+    llm_provider: str = field(default_factory=lambda: os.environ.get("SENTRI_LLM_PROVIDER", "anthropic"))
+    llm_base_url: str | None = field(default_factory=lambda: os.environ.get("SENTRI_LLM_BASE_URL") or None)
+    model_fast: str = field(default_factory=lambda: os.environ.get("SENTRI_MODEL_FAST", "claude-sonnet-5-5"))
+    model_smart: str = field(default_factory=lambda: os.environ.get("SENTRI_MODEL_SMART", "claude-opus-5-5"))
+    llm_budget_usd: float = field(default_factory=lambda: _env_float("SENTRI_LLM_BUDGET_USD", 1.0))
+    llm_timeout_s: float = field(default_factory=lambda: _env_float("SENTRI_LLM_TIMEOUT_S", 60.0))
+    max_probes_per_flow: int = field(default_factory=lambda: _env_int("SENTRI_MAX_PROBES_PER_FLOW", 2))
+    regression_penalty: int = field(default_factory=lambda: _env_int("SENTRI_REGRESSION_PENALTY", 5))
+    headless: bool = field(default_factory=lambda: os.environ.get("SENTRI_HEADLESS", "1") != "0")
+    bad_file_mb: int = field(default_factory=lambda: _env_int("SENTRI_BAD_FILE_MB", 50))
+    evidence_url: str | None = field(default_factory=lambda: os.environ.get("SENTRI_EVIDENCE_URL"))
+    attempts: int = 3
+    live_view: bool = False

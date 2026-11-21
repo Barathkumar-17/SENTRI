@@ -1,0 +1,27 @@
+# Internal build references (used to build Sentri with AI) stay out of version control.
+# User-facing docs such as README.md are committed.
+/docs/
+/sentri-documentation.md.txt
+/CLAUDE.md
+
+# Environments and caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+/dist/
+/build/
+*.egg-info/
+
+# Sentri runtime output
+.sentri/
+/evidence/
+/contract.draft.yaml
+/report.md
+
+# Temporary contracts written by the integration tests
+examples/buggy-app/.contract-*.yaml
