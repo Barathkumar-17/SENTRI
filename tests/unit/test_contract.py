@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+import copy
+from pathlib import Path
+
+import pytest
+import yaml
+
+from sentri.contract import ContractError, contract_hash, load_contract, parse_contract
+from sentri.contract.loader import approve_contract
+from sentri.contract.placeholders import DataGenerator, tiny_png
+from tests.conftest import BUGGY_APP
+
+
+def test_minimal_contract_defaults(minimal_contract):
+    c = parse_contract(minimal_contract)
+    assert c.app.url == "http://localhost:5055"
+    assert c.attacks_enabled == [
+        "empty_input",
+        "double_submit",
+        "expired_session",
+        "slow_network",
+        "bad_file",
+        "rapid_repeat",
+    ]
+    assert c.defaults.action_timeout_s == 10
+    assert not c.approved
+    assert c.flows[0].submit_index() == 1
+
+
+def test_example_contracts_validate():
+    for name in ("contract.yaml", "contract.docker.yaml"):
+        c = load_contract(BUGGY_APP / name)
+        assert c.approved
+        assert c.flow("create_task").expected_creates == 1  # default when list_selector is set
+
+
+@pytest.mark.parametrize(
+    "mutate, message",
+    [
+        (lambda d: d.pop("version"), "version"),
+        (lambda d: d["app"].update(docker={"context": "."}), "exactly one of app.docker or app.run"),
+        (lambda d: d["app"].update(port=70000), "port"),
+        (lambda d: d["flows"][0].update(id="Bad-Id"), "flow id"),
+        (lambda d: d["flows"][0]["steps"].pop(), "submit step"),
+        (lambda d: d["flows"][0].update(success={}), "success needs"),
+        (lambda d: d["flows"][0]["steps"].append({"teleport": "x"}), "unknown step"),
+        (lambda d: d["flows"][0]["steps"].insert(0, {"fill": {"selector": "x"}}), "value is required"),
+        (lambda d: d["flows"][0].update(requires_login=True), "auth.login_flow"),
+        (lambda d: d["flows"][0]["steps"][0]["fill"].update(value="{nope}"), "unknown placeholders"),
+        (lambda d: d.update(attacks_enabled=["teleport"]), "attacks_enabled"),
+        (lambda d: d["flows"].append(copy.deepcopy(d["flows"][0])), "duplicate flow ids"),
+        (lambda d: d["app"].update(ignore_console=["("]), "invalid regex"),
+        (lambda d: d["app"].update(reset="command"), "reset_command"),
+    ],
+)
+def test_validation_errors(minimal_contract, mutate, message):
+    mutate(minimal_contract)
+    with pytest.raises(ContractError) as exc:
+        parse_contract(minimal_contract)
+    assert any(message in e for e in exc.value.errors), exc.value.errors
+
+
+def test_error_paths_point_at_yaml_location(minimal_contract):
+    minimal_contract["flows"][0]["steps"][0] = {"fill": {"selector": "x"}}
+    with pytest.raises(ContractError) as exc:
+        parse_contract(minimal_contract)
+    assert exc.value.errors[0].startswith("flows[0].steps[0]")
+
+
+def test_contract_hash_ignores_approval(minimal_contract):
+    a = parse_contract(minimal_contract)
+    minimal_contract["meta"] = {"approved_by": "x", "approved_at": "y"}
+    b = parse_contract(minimal_contract)
+    assert contract_hash(a) == contract_hash(b)
+
+
+def test_approve_stamps_meta(tmp_path: Path, minimal_contract):
+    src = tmp_path / "draft.yaml"
+    src.write_text(yaml.safe_dump(minimal_contract))
+    out = tmp_path / "contract.yaml"
+    approve_contract(src, "alice", out)
+    assert load_contract(out).approved
+
+
+def test_generator_is_deterministic_and_unique(tmp_path: Path):
+    a = DataGenerator(42, {}, tmp_path, "r1-1")
+    b = DataGenerator(42, {}, tmp_path, "r1-1")
+    c = DataGenerator(43, {}, tmp_path, "r1-2")
+    assert a.resolve("{email}") == b.resolve("{email}")
+    assert a.resolve("{email}") != c.resolve("{email}")
+    assert a.resolve("{email}") == a.resolve("{email}")  # stable within one attempt
+    assert DataGenerator(1, {"password": "pinned"}, tmp_path, "t").resolve("{password}") == "pinned"
+    path = Path(a.resolve("{file}"))
+    assert path.read_bytes() == tiny_png()
+    assert tiny_png().startswith(b"\x89PNG")
