@@ -1,0 +1,115 @@
+from __future__ import annotations
+
+from sentri.evidence.models import ConsoleRecord, Evidence, HttpRecord, LogLine
+from sentri.verdict import oracles
+from sentri.verdict.oracles import OracleConfig, evaluate_all
+
+
+def http(url="http://localhost:5055/api/x", method="POST", status=200, same=True, started=0.0, body="b", **kw):
+    return HttpRecord(url, method, status, 10.0, started, body, same, **kw)
+
+
+def cfg(attack="empty_input", **kw):
+    return OracleConfig(flow_id="f", attack_id=attack, ignore_console=(r"favicon\.ico",), **kw)
+
+
+TRACE = [
+    "[2026] ERROR in app: Exception on /api/signup [POST]",
+    "Traceback (most recent call last):",
+    '  File "/app/app.py", line 93, in api_signup',
+    '    domain = email.split("@")[1]',
+    "             ~~~~~~~~~~~~~~~~^^^",
+    "IndexError: list index out of range",
+    "",
+]
+
+
+def logs(lines):
+    return tuple(LogLine("t", "stderr", line) for line in lines)
+
+
+def test_http_500_same_origin_only():
+    assert oracles.http_500(Evidence(http=(http(status=503),)), cfg()).fired
+    assert not oracles.http_500(Evidence(http=(http(status=500, same=False),)), cfg()).fired
+    assert not oracles.http_500(Evidence(http=(http(status=404),)), cfg()).fired
+    r = oracles.http_500(Evidence(http=(http(url="http://localhost:5055/tasks/123/edit", status=500),)), cfg())
+    assert r.route == "POST /tasks/:id/edit" and r.error_key == "500"
+
+
+def test_exception_extracts_exception_line():
+    r = oracles.exception(Evidence(logs=logs(TRACE)), cfg())
+    assert r.fired
+    assert r.error_key == "indexerror: list index out of range"
+    assert not oracles.exception(Evidence(logs=logs(['127.0.0.1 "POST /x" 500 -'])), cfg()).fired
+
+
+def test_exception_extra_patterns():
+    ev = Evidence(logs=logs(["boom: custom failure"]))
+    assert not oracles.exception(ev, cfg()).fired
+    assert oracles.exception(ev, cfg(extra_log_patterns=(r"^boom:",))).fired
+
+
+def test_console_error_rules():
+    fav = ConsoleRecord("console_error", "Failed to load resource", "http://localhost:5055/favicon.ico")
+    four = ConsoleRecord("console_error", "Failed to load resource: the server responded with a status of 401 ()")
+    five = ConsoleRecord("console_error", "Failed to load resource: the server responded with a status of 500 ()")
+    page = ConsoleRecord("page_error", "AbortError: signal is aborted without reason")
+    assert not oracles.console_error(Evidence(console=(fav, four)), cfg()).fired
+    assert oracles.console_error(Evidence(console=(five,)), cfg()).fired
+    assert oracles.console_error(Evidence(console=(page,)), cfg()).fired
+
+
+def test_duplicates_only_for_duplicate_attacks():
+    ev = Evidence(list_count_before=1, list_count_after=3, duplicate_method="list_selector")
+    assert not oracles.duplicates(ev, cfg("empty_input")).fired
+    assert oracles.duplicates(ev, cfg("double_submit", expected_creates=1)).fired
+    ok = Evidence(list_count_before=1, list_count_after=2, duplicate_method="list_selector")
+    assert not oracles.duplicates(ok, cfg("double_submit", expected_creates=1)).fired
+
+
+def test_duplicates_post_heuristic():
+    two = (http(started=0), http(started=80))
+    assert oracles.duplicates(Evidence(http=two), cfg("double_submit", expected_creates=1)).fired
+    far = (http(started=0), http(started=1500))
+    assert not oracles.duplicates(Evidence(http=far), cfg("double_submit", expected_creates=1)).fired
+    diff_body = (http(started=0, body="a"), http(started=80, body="b"))
+    assert not oracles.duplicates(Evidence(http=diff_body), cfg("double_submit", expected_creates=1)).fired
+
+
+def test_duplicates_rapid_repeat_needs_text_confirmation():
+    posts = tuple(http(started=i * 100) for i in range(10))
+    assert not oracles.duplicates(Evidence(http=posts), cfg("rapid_repeat", expected_creates=1)).fired
+    ev = Evidence(http=posts, page_text_rows=("Item X", "Item X"), unique_values=("Item X",))
+    assert oracles.duplicates(ev, cfg("rapid_repeat", expected_creates=1)).fired
+
+
+def test_duplicates_text_heuristic():
+    ev = Evidence(page_text_rows=("a@x.test", "b", "a@x.test"), unique_values=("a@x.test",))
+    assert oracles.duplicates(ev, cfg("double_submit", expected_creates=1)).fired
+
+
+def test_timeout_rules():
+    assert oracles.timeout(Evidence(timed_out=True, timeout_detail="no response within 10s: POST /x"), cfg()).fired
+    assert oracles.timeout(Evidence(page_crashed=True), cfg()).error_key == "crash"
+    failed = http(status=None, failed=True, failure="net::ERR_TIMED_OUT")
+    assert oracles.timeout(Evidence(http=(failed,)), cfg()).fired
+    aborted = http(status=None, failed=True, failure="net::ERR_ABORTED")
+    assert not oracles.timeout(Evidence(http=(aborted,)), cfg()).fired
+
+
+def test_evaluate_all_is_deterministic():
+    ev = Evidence(http=(http(status=500),), logs=logs(TRACE))
+    assert evaluate_all(ev, cfg()) == evaluate_all(ev, cfg())
+    assert [r.oracle_id for r in evaluate_all(ev, cfg())] == list(oracles.ORACLE_IDS)
+
+
+def test_evidence_round_trip():
+    ev = Evidence(http=(http(),), console=(ConsoleRecord("page_error", "x"),), logs=logs(["a"]), timed_out=True)
+    assert Evidence.from_dict(ev.to_dict()) == ev
+
+
+def test_duplicates_needs_a_create_hint():
+    """Two identical profile saves are an idempotent update, not a duplicate record."""
+    two = (http(started=0), http(started=80))
+    r = oracles.duplicates(Evidence(http=two), cfg("double_submit"))
+    assert not r.fired and "not checked" in r.detail
