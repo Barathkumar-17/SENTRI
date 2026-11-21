@@ -1,0 +1,69 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    name: lint, types, unit (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests scripts examples
+      - run: ruff format --check src tests scripts examples
+      - run: mypy src
+      - run: pytest
+
+  e2e:
+    name: end to end (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install -e ".[dev]"
+      - run: sentri setup ${{ runner.os == 'Linux' && '--with-deps' || '' }}
+      - run: python scripts/smoke_test.py
+      - run: pytest -m integration tests/integration
+        env:
+          CI: "1"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-evidence-${{ matrix.os }}
+          path: |
+            evidence/
+            ${{ runner.temp }}/sentri-*/
+          if-no-files-found: ignore
+
+  docker:
+    name: docker sandbox
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install -e ".[dev]"
+      - run: sentri setup --with-deps
+      - run: >
+          sentri run --contract examples/buggy-app/contract.docker.yaml --no-llm
+          --only signup:empty_input --only create_task:bad_file --out report.md
+      - run: cat report.md

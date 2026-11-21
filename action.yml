@@ -1,0 +1,94 @@
+name: Sentri
+description: Attack the app in this repo like a hostile user and comment the readiness score on the pull request.
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  contract:
+    description: Path to the approved contract file.
+    default: contract.yaml
+  base-branch:
+    description: Branch whose ledger and score the pull request is compared against.
+    default: main
+  fail-under:
+    description: Fail the check when the readiness score is below this number (empty = report only).
+    default: ""
+  fail-on-regression:
+    description: Fail the check when a fixed bug comes back ("true" or "false").
+    default: "false"
+  llm-provider:
+    description: anthropic, openai_compatible or none.
+    default: anthropic
+  llm-base-url:
+    description: Base URL for openai_compatible providers.
+    default: ""
+  model:
+    description: Model for payloads and probes (empty = provider default).
+    default: ""
+  python-version:
+    description: Python used to run Sentri.
+    default: "3.14"
+
+outputs:
+  report:
+    description: Path of the generated report.md.
+    value: ${{ steps.run.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - shell: bash
+      run: |
+        pip install "sentri @ git+https://github.com/Barathkumar-17/SENTRI.git@${{ github.action_ref || 'main' }}"
+        sentri setup --with-deps
+    - name: Restore ledger
+      uses: actions/cache/restore@v4
+      with:
+        path: .sentri/ledger.db
+        key: sentri-ledger-${{ inputs.base-branch }}-${{ github.run_id }}
+        restore-keys: |
+          sentri-ledger-${{ inputs.base-branch }}-
+    - id: run
+      shell: bash
+      env:
+        SENTRI_LLM_PROVIDER: ${{ inputs.llm-provider }}
+        SENTRI_LLM_BASE_URL: ${{ inputs.llm-base-url }}
+        SENTRI_EVIDENCE_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        args=(--contract "${{ inputs.contract }}" --commit "${{ github.sha }}"
+              --branch "${{ github.head_ref || github.ref_name }}" --base-branch "${{ inputs.base-branch }}"
+              --out report.md)
+        [ -n "${{ inputs.model }}" ] && args+=(--model "${{ inputs.model }}")
+        [ -n "${{ inputs.fail-under }}" ] && args+=(--fail-under "${{ inputs.fail-under }}")
+        [ "${{ inputs.fail-on-regression }}" = "true" ] && args+=(--fail-on-regression)
+        set +e
+        sentri run "${args[@]}"
+        code=$?
+        echo "report=report.md" >> "$GITHUB_OUTPUT"
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+        exit 0
+    - name: Save ledger (base branch pushes only)
+      if: github.event_name == 'push' && github.ref_name == inputs.base-branch
+      uses: actions/cache/save@v4
+      with:
+        path: .sentri/ledger.db
+        key: sentri-ledger-${{ inputs.base-branch }}-${{ github.run_id }}
+    - name: Comment on the pull request
+      if: github.event_name == 'pull_request'
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: sentri
+        path: report.md
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: sentri-evidence
+        path: evidence/
+        if-no-files-found: ignore
+    - name: Apply gate
+      shell: bash
+      run: exit ${{ steps.run.outputs.exit_code }}

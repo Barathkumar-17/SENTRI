@@ -1,0 +1,24 @@
+# Copy to .github/workflows/sentri.yml in the app's repo.
+# Report only by default: the PR gets the score comment and evidence; nothing fails.
+# Opt in to gating with `fail-under: "80"` or `fail-on-regression: "true"`.
+name: Sentri
+on:
+  pull_request:
+  push:
+    branches: [main] # keeps the main-branch ledger and base score current
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  attack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Barathkumar-17/SENTRI@main
+        with:
+          contract: contract.yaml
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }} # optional; without it Sentri uses static payloads
