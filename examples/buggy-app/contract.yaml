@@ -11,7 +11,7 @@ app:
   env: {PORT: "5055"}
   port: 5055
   base_url: "http://127.0.0.1:5055"
-  startup_timeout_s: 30
+  startup_timeout_s: 60
   health_path: "/"
   reset: restart
 

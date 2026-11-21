@@ -61,8 +61,10 @@ class Sandbox(Protocol):
     def log_tail(self, n: int = 40) -> list[LogLine]: ...
 
 
-async def wait_for_port(host: str, port: int, deadline: float) -> None:
+async def wait_for_port(host: str, port: int, deadline: float, alive: object = None) -> None:
     while time.monotonic() < deadline:
+        if callable(alive) and not alive():
+            raise SandboxError("app process exited before opening its port")
         try:
             _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=1)
             writer.close()

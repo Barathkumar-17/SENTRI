@@ -156,7 +156,8 @@ class EvidenceCollector:
             oldest = min(pending, key=lambda p: p.started)
             age_s = (self._now_ms() - oldest.started) / 1000
             if age_s > hang_timeout_s:
-                self.mark_timeout(f"no response within {hang_timeout_s:g}s: {oldest.method} {urlsplit(oldest.url).path}")
+                path = urlsplit(oldest.url).path
+                self.mark_timeout(f"no response within {hang_timeout_s:g}s: {oldest.method} {path}")
                 return
             await asyncio.sleep(0.1)
 

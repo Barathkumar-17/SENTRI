@@ -39,6 +39,15 @@ jobs:
           python-version: "3.14"
       - run: pip install -e ".[dev]"
       - run: sentri setup ${{ runner.os == 'Linux' && '--with-deps' || '' }}
+      - name: demo app starts
+        shell: bash
+        working-directory: examples/buggy-app
+        run: |
+          PORT=5099 PYTHONUNBUFFERED=1 python app.py > app.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:5099/ && break; sleep 1; done
+          cat app.log
+          curl -sf -o /dev/null http://127.0.0.1:5099/ && echo "demo app answered after ${i}s"
+          kill %1 || true
       - run: python scripts/smoke_test.py
       - run: pytest -m integration tests/integration
         env:

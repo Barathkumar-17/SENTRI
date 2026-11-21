@@ -76,7 +76,7 @@ class CommandSandbox:
         self._spawn()
         deadline = time.monotonic() + self.app.startup_timeout_s
         try:
-            await wait_for_port(self._host, self._port, deadline)
+            await wait_for_port(self._host, self._port, deadline, alive=self.is_alive)
             await wait_for_health(self.base_url + self.app.health_path, deadline, alive=self.is_alive)
         except SandboxError as exc:
             tail = "\n".join(line.text for line in self.logs.tail(20))
