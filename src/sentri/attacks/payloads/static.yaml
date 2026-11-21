@@ -1,0 +1,18 @@
+# Static fallback payloads, used when the model is unavailable or proposes an invalid value.
+# Index is rotated by how many times the cell has run, so fallback runs vary but stay deterministic.
+empty_input:
+  blank: ["", " ", "\t", "\n", "   ​"]
+expired_session:
+  point: ["before_submit"]
+slow_network:
+  action: ["submit", "submit_then_reload"]
+bad_file:
+  shape: ["zero_byte", "corrupt", "wrong_extension", "oversized", "weird_name"]
+  filename:
+    - "empty.png"
+    - "../../etc/passwd.png"
+    - "résumé final (1).png"
+    - "con.png"
+    - "a_very_long_name_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png"
+rapid_repeat:
+  action: ["submit", "reload_submit"]
