@@ -163,3 +163,31 @@ async def test_the_same_break_is_flagged_once_and_exploration_continues():
     assert len(result.candidates) == 1  # one break, not one per step
     assert result.steps == 5 and result.stopped.startswith("model finished")  # the cap never stops exploring
     assert explorer.flagged and "already_flagged" in explorer._request(6, None, 60)
+
+
+async def test_contract_console_ignores_apply_during_exploration():
+    from sentri.evidence.models import ConsoleRecord
+    from sentri.verdict.oracles import OracleConfig
+
+    class Noisy(FakeSession):
+        def agent_evidence_since(self, mark, count_probes=(), health_probes=()):
+            noise = (ConsoleRecord("console_error", "analytics beacon failed"),)
+            return AgentEvidence(base=Evidence(console=noise))
+
+    async def explore(cfg):
+        steps: list[dict] = []
+        explorer = Explorer(
+            Noisy(),
+            BudgetedProvider(ScriptedModel([d("wait", ms=1), d("finish")]), 1, 5),
+            STRATEGY,
+            AppMap(base_url="http://127.0.0.1"),
+            ExploreBudget(max_steps=3),
+            steps.append,
+            oracle_cfg=cfg,
+        )
+        await explorer.run()
+        return steps[0]["signals"]
+
+    assert [s["oracle_id"] for s in await explore(None)] == ["console_error"]
+    ignored = OracleConfig(flow_id="agentic", attack_id="explore", ignore_console=(r"analytics beacon",))
+    assert await explore(ignored) == []
