@@ -81,6 +81,7 @@ class CommandSandbox:
     async def start(self) -> None:
         if not await wait_for_port_closed(self._host, self._port, timeout_s=5):
             raise SandboxError(f"port {self._port} is already in use by another process")
+        self._clean()
         self._spawn()
         deadline = time.monotonic() + self.app.startup_timeout_s
         try:
@@ -90,6 +91,16 @@ class CommandSandbox:
             tail = "\n".join(line.text for line in self.logs.tail(20))
             await self.stop()
             raise SandboxError(f"{exc}\n--- app log tail ---\n{tail}") from None
+
+    def _clean(self) -> None:
+        """Delete the contract's app.clean files (e.g. a SQLite database) for a clean, seeded state."""
+        for rel in self.app.clean:
+            target = (self.workdir / rel).resolve()
+            if not target.is_relative_to(self.workdir):
+                raise SandboxError(f"app.clean path {rel!r} is outside the app directory")
+            for path in (target, *target.parent.glob(target.name + "-*")):  # also SQLite -wal / -shm files
+                with contextlib.suppress(FileNotFoundError):
+                    path.unlink()
 
     def _kill_tree(self) -> None:
         proc = self._proc

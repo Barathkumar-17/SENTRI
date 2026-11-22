@@ -48,6 +48,8 @@ class DataGenerator:
             v = self.fixtures[name]
         elif name == "email":
             v = f"sentri+{self.tag}-{self._token()}@example.test"
+        elif name == "username":
+            v = f"sentri_{self.tag}_{self._token()}"[:30]  # letters, digits, _ and - only
         elif name == "password":
             v = f"Pw-{self._token()}-{self.rng.randint(100, 999)}!"
         elif name == "title":
@@ -76,6 +78,16 @@ class DataGenerator:
 
     def resolve(self, text: str) -> str:
         return PLACEHOLDER_RE.sub(lambda m: self.value(m.group(1)), text)
+
+    def resolve_obj(self, obj: object) -> object:
+        """Resolve placeholders in every string of a JSON-like structure."""
+        if isinstance(obj, str):
+            return self.resolve(obj)
+        if isinstance(obj, dict):
+            return {k: self.resolve_obj(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [self.resolve_obj(v) for v in obj]
+        return obj
 
     def unique_values(self) -> list[str]:
         """Generated values that should appear once in the app after one create (for duplicate checks)."""

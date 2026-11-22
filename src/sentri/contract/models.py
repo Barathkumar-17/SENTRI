@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 ATTACK_IDS = ("empty_input", "double_submit", "expired_session", "slow_network", "bad_file", "rapid_repeat")
 STEP_KINDS = ("fill", "click", "upload", "select", "press", "wait_for", "goto")
 BUILTIN_PLACEHOLDERS = frozenset(
-    {"email", "password", "title", "name", "text", "number", "file", "seed_email", "seed_password"}
+    {"email", "password", "username", "title", "name", "text", "number", "file", "seed_email", "seed_password"}
 )
 PLACEHOLDER_RE = re.compile(r"\{([a-z_][a-z0-9_]*)\}")
 
@@ -110,6 +110,7 @@ class AppConfig(_Strict):
     health_path: str = "/"
     reset: Literal["restart", "command"] = "restart"
     reset_command: str | None = None
+    clean: list[str] = Field(default_factory=list)  # files deleted before every start (e.g. a SQLite db)
     log_patterns_extra: list[str] = Field(default_factory=list)
     ignore_console: list[str] = Field(default_factory=lambda: [r"favicon\.ico"])
 
@@ -190,8 +191,41 @@ class Meta(_Strict):
     approved_at: str | None = None
 
 
+class ApiStep(_Strict):
+    method: Literal["POST", "PUT", "GET"] = "POST"
+    path: str
+    json_body: dict[str, Any] | None = Field(default=None, alias="json")
+
+    def placeholders(self) -> set[str]:
+        return set(PLACEHOLDER_RE.findall(str(self.json_body or "")))
+
+
+class ApiAuth(_Strict):
+    """Token login over HTTP: each identity registers (and/or logs in) its own fresh account and sends the
+    returned token on every request."""
+
+    register: ApiStep | None = None
+    login: ApiStep | None = None
+    token_field: str = "token"  # dotted path into the JSON response, e.g. "data.access_token"
+    header: str = "Authorization"
+    scheme: str = "Bearer"
+
+    @model_validator(mode="after")
+    def _check(self) -> ApiAuth:
+        if self.register is None and self.login is None:
+            raise ValueError("auth.api needs register and/or login")
+        return self
+
+
 class AuthConfig(_Strict):
-    login_flow: str
+    login_flow: str | None = None  # a browser flow that logs in
+    api: ApiAuth | None = None  # or token login over HTTP
+
+    @model_validator(mode="after")
+    def _one(self) -> AuthConfig:
+        if (self.login_flow is None) == (self.api is None):
+            raise ValueError("auth needs exactly one of login_flow or api")
+        return self
 
 
 class DuplicateDb(_Strict):
@@ -206,7 +240,7 @@ class Contract(_Strict):
     auth: AuthConfig | None = None
     fixtures: dict[str, str] = Field(default_factory=dict)
     defaults: Defaults = Field(default_factory=Defaults)
-    flows: list[Flow] = Field(min_length=1)
+    flows: list[Flow] = Field(default_factory=list)  # may be empty for API-only apps (agentic mode only)
     attacks_enabled: list[AttackId] = Field(default_factory=lambda: list(ATTACK_IDS))  # type: ignore[arg-type]
     duplicate_db: DuplicateDb | None = None
 
@@ -216,18 +250,23 @@ class Contract(_Strict):
         dupes = {i for i in ids if ids.count(i) > 1}
         if dupes:
             raise ValueError(f"duplicate flow ids: {sorted(dupes)}")
-        if any(f.requires_login for f in self.flows):
-            if self.auth is None:
-                raise ValueError("flows with requires_login need auth.login_flow")
-            if self.auth.login_flow not in ids:
-                raise ValueError(f"auth.login_flow '{self.auth.login_flow}' is not a flow id")
+        if any(f.requires_login for f in self.flows) and self.auth is None:
+            raise ValueError("flows with requires_login need auth (login_flow or api)")
+        if self.auth is not None and self.auth.login_flow is not None and self.auth.login_flow not in ids:
+            raise ValueError(f"auth.login_flow '{self.auth.login_flow}' is not a flow id")
         known = BUILTIN_PLACEHOLDERS | set(self.fixtures)
         for flow in self.flows:
             for step in flow.steps:
                 unknown = step.placeholders() - known
                 if unknown:
                     raise ValueError(f"flow '{flow.id}': unknown placeholders {sorted(unknown)}")
-        if not any(f.attack for f in self.flows):
+        if self.auth is not None and self.auth.api is not None:
+            for api_step in (self.auth.api.register, self.auth.api.login):
+                if api_step is not None:
+                    unknown = api_step.placeholders() - known
+                    if unknown:
+                        raise ValueError(f"auth.api: unknown placeholders {sorted(unknown)}")
+        if self.flows and not any(f.attack for f in self.flows):
             raise ValueError("at least one flow must have attack: true")
         return self
 

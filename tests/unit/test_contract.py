@@ -47,7 +47,7 @@ def test_example_contracts_validate():
         (lambda d: d["flows"][0].update(success={}), "success needs"),
         (lambda d: d["flows"][0]["steps"].append({"teleport": "x"}), "unknown step"),
         (lambda d: d["flows"][0]["steps"].insert(0, {"fill": {"selector": "x"}}), "value is required"),
-        (lambda d: d["flows"][0].update(requires_login=True), "auth.login_flow"),
+        (lambda d: d["flows"][0].update(requires_login=True), "need auth"),
         (lambda d: d["flows"][0]["steps"][0]["fill"].update(value="{nope}"), "unknown placeholders"),
         (lambda d: d.update(attacks_enabled=["teleport"]), "attacks_enabled"),
         (lambda d: d["flows"].append(copy.deepcopy(d["flows"][0])), "duplicate flow ids"),
@@ -95,3 +95,47 @@ def test_generator_is_deterministic_and_unique(tmp_path: Path):
     path = Path(a.resolve("{file}"))
     assert path.read_bytes() == tiny_png()
     assert tiny_png().startswith(b"\x89PNG")
+
+
+def test_api_auth_and_api_only_contracts(minimal_contract):
+    api_only = {
+        "version": 1,
+        "app": {"run": "x", "port": 8000, "clean": ["budget.db"]},
+        "auth": {
+            "api": {
+                "register": {"path": "/auth/register", "json": {"username": "{username}", "password": "{password}"}}
+            }
+        },
+    }
+    c = parse_contract(api_only)
+    assert c.flows == [] and c.auth.api.token_field == "token" and c.app.clean == ["budget.db"]
+    bad = {**api_only, "auth": {"api": {"register": {"path": "/r", "json": {"u": "{nope}"}}}}}
+    with pytest.raises(ContractError, match="unknown placeholders"):
+        parse_contract(bad)
+    with pytest.raises(ContractError, match="register and/or login"):
+        parse_contract({**api_only, "auth": {"api": {}}})
+    with pytest.raises(ContractError, match="exactly one"):
+        parse_contract({**api_only, "auth": {"api": api_only["auth"]["api"], "login_flow": "x"}})
+
+
+def test_username_placeholder_fits_strict_rules(tmp_path: Path):
+    import re
+
+    gen = DataGenerator(7, {}, tmp_path, "r12-3")
+    name = gen.resolve("{username}")
+    assert re.fullmatch(r"[A-Za-z0-9_.-]{3,30}", name)
+    assert gen.resolve_obj({"u": "{username}", "n": [1, "{username}"]}) == {"u": name, "n": [1, name]}
+
+
+def test_clean_files_stay_inside_the_app(tmp_path: Path):
+    from sentri.contract.models import AppConfig
+    from sentri.sandbox import CommandSandbox
+    from sentri.sandbox.base import SandboxError
+
+    (tmp_path / "budget.db").write_text("x")
+    (tmp_path / "budget.db-wal").write_text("x")
+    CommandSandbox(AppConfig.model_validate({"run": "x", "port": 1, "clean": ["budget.db"]}), tmp_path)._clean()
+    assert not (tmp_path / "budget.db").exists() and not (tmp_path / "budget.db-wal").exists()
+    escape = CommandSandbox(AppConfig.model_validate({"run": "x", "port": 1, "clean": ["../outside.db"]}), tmp_path)
+    with pytest.raises(SandboxError):
+        escape._clean()
