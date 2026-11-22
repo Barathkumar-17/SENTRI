@@ -93,6 +93,7 @@ class RunOrchestrator:
         self._last_outcome: CheckOutcome | None = None
         self.on_run_created = on_run_created  # UI jobs learn the run id as soon as it exists
         self.run_id: int | None = None
+        self.coverage: dict[str, Any] | None = None  # measured exploration coverage + completion (agentic phase)
 
     # ---- grid ---------------------------------------------------------------------------------------
     def build_grid(self) -> list[Cell]:
@@ -170,6 +171,20 @@ class RunOrchestrator:
         except SandboxError as exc:
             return self._abort(run_id, bus, started, f"app failed to start: {exc}")
 
+        if c.duplicate_db is not None:
+            bus.emit(
+                "warning",
+                "duplicate_db is ignored: verdicts are black-box, so duplicates are counted on the list page "
+                "(list_selector / list_page), not in the database",
+            )
+        reset_kind = getattr(sandbox, "reset_kind", "restart")
+        bus.emit(
+            "replay_state",
+            "attempts start from a restarted app (server-side state outside app.clean survives)"
+            if reset_kind == "restart"
+            else "URL mode: Sentri cannot reset the app; attempts and replays run on its live state",
+            reset_kind=reset_kind,
+        )
         shots: asyncio.Task[None] | None = None
         try:
             await browser.start()
@@ -204,7 +219,6 @@ class RunOrchestrator:
                     )
                     agentic = await run_agentic(
                         contract=c,
-                        workdir=self.workdir,
                         sandbox=sandbox,
                         browser=browser,
                         provider=self.provider,
@@ -299,9 +313,11 @@ class RunOrchestrator:
             status,
             breakdown.score if breakdown else None,
             round(time.monotonic() - started, 2),
-            round(self.provider.spent_usd, 6),
+            round(self.provider.spent_usd, 6) if self.provider.cost_known else None,
             mode,
             breakdown.__dict__ if breakdown else None,
+            usage=self.provider.usage(),
+            coverage=self.coverage,
         )
 
     def _score(self, run_id: int, regressions: int, agentic_ran: bool = False) -> ScoreBreakdown:

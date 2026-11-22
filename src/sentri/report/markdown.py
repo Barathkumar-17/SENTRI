@@ -25,6 +25,26 @@ def _grid(rows: list[Any]) -> tuple[list[str], list[str], dict[tuple[str, str], 
     return flows, attacks, cells
 
 
+def _cost(value: float | None, digits: int = 2) -> str:
+    """None means a model without a known price was used: the cost is unknown, never $0."""
+    return "cost unknown" if value is None else f"${value:.{digits}f}"
+
+
+def _usage_line(usage: dict[str, Any]) -> str:
+    if not usage or not usage.get("calls"):
+        return ""
+    roles = ", ".join(f"{r} {u['calls']}" for r, u in (usage.get("roles") or {}).items())
+    line = (
+        f"Model use: {usage['calls']} calls ({roles}), {usage['input_tokens']} input + {usage['output_tokens']} output "
+        f"tokens, {usage.get('retries', 0)} retries, {_cost(usage.get('cost_usd'), 4)}"
+    )
+    if usage.get("unpriced_calls"):
+        line += f" ({usage['unpriced_calls']} calls to a model without a known price)"
+    if usage.get("stop_reason"):
+        line += f" · stopped: {usage['stop_reason']}"
+    return line
+
+
 def _fmt_duration(seconds: float | None) -> str:
     if not seconds:
         return "0s"
@@ -125,8 +145,11 @@ def build_report(ledger: Ledger, run_id: int, base_branch: str | None = "main", 
     lines.append(
         f"Flaky: {breakdown.get('flaky', 0)} · N/A: {breakdown.get('na', 0)} · Errors: {breakdown.get('errors', 0)}"
         f" · Reused: {reused} · Probes: {len(probes)} ({probe_fails} fail)"
-        f" · LLM: {run['llm_mode']}, ${run['llm_cost_usd'] or 0:.2f} · Duration: {_fmt_duration(run['duration_s'])}"
+        f" · LLM: {run['llm_mode']}, {_cost(run['llm_cost_usd'])} · Duration: {_fmt_duration(run['duration_s'])}"
     )
+    usage_line = _usage_line(json.loads(run["usage"] or "{}"))
+    if usage_line:
+        lines.append(usage_line)
     if evidence_url:
         lines.append(f"Evidence: {evidence_url}")
     return "\n".join(lines) + "\n"
@@ -140,6 +163,6 @@ def efficiency_table(ledger: Ledger, limit: int = 20) -> str:
         reused = sum(1 for r in rows if r["reused_from_check_id"])
         lines.append(
             f"| {run['id']} | {(run['commit_sha'] or '')[:7]} | {_fmt_duration(run['duration_s'])} | "
-            f"{run['llm_cost_usd'] or 0:.3f} | {ran} | {reused} |"
+            f"{_cost(run['llm_cost_usd'], 3)} | {ran} | {reused} |"
         )
     return "\n".join(lines) + "\n"

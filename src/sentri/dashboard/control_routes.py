@@ -80,8 +80,8 @@ class PlanRequest(BaseModel):
     path: str
     run: str | None = None
     dockerfile: str | None = None
-    port: int = Field(ge=1, le=65535)
-    readme: str | None = None
+    port: int = Field(default=5000, ge=1, le=65535)
+    url: str | None = None  # URL mode: an app that is already running (run/dockerfile then omitted)
     model: ModelSelection | None = None
 
 
@@ -194,8 +194,8 @@ def register(app: FastAPI, state: ControlState) -> None:
         root = Path(body.path).expanduser().resolve()
         if not root.is_dir():
             raise HTTPException(404, f"{root} is not a folder")
-        if (body.run is None) == (body.dockerfile is None):
-            raise HTTPException(422, "give exactly one of run or dockerfile")
+        if sum(x is not None for x in (body.run, body.dockerfile, body.url)) != 1:
+            raise HTTPException(422, "give exactly one of run, dockerfile or url")
         try:
             settings, enabled = state.settings_for_job(body.model)
         except ValueError as exc:
@@ -205,22 +205,22 @@ def register(app: FastAPI, state: ControlState) -> None:
             from sentri.contract.models import AppConfig
             from sentri.llm import make_provider
             from sentri.planner import plan as run_plan
-            from sentri.planner import read_readme
             from sentri.runner.browser import BrowserManager
             from sentri.sandbox import make_sandbox
 
-            section: dict[str, Any] = {"port": body.port, "base_url": f"http://127.0.0.1:{body.port}"}
+            section: dict[str, Any] = (
+                {"base_url": body.url} if body.url else {"port": body.port, "base_url": f"http://127.0.0.1:{body.port}"}
+            )
             if body.run:
                 section["run"] = body.run
-            else:
+            elif body.dockerfile:
                 section["docker"] = {"context": ".", "dockerfile": body.dockerfile}
             sandbox = make_sandbox(AppConfig.model_validate(section), root)
             provider = make_provider(settings, enabled)
-            readme = read_readme(Path(body.readme) if body.readme else root / "README.md")
             await sandbox.start()
             try:
                 async with BrowserManager(headless=settings.headless) as browser:
-                    result = await run_plan(browser, provider, section, readme, sandbox)
+                    result = await run_plan(browser, provider, section, sandbox)
             finally:
                 await sandbox.stop()
             draft = root / "contract.draft.yaml"
@@ -231,7 +231,8 @@ def register(app: FastAPI, state: ControlState) -> None:
                 "source": result.source,
                 "unverified": result.unverified,
                 "errors": result.errors,
-                "llm_cost_usd": provider.spent_usd,
+                "llm_cost_usd": provider.spent_usd if provider.cost_known else None,
+                "usage": provider.usage(),
             }
 
         return state.jobs.start("plan", work).public()

@@ -19,7 +19,6 @@ from sentri.contract.placeholders import DataGenerator, seed_for
 from sentri.feed import EventBus
 from sentri.ledger.ledger import Ledger
 from sentri.llm import BudgetedProvider
-from sentri.redact import redact
 from sentri.runner.browser import BrowserManager
 from sentri.sandbox.base import Sandbox
 
@@ -37,19 +36,9 @@ class AgenticResult:
     notes: list[str] = field(default_factory=list)
 
 
-def _readme(workdir: Path) -> str:
-    """The app's README for the strategist, with secrets scrubbed like everything else sent to a model."""
-    for name in ("README.md", "README.rst", "README.txt"):
-        path = workdir / name
-        if path.exists():
-            return redact(path.read_text(encoding="utf-8", errors="replace")[:20000])
-    return ""
-
-
 async def run_agentic(
     *,
     contract: Contract,
-    workdir: Path,
     sandbox: Sandbox,
     browser: BrowserManager,
     provider: BudgetedProvider,
@@ -95,7 +84,7 @@ async def run_agentic(
     )
 
     # 2. Understand
-    planned = await plan_strategy(app_map, provider, _readme(workdir))
+    planned = await plan_strategy(app_map, provider)  # black box: no README, only what recon saw
     ledger.save_strategy(run_id, planned.source, planned.model_dump())
     out.hypotheses = len(planned.strategy.hypotheses)
     if planned.error:

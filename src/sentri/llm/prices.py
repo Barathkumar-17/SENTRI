@@ -18,6 +18,13 @@ PRICES: dict[str, tuple[float, float]] = {
 }
 
 
+def price_known(model: str | None) -> bool:
+    """Whether Sentri knows this model's price (local and third-party models: no, cost is then unknown)."""
+    if not model:
+        return False
+    return model in PRICES or any(model.startswith(k) for k in PRICES)
+
+
 def cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
     price = PRICES.get(model)
     if price is None:

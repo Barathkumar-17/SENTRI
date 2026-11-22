@@ -14,15 +14,18 @@ from urllib.parse import urlsplit
 
 from sentri.contract.models import AppConfig
 from sentri.evidence.models import LogLine
-from sentri.sandbox.base import LogBuffer, SandboxError, wait_for_health, wait_for_port
+from sentri.sandbox.base import LogBuffer, ResponseErrors, SandboxError, wait_for_health, wait_for_port
 
 log = logging.getLogger(__name__)
 
 
-class DockerSandbox:
+class DockerSandbox(ResponseErrors):
+    reset_kind = "restart"
+
     def __init__(self, app: AppConfig, workdir: Path, extra_env: dict[str, str] | None = None):
-        assert app.docker is not None
+        assert app.docker is not None and app.port is not None  # validated: port is required with app.docker
         self.app = app
+        self.port: int = app.port
         self.spec = app.docker
         self.context = (workdir / self.spec.context).resolve()
         self.env = {"PORT": str(self.spec.container_port or app.port), **app.env, **self.spec.env, **(extra_env or {})}
@@ -61,7 +64,7 @@ class DockerSandbox:
         self._container = self._docker().containers.run(
             self.image_tag,
             detach=True,
-            ports={f"{container_port}/tcp": self.app.port},
+            ports={f"{container_port}/tcp": self.port},
             environment=self.env,
             labels={"sentri": "target"},
         )
@@ -80,7 +83,7 @@ class DockerSandbox:
     async def _wait_ready(self) -> None:
         deadline = time.monotonic() + self.app.startup_timeout_s
         try:
-            await wait_for_port(self._host, self.app.port, deadline, alive=self.is_alive)
+            await wait_for_port(self._host, self.port, deadline, alive=self.is_alive)
             await wait_for_health(self.base_url + self.app.health_path, deadline, alive=self.is_alive)
         except SandboxError as exc:
             tail = "\n".join(line.text for line in self.logs.tail(20))

@@ -34,6 +34,8 @@ class Settings:
     model_smart: str = field(default_factory=lambda: os.environ.get("SENTRI_MODEL_SMART", "claude-sonnet-5-5"))
     llm_budget_usd: float = field(default_factory=lambda: _env_float("SENTRI_LLM_BUDGET_USD", 1.0))
     llm_timeout_s: float = field(default_factory=lambda: _env_float("SENTRI_LLM_TIMEOUT_S", 60.0))
+    llm_max_calls: int = field(default_factory=lambda: _env_int("SENTRI_LLM_MAX_CALLS", 0))  # 0 = no limit
+    llm_max_tokens: int = field(default_factory=lambda: _env_int("SENTRI_LLM_MAX_TOKENS", 0))  # 0 = no limit
     max_probes_per_flow: int = field(default_factory=lambda: _env_int("SENTRI_MAX_PROBES_PER_FLOW", 2))
     regression_penalty: int = field(default_factory=lambda: _env_int("SENTRI_REGRESSION_PENALTY", 5))
     headless: bool = field(default_factory=lambda: os.environ.get("SENTRI_HEADLESS", "1") != "0")

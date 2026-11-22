@@ -9,7 +9,6 @@ import asyncio
 import contextlib
 import json
 import logging
-import sqlite3
 import tempfile
 import time
 from collections.abc import Callable
@@ -152,17 +151,6 @@ class CheckRunner:
         except LoginFailed as exc:
             raise InfraError(str(exc)) from None
 
-    def _sqlite_count(self, flow: Flow) -> int | None:
-        db = self.contract.duplicate_db
-        if db is None or flow.id not in db.tables or not db.url.startswith("sqlite:///"):
-            return None
-        path = db.url.removeprefix("sqlite:///")
-        conn = sqlite3.connect(str((self.workdir / path).resolve()))
-        try:
-            return int(conn.execute(f'SELECT COUNT(*) FROM "{db.tables[flow.id]}"').fetchone()[0])  # noqa: S608
-        finally:
-            conn.close()
-
     async def _list_count(self, page: Page, flow: Flow, timeout_ms: float) -> int | None:
         if not flow.list_selector:
             return None
@@ -227,14 +215,11 @@ class CheckRunner:
         try:
             if flow.requires_login:
                 await self.login(page, flow, attempt)
+            # Black box: duplicates are counted where a user sees them (the list page), never in the database.
             method: DuplicateMethod = "none"
-            before = self._sqlite_count(flow)
+            before = await self._list_count(page, flow, timeout_s * 1000)
             if before is not None:
-                method = "db"
-            else:
-                before = await self._list_count(page, flow, timeout_s * 1000)
-                if before is not None:
-                    method = "list_selector"
+                method = "list_selector"
 
             collector.open_window()
             try:
@@ -258,9 +243,7 @@ class CheckRunner:
             rows = await self._page_rows(page) if not page.is_closed() else ()
             shot = await self._screenshot(page, check_key, attempt)
             after = None
-            if method == "db":
-                after = self._sqlite_count(flow)
-            elif method == "list_selector":
+            if method == "list_selector":
                 after = await self._list_count(page, flow, self.contract.action_timeout_s(flow) * 1000)
             return collector.build(
                 list_count_before=before,

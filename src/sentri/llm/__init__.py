@@ -86,7 +86,9 @@ def make_provider(settings: Settings, enabled: bool = True) -> BudgetedProvider:
         from sentri.llm.openai_compatible import OpenAICompatibleProvider
 
         inner = OpenAICompatibleProvider(settings.llm_base_url, settings.api_key, models, settings.llm_timeout_s)
-    return BudgetedProvider(inner, settings.llm_budget_usd, settings.llm_timeout_s)
+    return BudgetedProvider(
+        inner, settings.llm_budget_usd, settings.llm_timeout_s, settings.llm_max_calls, settings.llm_max_tokens
+    )
 
 
 def resolve_auto(settings: Settings) -> None:

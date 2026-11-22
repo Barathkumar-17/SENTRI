@@ -126,6 +126,7 @@ class Mark:
     log_cursor: int
     idor: int = 0
     csrf: int = 0
+    responses: int = 0
 
 
 class AgentSession:
@@ -339,7 +340,9 @@ class AgentSession:
 
     async def _read_body(self, resp: Any, rec: ObservedRequest) -> None:
         with contextlib.suppress(Exception):
-            rec.response_text = redact((await resp.text())[:MAX_BODY])
+            text = (await resp.text())[:MAX_BODY]
+            self.sandbox.record_response(rec.url, rec.status, text)  # stack traces the app sent back
+            rec.response_text = redact(text)
 
     def in_flight(self) -> list[ObservedRequest]:
         return [r for r in self._pending.values() if r.status is None and not r.failed and self.same_origin(r.url)]
@@ -366,6 +369,7 @@ class AgentSession:
             self.sandbox.log_cursor(),
             len(self.idor_probes),
             len(self.csrf_probes),
+            self.sandbox.response_cursor(),
         )
 
     def evidence_since(self, mark: Mark) -> Evidence:
@@ -390,6 +394,7 @@ class AgentSession:
             http=http,
             console=tuple(self.console[mark.console :]),
             logs=tuple(self.sandbox.logs_since(mark.log_cursor)),
+            response_errors=tuple(self.sandbox.responses_since(mark.responses)),
             page_crashed=self.crashed,
         )
 
@@ -428,7 +433,9 @@ class AgentSession:
             rec.response_type = resp.headers.get("content-type")
             rec.location = resp.headers.get("location")
             if any(t in (rec.response_type or "") for t in TEXT_TYPES):
-                rec.response_text = redact((await resp.text())[:MAX_BODY])
+                text = (await resp.text())[:MAX_BODY]
+                self.sandbox.record_response(url, rec.status, text)
+                rec.response_text = redact(text)
         except PlaywrightError as exc:
             rec.failed, rec.failure = True, exc.message.splitlines()[0]
         rec.duration_ms = self._now() - rec.started_ms

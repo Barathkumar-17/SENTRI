@@ -83,11 +83,12 @@ def _exception_key(lines: list[str], hit: int) -> str:
 
 def exception(ev: Evidence, cfg: OracleConfig) -> OracleResult:
     patterns = [re.compile(p, re.MULTILINE) for p in (*EXCEPTION_PATTERNS, *cfg.extra_log_patterns)]
-    lines = [line.text for line in ev.logs]
+    # Black box: only what the app sent back (error pages, API error bodies), never its server logs.
+    lines = [line.text for line in ev.response_errors]
     for i, text in enumerate(lines):
         if any(p.search(text) for p in patterns):
             key = _exception_key(lines, i)
-            return OracleResult("exception", True, f"log: {key}", None, key)
+            return OracleResult("exception", True, f"response: {key}", None, key)
     return _not_fired("exception")
 
 

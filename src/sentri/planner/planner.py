@@ -1,4 +1,4 @@
-"""Proposes a draft demo contract from the README and a crawl. A human must approve it."""
+"""Proposes a draft demo contract from a crawl of the running app (black box). A human must approve it."""
 
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ from sentri.contract.placeholders import DataGenerator, seed_for
 from sentri.llm import BudgetedProvider, ContractDraft, load_prompt
 from sentri.llm.untrusted import build_user_prompt
 from sentri.planner.crawler import PageInfo, crawl
-from sentri.redact import redact
 from sentri.runner.browser import BrowserManager
 from sentri.sandbox.base import Sandbox
 
@@ -172,9 +171,9 @@ async def plan(
     browser: BrowserManager,
     provider: BudgetedProvider,
     app_section: dict[str, Any],
-    readme: str,
     sandbox: Sandbox | None = None,
 ) -> PlanResult:
+    """Draft flows from what a browser sees at the app's URL. Black box: no README or source reaches the model."""
     base_url = app_section.get("base_url") or f"http://localhost:{app_section['port']}"
     app_map: AppMap | None = None
     if sandbox is not None:
@@ -192,7 +191,7 @@ async def plan(
     login_flow: str | None = None
     source = "heuristic"
     if provider.available:
-        request: dict[str, Any] = {"readme": readme[:20000], "pages": [p.to_dict() for p in pages]}
+        request: dict[str, Any] = {"pages": [p.to_dict() for p in pages]}
         if app_map is not None:
             request["app_map"] = app_map.summary()  # includes endpoints seen behind forms and auth boundaries
         prompt = build_user_prompt({"base_url": base_url}, request)
@@ -237,9 +236,3 @@ async def plan(
     except ContractError as exc:
         errors = exc.errors
     return PlanResult(text, source, unverified, errors)
-
-
-def read_readme(path: Path | None) -> str:
-    if path is None or not path.exists():
-        return ""
-    return redact(path.read_text(encoding="utf-8", errors="replace"))

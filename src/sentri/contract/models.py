@@ -104,7 +104,7 @@ class AppConfig(_Strict):
     run: str | None = None
     cwd: str = "."
     env: dict[str, str] = Field(default_factory=dict)
-    port: int = Field(ge=1, le=65535)
+    port: int | None = Field(default=None, ge=1, le=65535)  # required with run/docker; URL mode needs base_url
     base_url: str | None = None
     startup_timeout_s: float = 60
     health_path: str = "/"
@@ -119,8 +119,18 @@ class AppConfig(_Strict):
 
     @model_validator(mode="after")
     def _check(self) -> AppConfig:
-        if (self.docker is None) == (self.run is None):
-            raise ValueError("exactly one of app.docker or app.run is required")
+        if self.docker is not None and self.run is not None:
+            raise ValueError("give at most one of app.docker or app.run (or neither, with base_url: URL mode)")
+        url_mode = self.docker is None and self.run is None
+        if url_mode and self.base_url is None:
+            raise ValueError(
+                "give app.run or app.docker for Sentri to start the app, or app.base_url for an app that is "
+                "already running (URL mode)"
+            )
+        if not url_mode and self.port is None:
+            raise ValueError("app.port is required with app.run or app.docker")
+        if url_mode and (self.clean or self.reset == "command"):
+            raise ValueError("app.clean and reset: command need a started app (app.run or app.docker)")
         if self.base_url is None:
             self.base_url = f"http://localhost:{self.port}"
         if not self.base_url.startswith(("http://", "https://")):
@@ -134,6 +144,11 @@ class AppConfig(_Strict):
             except re.error as exc:
                 raise ValueError(f"invalid regex {pattern!r}: {exc}") from exc
         return self
+
+    @property
+    def url_mode(self) -> bool:
+        """The app is already running at base_url; Sentri does not start, reset or stop it."""
+        return self.docker is None and self.run is None
 
     @property
     def url(self) -> str:

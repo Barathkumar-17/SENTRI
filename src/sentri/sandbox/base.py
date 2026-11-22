@@ -1,8 +1,13 @@
-"""Sandbox protocol and shared helpers: log buffer, port and health waiting."""
+"""Sandbox protocol and shared helpers: log buffer, port and health waiting.
+
+Black-box rule: a sandbox may start, reset and stop the app (lifecycle). What decides a verdict is only what the
+app shows from outside: HTTP, the browser, and error text it sends back in responses (`ResponseErrors`). Server
+logs are still captured for the separately authorized, source-aware fixer, but no oracle reads them."""
 
 from __future__ import annotations
 
 import asyncio
+import re
 import threading
 import time
 import urllib.error
@@ -26,7 +31,7 @@ class LogBuffer:
         self._lock = threading.Lock()
         self._max = max_lines
 
-    def append(self, text: str, stream: Literal["stdout", "stderr"] = "stdout") -> None:
+    def append(self, text: str, stream: Literal["stdout", "stderr", "response"] = "stdout") -> None:
         line = LogLine(ts=datetime.now(UTC).isoformat(), stream=stream, text=text.rstrip("\r\n"))
         with self._lock:
             self._lines.append(line)
@@ -49,8 +54,44 @@ class LogBuffer:
             return list(self._lines[-n:])
 
 
+# A response is kept when it is an error (>= 400) or prints something trace-like into a normal page.
+_TRACE_HINT = re.compile(
+    r"Traceback \(most recent call last\)|^\s*at .+\(.+:\d+:\d+\)$|Exception|Error:|\bpanic:|Fatal error|"
+    r"Stack trace|\bFATAL\b|\bCRITICAL\b",
+    re.MULTILINE,
+)
+
+
+class ResponseErrors:
+    """Error text the app itself sent back over HTTP: the black-box exception oracle's only input."""
+
+    def _response_buffer(self) -> LogBuffer:
+        buf = self.__dict__.get("_response_errors")
+        if buf is None:
+            buf = LogBuffer()
+            self.__dict__["_response_errors"] = buf
+        return buf
+
+    def record_response(self, url: str, status: int | None, text: str | None) -> None:
+        if not text or ((status or 0) < 400 and not _TRACE_HINT.search(text)):
+            return
+        buf = self._response_buffer()
+        for line in text.splitlines()[:400]:
+            if line.strip():
+                buf.append(line[:2000], "response")
+
+    def response_cursor(self) -> int:
+        return self._response_buffer().cursor()
+
+    def responses_since(self, cursor: int) -> list[LogLine]:
+        return self._response_buffer().since(cursor)
+
+
 class Sandbox(Protocol):
     base_url: str
+    # How an attempt gets a clean state: "restart" (the app is restarted, `app.clean` files deleted; server-side
+    # state outside those files, e.g. an external database, survives) or "none" (a URL Sentri did not start).
+    reset_kind: str
 
     async def start(self) -> None: ...
     async def reset(self) -> None: ...
@@ -59,6 +100,9 @@ class Sandbox(Protocol):
     def log_cursor(self) -> int: ...
     def logs_since(self, cursor: int) -> list[LogLine]: ...
     def log_tail(self, n: int = 40) -> list[LogLine]: ...
+    def record_response(self, url: str, status: int | None, text: str | None) -> None: ...
+    def response_cursor(self) -> int: ...
+    def responses_since(self, cursor: int) -> list[LogLine]: ...
 
 
 async def wait_for_port(host: str, port: int, deadline: float, alive: object = None) -> None:

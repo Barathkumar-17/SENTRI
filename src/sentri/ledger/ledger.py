@@ -88,14 +88,27 @@ class Ledger:
         status: str,
         readiness: int | None,
         duration_s: float,
-        llm_cost_usd: float,
+        llm_cost_usd: float | None,  # None = unknown (a model without a known price was used)
         llm_mode: str,
         breakdown: dict[str, Any] | None,
+        usage: dict[str, Any] | None = None,
+        coverage: dict[str, Any] | None = None,
     ) -> None:
         self.conn.execute(
             "UPDATE runs SET finished_at=?, status=?, readiness=?, duration_s=?, llm_cost_usd=?, llm_mode=?,"
-            " breakdown=? WHERE id=?",
-            (now(), status, readiness, duration_s, llm_cost_usd, llm_mode, json.dumps(breakdown), run_id),
+            " breakdown=?, usage=?, coverage=? WHERE id=?",
+            (
+                now(),
+                status,
+                readiness,
+                duration_s,
+                llm_cost_usd,
+                llm_mode,
+                json.dumps(breakdown),
+                json.dumps(usage, default=str) if usage is not None else None,
+                json.dumps(coverage, default=str) if coverage is not None else None,
+                run_id,
+            ),
         )
         self.conn.commit()
 

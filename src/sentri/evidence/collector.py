@@ -1,4 +1,6 @@
-"""Collects evidence from Playwright page events and sandbox logs inside an attack window."""
+"""Collects evidence from Playwright page events inside an attack window. Verdicts read only what the app
+shows from outside; error text it sends back in responses goes to the sandbox's ResponseErrors. Server logs are
+recorded for the source-aware fixer only."""
 
 from __future__ import annotations
 
@@ -37,10 +39,12 @@ class _Pending:
 class EvidenceCollector:
     def __init__(self, sandbox: Sandbox, base_url: str):
         self.sandbox = sandbox
+        self._bodies: set[asyncio.Task[None]] = set()
         self.origin = _origin(base_url)
         self.active = False
         self._t0 = time.monotonic()
         self._log_cursor = 0
+        self._response_cursor = 0
         self._pending: dict[Any, _Pending] = {}
         self._http: list[HttpRecord] = []
         self._console: list[ConsoleRecord] = []
@@ -82,6 +86,25 @@ class EvidenceCollector:
         pending = self._pending.get(response.request)
         if pending is not None:
             pending.status = response.status
+        if self.active and self.same_origin(response.url):
+            task = asyncio.ensure_future(self._read_body(response))
+            self._bodies.add(task)
+            task.add_done_callback(self._bodies.discard)
+
+    async def _read_body(self, response: Any) -> None:
+        ctype = ((response.headers or {}).get("content-type") or "").lower()
+        if not any(t in ctype for t in ("text/", "json", "xml")):
+            return
+        try:
+            text = (await response.text())[:20000]
+        except Exception:  # noqa: BLE001 - body gone (navigation, closed page): nothing to read
+            return
+        self.sandbox.record_response(response.url, response.status, text)
+
+    async def drain(self) -> None:
+        """Wait for response bodies still being read (they feed the exception oracle)."""
+        if self._bodies:
+            await asyncio.wait(list(self._bodies), timeout=3)
 
     def _finish(self, request: Any, failed: bool, failure: str | None) -> None:
         pending = self._pending.pop(request, None)
@@ -134,6 +157,7 @@ class EvidenceCollector:
         self.step_blocked = None
         self._t0 = time.monotonic()
         self._log_cursor = self.sandbox.log_cursor()
+        self._response_cursor = self.sandbox.response_cursor()
         self.active = True
 
     def action(self, text: str) -> None:
@@ -184,6 +208,7 @@ class EvidenceCollector:
             http=tuple(sorted(self._http, key=lambda r: r.started_ms)),
             console=tuple(self._console),
             logs=logs,
+            response_errors=tuple(self.sandbox.responses_since(self._response_cursor)),
             list_count_before=list_count_before,
             list_count_after=list_count_after,
             duplicate_method=duplicate_method,

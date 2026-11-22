@@ -18,7 +18,14 @@ from urllib.parse import urlsplit
 
 from sentri.contract.models import AppConfig
 from sentri.evidence.models import LogLine
-from sentri.sandbox.base import LogBuffer, SandboxError, wait_for_health, wait_for_port, wait_for_port_closed
+from sentri.sandbox.base import (
+    LogBuffer,
+    ResponseErrors,
+    SandboxError,
+    wait_for_health,
+    wait_for_port,
+    wait_for_port_closed,
+)
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +37,9 @@ def expand_command(command: str) -> str:
     return command.replace("{python}", quoted)
 
 
-class CommandSandbox:
+class CommandSandbox(ResponseErrors):
+    reset_kind = "restart"
+
     def __init__(self, app: AppConfig, workdir: Path, extra_env: dict[str, str] | None = None):
         assert app.run is not None
         self.app = app
@@ -51,7 +60,8 @@ class CommandSandbox:
         self._threads: list[threading.Thread] = []
         parts = urlsplit(self.base_url)
         self._host = parts.hostname or "localhost"
-        self._port = app.port
+        assert app.port is not None  # validated: required with app.run
+        self._port: int = app.port
 
     def _pump(self, pipe: IO[bytes], stream: Literal["stdout", "stderr"]) -> None:
         for raw in iter(pipe.readline, b""):

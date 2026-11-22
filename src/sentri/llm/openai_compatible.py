@@ -101,7 +101,9 @@ class OpenAICompatibleProvider:
                     self._schema_mode = False  # server does not support json_schema; retry with json_object
                     continue
                 if resp.status_code >= 400:
-                    return LLMResult(ok=False, model=model, error=f"http {resp.status_code}: {resp.text[:200]}")
+                    return LLMResult(
+                        ok=False, model=model, error=f"http {resp.status_code}: {resp.text[:200]}", retries=rate_waits
+                    )
                 data = resp.json()
             except (httpx.HTTPError, ValueError) as exc:
                 return LLMResult(ok=False, model=model, error=f"connection error: {exc}")
@@ -111,7 +113,15 @@ class OpenAICompatibleProvider:
             try:
                 text = data["choices"][0]["message"]["content"] or ""
                 value = schema.model_validate_json(_extract_json(text))
-                return LLMResult(True, value, tokens_in, tokens_out, cost_usd(model, tokens_in, tokens_out), model)
+                return LLMResult(
+                    True,
+                    value,
+                    tokens_in,
+                    tokens_out,
+                    cost_usd(model, tokens_in, tokens_out),
+                    model,
+                    retries=rate_waits + attempt,
+                )
             except (KeyError, IndexError, TypeError):
                 last_error = "unexpected response shape"
             except ValidationError as exc:
@@ -119,4 +129,13 @@ class OpenAICompatibleProvider:
                 if attempt < 2:
                     messages = [*messages, {"role": "user", "content": "That was not valid. Reply with JSON only."}]
             attempt += 1
-        return LLMResult(False, None, tokens_in, tokens_out, cost_usd(model, tokens_in, tokens_out), model, last_error)
+        return LLMResult(
+            False,
+            None,
+            tokens_in,
+            tokens_out,
+            cost_usd(model, tokens_in, tokens_out),
+            model,
+            last_error,
+            retries=rate_waits + attempt,
+        )

@@ -32,7 +32,7 @@ class ConsoleRecord:
 @dataclass(frozen=True)
 class LogLine:
     ts: str
-    stream: Literal["stdout", "stderr"]
+    stream: Literal["stdout", "stderr", "response"]  # black box: "response" = text the app sent back
     text: str
 
 
@@ -40,7 +40,8 @@ class LogLine:
 class Evidence:
     http: tuple[HttpRecord, ...] = ()
     console: tuple[ConsoleRecord, ...] = ()
-    logs: tuple[LogLine, ...] = ()
+    logs: tuple[LogLine, ...] = ()  # server logs: kept for the source-aware fixer, never read by an oracle
+    response_errors: tuple[LogLine, ...] = ()  # error text the app sent back over HTTP (black-box)
     list_count_before: int | None = None
     list_count_after: int | None = None
     duplicate_method: DuplicateMethod = "none"
@@ -63,6 +64,7 @@ class Evidence:
             http=tuple(HttpRecord(**h) for h in data.get("http", ())),
             console=tuple(ConsoleRecord(**c) for c in data.get("console", ())),
             logs=tuple(LogLine(**line) for line in data.get("logs", ())),
+            response_errors=tuple(LogLine(**line) for line in data.get("response_errors", ())),
             list_count_before=data.get("list_count_before"),
             list_count_after=data.get("list_count_after"),
             duplicate_method=data.get("duplicate_method", "none"),

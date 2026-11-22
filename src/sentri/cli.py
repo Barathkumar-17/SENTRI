@@ -365,7 +365,9 @@ def plan(
     run: Annotated[str | None, typer.Option("--run", help="Command that starts the app (command mode).")] = None,
     port: Annotated[int, typer.Option(help="Port the app listens on.")] = 5000,
     dockerfile: Annotated[str | None, typer.Option(help="Use Docker mode with this Dockerfile.")] = None,
-    readme: Annotated[Path | None, typer.Option(help="README to read (default: app-dir/README.md).")] = None,
+    url: Annotated[
+        str | None, typer.Option(help="URL of an app that is already running (URL mode: nothing is started).")
+    ] = None,
     out: Annotated[Path, typer.Option(help="Draft output.")] = Path("contract.draft.yaml"),
     no_llm: Annotated[bool, typer.Option("--no-llm", help="Heuristic draft without a model.")] = False,
     llm_provider: ProviderOpt = None,
@@ -374,32 +376,32 @@ def plan(
     model_smart: SmartOpt = None,
     ollama: OllamaOpt = None,
 ) -> None:
-    """Start the app, crawl it and propose a draft contract for a human to review."""
+    """Crawl the app from outside and propose a draft contract for a human to review (starts it with --run or
+    --dockerfile; with --url it must already be running)."""
     from sentri.contract.models import AppConfig
-    from sentri.planner import PlanResult, read_readme
+    from sentri.planner import PlanResult
     from sentri.planner import plan as run_plan
     from sentri.runner.browser import BrowserManager
     from sentri.sandbox import SandboxError, make_sandbox
 
     s = _settings(None, llm_provider, llm_base_url, model, model_smart, ollama)
     provider = _provider(s, not no_llm)
-    if (run is None) == (dockerfile is None):
-        err.print("[red]give exactly one of --run or --dockerfile[/red]")
+    if sum(x is not None for x in (run, dockerfile, url)) != 1:
+        err.print("[red]give exactly one of --run, --dockerfile or --url[/red]")
         raise typer.Exit(EXIT_CONTRACT)
-    section: dict[str, object] = {"port": port, "base_url": f"http://127.0.0.1:{port}"}
+    section: dict[str, object] = {"base_url": url} if url else {"port": port, "base_url": f"http://127.0.0.1:{port}"}
     if run:
         section["run"] = run
-    else:
+    elif dockerfile:
         section["docker"] = {"context": ".", "dockerfile": dockerfile}
     app_cfg = AppConfig.model_validate(section)
-    readme_text = read_readme(readme or app_dir / "README.md")
 
     async def go() -> PlanResult:
         sandbox = make_sandbox(app_cfg, app_dir.resolve())
         await sandbox.start()
         try:
             async with BrowserManager(headless=s.headless) as browser:
-                return await run_plan(browser, provider, section, readme_text, sandbox)
+                return await run_plan(browser, provider, section, sandbox)
         finally:
             await sandbox.stop()
 
