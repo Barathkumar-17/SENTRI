@@ -18,6 +18,7 @@ from playwright.async_api import Page
 from sentri.agent.session import LoginFn
 from sentri.contract.models import ApiAuth, ApiStep, Contract
 from sentri.contract.placeholders import DataGenerator, seed_for
+from sentri.runner.fence import set_identity_headers
 from sentri.runner.flow import AttackStop, FlowExecutor
 
 
@@ -61,7 +62,7 @@ async def api_login(page: Page, base_url: str, api: ApiAuth, gen: DataGenerator,
     if not token:
         raise LoginFailed(f"no token at '{api.token_field}' in the login response")
     headers = {api.header: f"{api.scheme} {token}".strip()}
-    await page.context.set_extra_http_headers(headers)
+    await set_identity_headers(page.context, headers)  # same-origin requests only (runner/fence.py)
     return headers
 
 

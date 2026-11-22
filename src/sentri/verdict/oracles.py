@@ -113,6 +113,8 @@ def console_error(ev: Evidence, cfg: OracleConfig) -> OracleResult:
             continue
         if rec.kind == "console_error" and _RESOURCE_4XX.search(rec.text):
             continue
+        if rec.kind == "console_error" and "ERR_BLOCKED_BY_CLIENT" in rec.text:
+            continue  # Sentri's own origin fence refused an off-origin request; not the app's bug
         if rec.kind == "console_error" and _third_party_resource_error(rec.text, cfg.app_origin):
             continue
         first = rec.text.splitlines()[0] if rec.text else ""

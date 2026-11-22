@@ -204,7 +204,7 @@ class CheckRunner:
         if not self.sandbox.is_alive():
             raise InfraError("app is not running")
 
-        context = await self.browser.new_context()
+        context = await self.browser.new_context(fence_origin=self.contract.app.url)
         page = await context.new_page()
         self.on_page(page)
         collector = EvidenceCollector(self.sandbox, self.contract.app.url)
@@ -343,7 +343,7 @@ class CheckRunner:
     async def happy_path(self, flow: Flow) -> tuple[bool, str]:
         """Run a flow unattacked once and check its success condition (contract preflight)."""
         await self._reset()
-        context = await self.browser.new_context()
+        context = await self.browser.new_context(fence_origin=self.contract.app.url)
         page = await context.new_page()
         try:
             if flow.requires_login:

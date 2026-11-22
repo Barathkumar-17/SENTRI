@@ -113,6 +113,9 @@ class AppConfig(_Strict):
     clean: list[str] = Field(default_factory=list)  # files deleted before every start (e.g. a SQLite db)
     log_patterns_extra: list[str] = Field(default_factory=list)
     ignore_console: list[str] = Field(default_factory=lambda: [r"favicon\.ico"])
+    # Off-origin scripts, styles, images and fonts: "allow" (default; never with identity tokens) or "block".
+    # Everything else off-origin is always blocked by the origin fence.
+    offsite_assets: Literal["allow", "block"] = "allow"
 
     @model_validator(mode="after")
     def _check(self) -> AppConfig:

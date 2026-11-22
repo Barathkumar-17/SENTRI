@@ -47,6 +47,7 @@ from sentri.evidence.agent_models import AgentEvidence, CountProbe, HealthProbe,
 from sentri.evidence.models import ConsoleRecord, Evidence, HttpRecord
 from sentri.redact import redact
 from sentri.runner.browser import BrowserManager
+from sentri.runner.fence import blocked_summary, set_identity_headers
 from sentri.sandbox.base import Sandbox
 from sentri.verdict.signature import normalize_path
 
@@ -159,7 +160,7 @@ class AgentSession:
     async def _context(self, who: str) -> BrowserContext:
         if who in self.contexts:
             return self.contexts[who]
-        ctx = await self.browser.new_context()
+        ctx = await self.browser.new_context(fence_origin=self.base_url)
         self.contexts[who] = ctx
         page = await ctx.new_page()
         self._attach(page, who)
@@ -170,6 +171,7 @@ class AgentSession:
             headers = await self.login_fn(page, who)
             if headers:
                 self.identity_headers[who] = headers
+                await set_identity_headers(ctx, headers)
         else:
             await page.goto(self.base_url + "/", wait_until="load", timeout=self.timeout_ms)
         return ctx
@@ -373,7 +375,24 @@ class AgentSession:
                 False, exc.message.splitlines()[0][:300], self._url(), [r.id for r in self.requests[before:]]
             )
         await self.settle()
+        left = await self._return_if_off_origin()
+        if left is not None:
+            return ActionResult(False, left, self._url(), [r.id for r in self.requests[before:]])
         return ActionResult(True, None, self._url(), [r.id for r in self.requests[before:]])
+
+    async def _return_if_off_origin(self) -> str | None:
+        """A redirect (not seen by request routing) can land the tab on another origin. Nothing of the app's goes
+        with it (cookies are origin-scoped, tokens are fenced), but Sentri must not keep acting there."""
+        url = self._url() or ""
+        if not url.startswith(("http://", "https://")) or self.same_origin(url):
+            return None
+        with contextlib.suppress(PlaywrightError):
+            await self.page.goto(self.base_url + "/", wait_until="load", timeout=self.timeout_ms)
+        return f"refused: the page left the app (landed on {url[:120]}); returned to the app"
+
+    def _blocked(self) -> list[dict[str, Any]]:
+        ctx = self.contexts.get(self.current)
+        return blocked_summary(ctx, 5) if ctx is not None else []
 
     def _url(self) -> str | None:
         with contextlib.suppress(Exception):
@@ -445,7 +464,7 @@ class AgentSession:
         elif isinstance(action, ClearSession):
             await self.contexts[self.current].clear_cookies()
             if self.identity_headers.pop(self.current, None) is not None:
-                await self.contexts[self.current].set_extra_http_headers({})  # drop the token too
+                await set_identity_headers(self.contexts[self.current], {})  # drop the token too
             await page.evaluate("() => { try { localStorage.clear(); sessionStorage.clear(); } catch (e) {} }")
         elif isinstance(action, Throttle):
             cdp = self._cdp.get(self.current) or await self.contexts[self.current].new_cdp_session(page)
@@ -492,5 +511,6 @@ class AgentSession:
             "links": links[:40],
             "recent_requests": [r.summary() for r in self.requests[-12:]],
             "console_errors": [c.text[:200] for c in self.console[-5:]],
+            "blocked_offsite": [f"{b['how']} {b['method']} {b['url'][:120]}" for b in self._blocked()],
             "canary_for_this_identity": self.canaries.get(self.current),
         }

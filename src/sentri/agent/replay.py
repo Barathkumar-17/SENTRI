@@ -87,7 +87,10 @@ async def _fetch_text(session: AgentSession, who: str, path: str) -> tuple[int |
     """Unrecorded GET as `who` (measurement, not part of the evidence)."""
     try:
         ctx = await session._context(who)
-        resp = await ctx.request.get(session.base_url + path, max_redirects=0, timeout=session.timeout_ms)
+        headers = session.identity_headers.get(who, {})
+        resp = await ctx.request.get(
+            session.base_url + path, headers=headers, max_redirects=0, timeout=session.timeout_ms
+        )
         return resp.status, await resp.text()
     except (PlaywrightError, ActionRefused):
         return None, ""

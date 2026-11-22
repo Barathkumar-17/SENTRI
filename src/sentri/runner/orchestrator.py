@@ -159,7 +159,9 @@ class RunOrchestrator:
         )
 
         sandbox = make_sandbox(c.app, self.workdir)
-        browser = BrowserManager(headless=self.settings.headless)
+        browser = BrowserManager(
+            headless=self.settings.headless, fence_origin=c.app.url, offsite_assets=c.app.offsite_assets
+        )
         try:
             bus.emit("sandbox_starting", "starting the app in the sandbox")
             t0 = time.monotonic()

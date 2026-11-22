@@ -116,7 +116,7 @@ async def _verify_selectors(
 ) -> dict[str, list[str]]:
     """Re-visit each flow's start page and report selectors that do not exist there."""
     unverified: dict[str, list[str]] = {}
-    context = await browser.new_context()
+    context = await browser.new_context(fence_origin=base_url)
     page = await context.new_page()
     try:
         for flow in flows:
@@ -181,7 +181,7 @@ async def plan(
         app_map = await recon_map(browser, sandbox, base_url)
         pages = pages_from_map(app_map)
     else:
-        context = await browser.new_context()
+        context = await browser.new_context(fence_origin=base_url)
         page = await context.new_page()
         try:
             pages = await crawl(page, base_url)
