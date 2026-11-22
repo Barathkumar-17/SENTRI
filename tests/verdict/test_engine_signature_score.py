@@ -100,11 +100,22 @@ def test_the_same_finding_counts_once_and_the_score_is_clamped():
     assert compute(["pass"], 0, agentic=many).score == 0
 
 
-def test_agentic_only_contract_is_still_scored():
-    assert compute(["na"], 0).score is None  # nothing ran at all
-    b = compute(["na"], 0, agentic=[_f("http_500 POST /api", "http_500:3")], agentic_ran=True)
-    assert b.score == 95 and b.baseline is None
-    assert compute([], 0, agentic_ran=True).score == 100
+def test_no_applicable_baseline_check_is_insufficient_coverage_not_a_score():
+    """Juice Shop proof run: no browser flows, one confirmed crash, and the old rule showed 95/100."""
+    finding = [_f("http_500 POST /api", "http_500:3")]
+    b = compute(["na"], 0, agentic=finding, agentic_ran=True)
+    assert b.score is None and b.status == "insufficient_coverage"
+    assert b.formula.startswith("insufficient coverage: no applicable baseline check (1 inapplicable")
+    assert b.agentic_impact == 5 and "1 crash" in b.formula  # the finding is still reported
+    quiet = compute([], 0, agentic_ran=True)  # exploration found nothing: still not a pass
+    assert quiet.score is None and quiet.status == "insufficient_coverage"
+    inconclusive = compute(["error", "error"], 0)
+    assert inconclusive.score is None and "2 inconclusive" in inconclusive.formula
+
+
+def test_exploration_can_lower_a_score_but_never_create_one():
+    b = compute(["pass"], 0, agentic=[_f("auth_bypass GET /a", "auth_bypass:3")], agentic_ran=True)
+    assert b.status == "scored" and (b.baseline, b.score) == (100, 85)
 
 
 def test_unreplayable_attempts_never_pass_and_cap_at_flaky():

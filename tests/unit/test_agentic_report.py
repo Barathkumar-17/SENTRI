@@ -176,3 +176,27 @@ def test_findings_sharing_a_key_in_one_run_never_fake_a_regression(tmp_path):
     # a later, non-reproducing re-check of the same key in the same run does not close them either
     _c, ev = record(lg, run, "c1", {"title": "t", "repro": [], "recheck": True}, CheckVerdict("pass", 3), key, run_hits)
     assert ev == [] and all(b["status"] == "open" for b in lg.bugs())
+
+
+def test_report_says_insufficient_coverage_and_shows_what_was_measured(tmp_path):
+    from sentri.ledger import CheckRecord
+    from sentri.runner.orchestrator import coverage_record, score_run
+
+    lg = Ledger(tmp_path / "c.db")
+    run = lg.create_run("c1", "main", "", "ch")
+    lg.insert_check(CheckRecord(run, "signup", "bad_file", "na", error_msg="no upload step"))
+    b = score_run(lg, run, 0, agentic_ran=True)
+    cov = coverage_record(
+        lg.checks_for_run(run),
+        {"steps": 8, "ai_steps": 5, "code_probe_steps": 1, "distinct_states": 4, "candidates": 3, "confirmed": 0},
+        {"agentic": "done; exploration stopped: time budget used", "baseline": "done (1 cells)"},
+        "none",
+        None,
+    )
+    lg.finish_run(run, "finished", b.score, 1, None, "llm", b.__dict__, usage=None, coverage=cov)
+    md = build_report(lg, run)
+    assert "## Sentri readiness: insufficient coverage" in md and "readiness: 100" not in md
+    assert "1 inapplicable" in md and "8 steps (5 chosen by the model, 1 code probes" in md
+    assert "4 distinct states" in md and "stopped: time budget used" in md
+    assert "live state" in md and "not a safety rating" in md
+    assert "cost unknown" in md  # llm_cost_usd None: never shown as $0.00
