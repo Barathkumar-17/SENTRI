@@ -17,7 +17,8 @@ from sentri.runner.browser import BrowserManager
 pytestmark = pytest.mark.integration
 
 PAGES = {
-    "/": '<a href="/docs">Docs</a><a href="/wizard">Wizard</a><a href="/order">Order</a>',
+    "/": '<a href="/docs">Docs</a><a href="/wizard">Wizard</a><a href="/order">Order</a>'
+    '<a href="/redirect?to=elsewhere">Source code</a>',
     "/docs/": "<h1>Docs</h1><p>reached only through a redirect</p>",
     "/wizard": '<h1>Step 1</h1><button id="next" onclick="location.href=\'/wizard/2\'">Next</button>'
     '<button id="del" onclick="location.href=\'/gone\'">Delete everything</button>',
@@ -45,6 +46,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path == "/docs":
             self._send(301, location="/docs/")  # trailing-slash variant
+        elif self.path.startswith("/redirect"):
+            self._send(302, location="http://127.0.0.2:9/features/copilot")  # an open redirect off the app
         elif self.path in PAGES:
             self._send(200, PAGES[self.path])
         else:
@@ -80,6 +83,7 @@ async def test_recon_depth():
         server.shutdown()
 
     paths = {p.path for p in app_map.pages}
+    assert not any(p.startswith("/features") for p in paths)  # never maps another site's pages
     assert app_map.redirects.get("/docs") == "/docs/" and "/docs/" in paths
     assert {"/wizard/2", "/wizard/done"} <= paths  # only reachable by clicking buttons
     wizard = app_map.page("/wizard")

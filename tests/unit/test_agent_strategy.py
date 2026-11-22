@@ -64,3 +64,28 @@ async def test_plan_strategy_with_and_without_a_model():
     assert planned.source == "llm" and [x.id for x in planned.strategy.hypotheses] == ["x"] and planned.dropped
     none = await plan_strategy(APP_MAP, BudgetedProvider(NullProvider(), 1, 5))
     assert none.source == "none" and not none.strategy.hypotheses
+
+
+async def test_a_too_large_strategy_request_is_retried_compact():
+    from sentri.agent.recon import AppMap, PageEntry
+    from sentri.agent.strategy import Hypothesis, Strategy, plan_strategy
+    from sentri.llm import BudgetedProvider, LLMResult
+
+    class Small:
+        name = "small"
+        available = True
+
+        def __init__(self):
+            self.sizes: list[int] = []
+
+        async def complete_json(self, role, system, user, schema, max_tokens=4000):
+            self.sizes.append(len(user))
+            if len(self.sizes) == 1:
+                return LLMResult(ok=False, error="http 413: Request too large for model")
+            return LLMResult(ok=True, value=Strategy(hypotheses=[Hypothesis(id="h", title="t", targets=["/p0"])]))
+
+    model = Small()
+    app_map = AppMap(base_url="http://x", pages=[PageEntry(path=f"/p{i}", title="t" * 50) for i in range(40)])
+    planned = await plan_strategy(app_map, BudgetedProvider(model, 1, 5), readme="r" * 9000)
+    assert planned.error is None and [h.id for h in planned.strategy.hypotheses] == ["h"]
+    assert model.sizes[1] < model.sizes[0] / 2

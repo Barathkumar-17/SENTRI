@@ -142,3 +142,15 @@ async def test_unfenced_contexts_behave_as_before(servers: Servers):
         await page.click("#link")
         await page.wait_for_timeout(300)
     assert ("other", "GET", "/link") in {h[:3] for h in servers.hits}
+
+
+async def test_open_redirects_cannot_take_a_logged_out_browser_elsewhere(servers: Servers):
+    """Found by the Juice Shop proof run: its /redirect?to=... sent a recon visit (no token) to github.com."""
+    async with BrowserManager() as browser:
+        ctx = await browser.new_context(fence_origin=servers.app_url)  # no identity headers at all
+        page = await ctx.new_page()
+        await page.goto(servers.app_url + "/redirect-out")
+        assert page.url.startswith(servers.app_url) and "origin fence" in await page.content()
+        await page.goto(servers.app_url + "/redirect-in")
+        assert page.url.endswith("/inside")  # same-origin redirects still work
+    assert ("other", "GET", "/landed") not in {h[:3] for h in servers.hits}
