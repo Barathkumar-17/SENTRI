@@ -25,3 +25,11 @@ def test_readme_is_redacted_before_the_strategist_sees_it(tmp_path: Path, monkey
     text = _readme(tmp_path)
     assert "sk-abcdefghijklmnopqrstuvwx" not in text and "hunter2-very-secret" not in text
     assert "[REDACTED]" in text
+
+
+def test_planner_readme_is_redacted(tmp_path: Path):
+    from sentri.planner.planner import read_readme
+
+    path = tmp_path / "README.md"
+    path.write_text("key: sk-abcdefghijklmnopqrstuvwx", encoding="utf-8")
+    assert "sk-abcdefghijklmnopqrstuvwx" not in read_readme(path)
