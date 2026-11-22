@@ -98,7 +98,9 @@ first step, and re-sends each form submit that carried a CSRF token once without
 ### 5. Confirmation by replay
 Each distinct candidate is replayed **3 times from a clean state**: the app is restarted, fresh accounts and
 fresh canaries are created, the whole session prefix is replayed, and references to earlier requests are
-re-matched by method and path (replays send the original request's exact bytes). Health of key pages and the
+re-matched by method and path (replays send the original request's exact bytes). Steps from earlier lines of
+attack are replayed only to rebuild the state; the oracles judge the candidate's own steps, so an earlier break
+never decides a later finding. Health of key pages and the
 number of distinct records holding a unique value are measured before and after. A step that ran during
 exploration but cannot run now (its element is gone) fails the attempt instead of being skipped; if any
 attempt fails that way the finding can be at most flaky, and with no break seen it is inconclusive, never a
