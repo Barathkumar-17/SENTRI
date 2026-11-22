@@ -8,7 +8,6 @@ suspects something) become candidates with exact reproduction steps, confirmed l
 from __future__ import annotations
 
 import json
-import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -352,10 +351,3 @@ class Explorer:
             result.stopped = "step budget used"
         return result
 
-
-_TOKEN = re.compile(r"sentri[\w.+@-]{4,}")
-
-
-def tokens_in(text: str | None) -> list[str]:
-    """Sentri-generated values (placeholders, canaries) in a request body: unique by construction."""
-    return sorted(set(_TOKEN.findall(text or "")))

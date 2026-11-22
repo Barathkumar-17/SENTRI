@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from sentri.agent.explorer import ActionSpec, Decision, ExploreBudget, Explorer, to_action, tokens_in
+from sentri.agent.explorer import ActionSpec, Decision, ExploreBudget, Explorer, to_action
 from sentri.agent.recon import AppMap
 from sentri.agent.session import ActionResult, Mark
 from sentri.agent.strategy import Hypothesis, Strategy
+from sentri.agent.tokens import tokens_in
 from sentri.evidence.agent_models import AgentEvidence, ResponseRecord
 from sentri.evidence.models import Evidence
 from sentri.llm import BudgetedProvider, LLMResult
