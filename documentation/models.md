@@ -52,6 +52,11 @@ exploration:
 
 In the baseline suite an unusable answer falls back to built-in inputs.
 
+**Rate limits** (HTTP 429, common on free API tiers such as Groq's) are not unusable answers: the
+OpenAI-compatible provider waits as long as the server asks (`Retry-After`, or "try again in 7.5s" in the
+message; at most 30 s per wait, 4 waits per call) and tries again. The wait counts toward the per-call timeout
+`SENTRI_LLM_TIMEOUT_S` (default 60 s); raise it for low per-minute token limits.
+
 ## What the model is shown
 Page text, console errors, network summaries, logs and READMEs come from the app under test, which may contain
 text written to manipulate a model. Sentri puts all of it in one fenced **APP DATA** block, separate from its own
