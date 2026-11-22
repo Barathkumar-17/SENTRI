@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from fastapi.testclient import TestClient
 
 from sentri.dashboard import create_app
@@ -216,3 +218,55 @@ def test_the_api_returns_usage_and_coverage_as_objects(tmp_path):
     row = client.get(f"/api/runs/{run}").json()
     assert row["usage"]["calls"] == 3 and row["usage"]["cost_usd"] is None
     assert row["coverage"]["replay_state"] == "restart" and row["breakdown"]["status"] == "scored"
+
+
+def test_findings_api_lists_across_runs_and_shows_replay_evidence(tmp_path):
+    from sentri.agent.replay import record
+    from sentri.verdict.engine import CheckVerdict, OracleHit
+
+    lg = Ledger(tmp_path / "f.db")
+    run = lg.create_run("abc1234", "main", "", "ch")
+    attempt = tmp_path / "e" / "agentic-r1-1-a1.json"
+    attempt.parent.mkdir(parents=True)
+    attempt.write_text(
+        json.dumps(
+            {
+                "completed": True,
+                "notes": [],
+                "oracles": [{"oracle_id": "http_500", "fired": True, "detail": "POST /x -> 500"}, {"fired": False}],
+                "responses": [{"identity": "a", "method": "POST", "path": "/x", "status": 500}],
+                "probes": [],
+                "health": [],
+                "logs": ["Traceback (most recent call last):"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    verdict = CheckVerdict("fail", 3, (OracleHit("http_500", 3, "sig", "POST /x -> 500"),))
+    record(
+        lg,
+        run,
+        "abc1234",
+        {"title": "Crash on /x", "repro": [{"action": {"kind": "navigate", "path": "/x"}}], "origin": "ai"},
+        verdict,
+        "http_500 POST /x",
+        {},
+        "restart",
+        [str(attempt), str(tmp_path / "gone.json")],
+        ["note 1"],
+    )
+    lg.close()
+    client = TestClient(
+        create_app(tmp_path / "f.db", tmp_path / "e", tmp_path / "live.jpg"), base_url="http://127.0.0.1"
+    )
+    (listed,) = client.get("/api/findings").json()
+    assert (
+        listed["title"] == "Crash on /x" and listed["key"] == "http_500 POST /x" and listed["commit_sha"] == "abc1234"
+    )
+    assert listed["origin"] == "ai" and listed["replay_state"] == "restart" and listed["notes"] == ["note 1"]
+    detail = client.get(f"/api/findings/{listed['id']}").json()
+    first, second = detail["attempts"]
+    assert first["completed"] and [o["oracle_id"] for o in first["oracles"]] == ["http_500"]
+    assert second == {"attempt": 2, "missing": True}
+    assert detail["bugs"] and detail["bugs"][0]["oracle_id"] == "http_500"
+    assert client.get("/api/findings/999").status_code == 404
