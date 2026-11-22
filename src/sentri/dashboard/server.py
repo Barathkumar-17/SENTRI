@@ -1,8 +1,7 @@
 """Dashboard backend: REST + Server-Sent Events over the ledger (docs/reference/dashboard-api.md).
 
-FRONTEND: the single-page UI (live view, attack feed, score grid, bug ledger, trend) is not built yet.
-It will live at `sentri/dashboard/static/index.html` and consume only the endpoints below. Until it
-exists, `/` serves a placeholder that lists the API.
+The web app (frontend/, built into sentri/dashboard/static/) is served from `/` and `/assets`; it uses only the
+endpoints below. Without a build, `/` serves a placeholder that lists the API.
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from sentri.config import Settings
@@ -118,6 +118,50 @@ def create_app(
         if page.exists():  # FRONTEND: served once built
             return FileResponse(page)
         return HTMLResponse(PLACEHOLDER)
+
+    if (STATIC_DIR / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+    @app.get("/api/findings")
+    def findings(verdict: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
+        lg = ledger()
+        try:
+            return lg.findings(verdict, limit)
+        finally:
+            lg.close()
+
+    @app.get("/api/findings/{finding_id}")
+    def finding(finding_id: int) -> dict[str, Any]:
+        """One finding with its repro steps, linked bugs and per-attempt replay evidence."""
+        lg = ledger()
+        try:
+            row = lg.finding(finding_id)
+            if row is None:
+                raise HTTPException(404, "finding not found")
+            row["bugs"] = [_row(b) for b in lg.bugs_for_check(row["check_id"])] if row.get("check_id") else []
+            attempts: list[dict[str, Any]] = []
+            for i, path in enumerate(row.get("evidence") or [], start=1):
+                target = Path(path)
+                if not target.is_file():
+                    attempts.append({"attempt": i, "missing": True})
+                    continue
+                data = json.loads(target.read_text(encoding="utf-8"))
+                attempts.append(
+                    {
+                        "attempt": i,
+                        "completed": data.get("completed"),
+                        "notes": data.get("notes", []),
+                        "oracles": [o for o in data.get("oracles", []) if o.get("fired")],
+                        "responses": data.get("responses", [])[:60],
+                        "probes": data.get("probes", []),
+                        "health": data.get("health", []),
+                        "server_log_tail": data.get("logs", [])[-40:],  # shown to the developer; no verdict reads it
+                    }
+                )
+            row["attempts"] = attempts
+            return row
+        finally:
+            lg.close()
 
     @app.get("/api/runs")
     def runs(limit: int = 50) -> list[dict[str, Any]]:

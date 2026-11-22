@@ -480,7 +480,8 @@ class Ledger:
     def add_finding(self, run_id: int, finding: dict[str, Any]) -> int:
         cur = self.conn.execute(
             "INSERT INTO findings (run_id, hypothesis_id, title, oracle_ids, repro, from_step, to_step, verdict,"
-            " attempts, check_id, created_at, origin, replay_state) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " attempts, check_id, created_at, origin, replay_state, evidence, notes)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 run_id,
                 finding.get("hypothesis_id"),
@@ -495,14 +496,44 @@ class Ledger:
                 now(),
                 finding.get("origin"),
                 finding.get("replay_state"),
+                json.dumps(finding.get("evidence") or []),
+                json.dumps(finding.get("notes") or []),
             ),
         )
         self.conn.commit()
         return int(cur.lastrowid or 0)
 
+    @staticmethod
+    def _finding(r: sqlite3.Row) -> dict[str, Any]:
+        d = dict(r)
+        for key in ("repro", "evidence", "notes"):
+            d[key] = json.loads(d.get(key) or "[]")
+        return d
+
     def findings_for_run(self, run_id: int) -> list[dict[str, Any]]:
         rows = self.conn.execute("SELECT * FROM findings WHERE run_id=? ORDER BY id", (run_id,)).fetchall()
-        return [{**dict(r), "repro": json.loads(r["repro"] or "[]")} for r in rows]
+        return [self._finding(r) for r in rows]
+
+    def findings(self, verdict: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
+        """Findings across runs, newest first, with their run's commit and branch and their check key."""
+        sql = (
+            "SELECT f.*, r.commit_sha, r.branch, r.started_at AS run_started_at, c.attack_id AS key"
+            " FROM findings f JOIN runs r ON r.id=f.run_id LEFT JOIN checks c ON c.id=f.check_id"
+        )
+        args: list[Any] = []
+        if verdict:
+            sql += " WHERE f.verdict=?"
+            args.append(verdict)
+        rows = self.conn.execute(sql + " ORDER BY f.id DESC LIMIT ?", [*args, limit]).fetchall()
+        return [self._finding(r) for r in rows]
+
+    def finding(self, finding_id: int) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT f.*, r.commit_sha, r.branch, c.attack_id AS key FROM findings f JOIN runs r ON r.id=f.run_id"
+            " LEFT JOIN checks c ON c.id=f.check_id WHERE f.id=?",
+            (finding_id,),
+        ).fetchone()
+        return self._finding(row) if row else None
 
     def confirmed_repros(self) -> list[dict[str, Any]]:
         """Latest confirmed repro per agentic cell, for regression re-checks in later runs."""
@@ -516,7 +547,7 @@ class Ledger:
             if r["attack_id"] in seen:
                 continue
             seen.add(r["attack_id"])
-            out.append({**dict(r), "repro": json.loads(r["repro"] or "[]")})
+            out.append(self._finding(r))
         return out
 
     # ---- events -------------------------------------------------------------------------------------

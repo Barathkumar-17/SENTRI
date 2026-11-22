@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +58,7 @@ class ReplayEnv:
     run_tag: str
     attempts: int = 3
     evidence_dir: Path | None = None
+    last_evidence: list[str] = field(default_factory=list)  # files written by the last confirm(), one per attempt
 
     @property
     def protected(self) -> set[str]:
@@ -276,6 +277,7 @@ async def confirm(
     env: ReplayEnv, repro: list[dict[str, Any]], key: str | None = None
 ) -> tuple[CheckVerdict, str, list[str]]:
     cfg = agentic_oracle_config(env.contract)
+    env.last_evidence = []
     results: list[list[OracleResult] | None] = []
     notes: list[str] = []
     for attempt in range(1, env.attempts + 1):
@@ -299,6 +301,7 @@ async def confirm(
                 "logs": [line.text for line in ev.base.logs][-80:],
             }
             path.write_text(json.dumps(redact_obj(data), indent=1, default=str), encoding="utf-8")
+            env.last_evidence.append(str(path))
     final_key = key or primary_key([r for r in results if r is not None])
     return decide_replays("agentic", final_key, results), final_key, notes
 
@@ -312,6 +315,8 @@ def record(
     key: str,
     run_hits: dict[str, CheckVerdict] | None = None,
     replay_state: str = "restart",
+    evidence: list[str] | None = None,
+    notes: list[str] | None = None,
 ) -> tuple[int | None, list[LedgerEvent]]:
     """Store the outcome. Confirmed findings become checks and bugs (outside the comparable base score).
 
@@ -379,6 +384,8 @@ def record(
             "check_id": check_id,
             "origin": candidate.get("origin") or "ai",
             "replay_state": replay_state,
+            "evidence": list(evidence or []),
+            "notes": list(notes or [])[:20],
         },
     )
     return check_id, events
