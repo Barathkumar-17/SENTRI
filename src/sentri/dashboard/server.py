@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import secrets
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any, Literal
@@ -18,6 +19,8 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
+from sentri.config import Settings
+from sentri.dashboard.control_routes import ControlState, register
 from sentri.ledger.ledger import HumanDecision, Ledger
 from sentri.verdict.scorer import compute
 
@@ -32,7 +35,11 @@ The backend is running; these endpoints are available:</p>
 <li><a href="/api/runs">/api/runs</a></li><li>/api/runs/{id}, /api/runs/{id}/grid</li>
 <li>/api/checks/{id}</li><li><a href="/api/bugs">/api/bugs</a>, /api/bugs/{id}/history,
 POST /api/bugs/{id}/status</li><li><a href="/api/trend">/api/trend</a></li>
-<li>/api/live/screenshot.jpg</li><li>/api/events/stream (SSE)</li><li><a href="/docs">/docs</a> (OpenAPI)</li>
+<li>/api/live/screenshot.jpg</li><li>/api/events/stream (SSE)</li>
+<li>Control: <a href="/api/providers">/api/providers</a>, <a href="/api/models/local">/api/models/local</a>,
+/api/models/pull, /api/models/test, /api/settings/model, /api/projects/inspect, /api/plan, /api/contracts/*,
+/api/runs (POST), <a href="/api/jobs">/api/jobs</a></li>
+<li><a href="/docs">/docs</a> (OpenAPI)</li>
 </ul></body></html>"""
 
 
@@ -53,8 +60,45 @@ def _row(row: Any) -> dict[str, Any] | None:
     return out
 
 
-def create_app(db_path: Path, evidence_dir: Path, live_path: Path, poll_s: float = 0.5) -> FastAPI:
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+TOKEN_COOKIE = "sentri_token"
+
+
+def create_app(
+    db_path: Path,
+    evidence_dir: Path,
+    live_path: Path,
+    poll_s: float = 0.5,
+    *,
+    token: str | None = None,
+    settings: Settings | None = None,
+    extra_hosts: tuple[str, ...] = (),
+) -> FastAPI:
+    """`token` protects every state-changing request (Jupyter-style): open `/?token=...` once and the browser
+    keeps it in a SameSite=Strict cookie, or send it as the `X-Sentri-Token` header. Requests whose Host is
+    not local are refused, which blocks DNS-rebinding attacks from other websites."""
     app = FastAPI(title="Sentri", version="0.1.0")
+
+    @app.middleware("http")
+    async def guard(request: Request, call_next: Any) -> Response:
+        host = (request.headers.get("host") or "").rsplit(":", 1)[0].lower()
+        if host not in LOCAL_HOSTS and host not in extra_hosts:
+            return Response("Sentri only answers on localhost", status_code=403)
+        if request.method not in SAFE_METHODS:
+            given = request.headers.get("x-sentri-token") or request.cookies.get(TOKEN_COOKIE)
+            if token is None or not given or not secrets.compare_digest(given, token):
+                return Response("missing or wrong session token; open the URL printed by `sentri serve`", 401)
+        response: Response = await call_next(request)
+        query_token = request.query_params.get("token")
+        if token and request.url.path == "/" and query_token and secrets.compare_digest(query_token, token):
+            response.set_cookie(TOKEN_COOKIE, token, httponly=True, samesite="strict")
+        return response
+
+    if settings is not None:
+        state = ControlState(settings)
+        state.load_prefs()
+        register(app, state)
 
     def ledger() -> Ledger:
         # One connection per request: WAL lets the dashboard read while a run writes.

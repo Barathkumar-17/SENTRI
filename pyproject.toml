@@ -62,7 +62,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "ASYNC"]
-ignore = ["B008"]
+ignore = ["B008", "ASYNC240"]  # ASYNC240: tiny local file checks in a local tool are fine
 
 [tool.mypy]
 python_version = "3.12"
