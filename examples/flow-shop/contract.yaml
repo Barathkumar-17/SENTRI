@@ -1,0 +1,44 @@
+# flow-shop: Sentri's validation target for adaptive exploration (see documentation/example-report.md).
+# Sentri gets only this: how to start the app, how a test user logs in, one baseline flow and a plain goal.
+version: 1
+
+app:
+  run: "{python} app.py"
+  cwd: "."
+  port: 5088
+  base_url: "http://127.0.0.1:5088"
+  startup_timeout_s: 60
+  health_path: "/"
+  reset: restart            # all state is in memory: a restart is a clean state for every replay
+
+auth:
+  login_flow: login
+
+goals:
+  - "Buy something as a logged-in customer and check that the order shows up"
+
+flows:
+  - id: login
+    attack: false
+    start: "/signup"
+    steps:
+      - fill: {selector: "input[name=email]", value: "{email}"}
+      - fill: {selector: "input[name=password]", value: "{password}"}
+      - click: "#signup-btn"
+      - wait_for: {selector: "#login-btn"}
+      - fill: {selector: "input[name=email]", value: "{email}"}
+      - fill: {selector: "input[name=password]", value: "{password}"}
+      - click: "#login-btn"
+    success: {text_visible: "Shop"}
+
+  - id: add_to_cart
+    requires_login: true
+    start: "/product/1"
+    steps:
+      - fill: {selector: "input[name=qty]", value: "{number}"}
+      - click: "#add-btn"
+    success: {url_contains: "/cart"}
+    list_selector: ".cart-row"
+    list_page: "/cart"
+
+attacks_enabled: [empty_input, double_submit, expired_session, slow_network, rapid_repeat]

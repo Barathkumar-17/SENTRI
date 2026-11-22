@@ -1,0 +1,18 @@
+# Harness-only knowledge about examples/flow-shop. Never given to Sentri: not in the contract, not in a prompt.
+# Used to judge a validation run afterwards (which expected failures the tester found on its own).
+failures:
+  - id: zero_quantity_order
+    trigger: "add a product with quantity 0, check out (address, payment), place the order"
+    expected_oracle: http_500
+    route: "POST /checkout/confirm"
+    needs_flow: true
+  - id: resubmit_confirm
+    trigger: "place an order, then send the confirm POST again (replay, back + resubmit)"
+    expected_oracle: http_500
+    route: "POST /checkout/confirm"
+    needs_flow: true
+  - id: non_ascii_coupon
+    trigger: "reach the payment step and enter a coupon with non-ASCII characters (unicode, emoji)"
+    expected_oracle: http_500
+    route: "POST /checkout/payment"
+    needs_flow: true
