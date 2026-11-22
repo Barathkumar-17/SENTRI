@@ -77,6 +77,7 @@ class ObservedRequest:
     failure: str | None = None
     via: str = "browser"  # browser | request | replay
     location: str | None = None  # Location header of a redirect or 201 response
+    raw: bytes | None = field(default=None, repr=False)  # exact request body, in memory only (replays send this)
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -210,6 +211,7 @@ class AgentSession:
     def _attach(self, page: Page, who: str) -> None:
         def on_request(req: Any) -> None:
             body = None
+            buf = None
             with contextlib.suppress(Exception):
                 buf = req.post_data_buffer
                 if buf:
@@ -223,6 +225,7 @@ class AgentSession:
                 content_type=(req.headers or {}).get("content-type"),
                 body=redact(body) if body else None,
                 started_ms=self._now(),
+                raw=bytes(buf) if buf else None,
             )
             self.requests.append(rec)
             self._pending[req] = rec
@@ -359,7 +362,11 @@ class AgentSession:
         )
 
     # ---- actions ------------------------------------------------------------------------------------
-    async def _api_request(self, method: str, url: str, body: str | None, ctype: str | None, via: str) -> int:
+    async def _api_request(
+        self, method: str, url: str, body: str | None, ctype: str | None, via: str, raw: bytes | None = None
+    ) -> int:
+        """`body` is what the model or the log sees (redacted); `raw`, when given, is sent instead (an observed
+        request's exact bytes: binary uploads and unredacted values survive the replay)."""
         ctx = await self._context(self.current)
         rec = ObservedRequest(
             id=len(self.requests) + 1,
@@ -371,13 +378,19 @@ class AgentSession:
             body=redact(body) if body else None,
             started_ms=self._now(),
             via=via,
+            raw=raw if raw is not None else (body.encode("utf-8") if body else None),
         )
         self.requests.append(rec)
         self._note_submission(self.current, rec, self._url() or url)
         headers = {**self.identity_headers.get(self.current, {}), **({"content-type": ctype} if ctype else {})}
         try:
             resp = await ctx.request.fetch(
-                url, method=method, data=body, headers=headers, timeout=self.timeout_ms, max_redirects=0
+                url,
+                method=method,
+                data=raw if raw is not None else body,
+                headers=headers,
+                timeout=self.timeout_ms,
+                max_redirects=0,
             )
             rec.status = resp.status
             rec.response_type = resp.headers.get("content-type")
@@ -532,17 +545,21 @@ class AgentSession:
             await page.locator(action.selector).first.set_input_files(cast(Any, file), timeout=t)
         elif isinstance(action, SendRequest):
             method, path, body, ctype = action.method, action.path, action.body, action.content_type
+            raw = None
             if action.from_request is not None:
                 src = self._observed(action.from_request)
                 path = path or src.url
-                body = body if body is not None else src.body
+                if body is None:
+                    body, raw = src.body, src.raw
                 ctype = ctype or src.content_type
-            await self._api_request(method, resolve_same_origin(self.base_url, path or "/"), body, ctype, "request")
+            url = resolve_same_origin(self.base_url, path or "/")
+            await self._api_request(method, url, body, ctype, "request", raw)
         elif isinstance(action, Replay):
             src = self._observed(action.request_id)
             url = resolve_same_origin(self.base_url, src.url)
             calls = [
-                self._api_request(src.method, url, src.body, src.content_type, "replay") for _ in range(action.times)
+                self._api_request(src.method, url, src.body, src.content_type, "replay", src.raw)
+                for _ in range(action.times)
             ]
             if action.concurrent:
                 await asyncio.gather(*calls)

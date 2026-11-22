@@ -115,12 +115,12 @@ def cross_user_exposure(ev: AgentEvidence, cfg: OracleConfig) -> OracleResult:
 
 def replay_duplicate(ev: AgentEvidence, cfg: OracleConfig) -> OracleResult:
     for p in ev.count_probes:
-        if p.after - p.before > p.expected_increase:
+        if not p.inconclusive and p.after - p.before > p.expected_increase:
             route = normalize_route("GET", p.page)
             return OracleResult(
                 "replay_duplicate",
                 True,
-                f"{p.after - p.before} copies on {p.page} after a replay, expected {p.expected_increase}",
+                f"{p.after - p.before} new records on {p.page} after a replay, expected {p.expected_increase}",
                 route,
                 "duplicate_records",
             )

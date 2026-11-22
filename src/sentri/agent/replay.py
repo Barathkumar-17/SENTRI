@@ -24,6 +24,7 @@ from sentri.agent.session import AgentSession
 from sentri.agent.tokens import tokens_in
 from sentri.contract.models import Contract
 from sentri.evidence.agent_models import AgentEvidence, CountProbe, HealthProbe
+from sentri.evidence.records import count_records
 from sentri.ledger.ledger import CheckRecord, Ledger, LedgerEvent
 from sentri.redact import redact_obj
 from sentri.runner.browser import BrowserManager
@@ -62,6 +63,17 @@ class ReplayEnv:
     def protected(self) -> set[str]:
         return self.app_map.protected_paths()
 
+    def list_selectors(self, path: str) -> list[str]:
+        page = self.app_map.page(path)
+        return list(page.list_selectors) if page is not None else []
+
+    def is_list_page(self, path: str) -> bool:
+        """A page or parameter-free GET endpoint that lists records (where duplicates would show)."""
+        page = self.app_map.page(path)
+        if page is not None and page.list_selectors:
+            return True
+        return any(e.method == "GET" and e.path == path and ":id" not in e.path for e in self.app_map.endpoints)
+
     def health_pages(self, repro: list[dict[str, Any]]) -> list[tuple[str, str]]:
         """A few pages that should keep working: list pages and the pages the steps touched."""
         paths: list[str] = []
@@ -83,17 +95,22 @@ class ReplayEnv:
         return out
 
 
-async def _fetch_text(session: AgentSession, who: str, path: str) -> tuple[int | None, str]:
-    """Unrecorded GET as `who` (measurement, not part of the evidence)."""
+async def _fetch(session: AgentSession, who: str, path: str) -> tuple[int | None, str, str | None]:
+    """Unrecorded GET as `who` (measurement, not part of the evidence): status, body, content type."""
     try:
         ctx = await session._context(who)
         headers = session.identity_headers.get(who, {})
         resp = await ctx.request.get(
             session.base_url + path, headers=headers, max_redirects=0, timeout=session.timeout_ms
         )
-        return resp.status, await resp.text()
+        return resp.status, await resp.text(), resp.headers.get("content-type")
     except (PlaywrightError, ActionRefused):
-        return None, ""
+        return None, "", None
+
+
+async def _fetch_text(session: AgentSession, who: str, path: str) -> tuple[int | None, str]:
+    status, text, _ctype = await _fetch(session, who, path)
+    return status, text
 
 
 _CANARY = re.compile(r"sentri-canary-(a|b)-[0-9a-f]{6}")
@@ -160,6 +177,7 @@ async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int)
                 completed = False
                 break
             probe: tuple[str, list[str], int] | None = None
+            list_pages = [path for _who, path in health if env.is_list_page(path)]
             if isinstance(action, (Replay, Burst)):
                 src_body = None
                 if isinstance(action, Replay):
@@ -171,30 +189,62 @@ async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int)
                 tokens = tokens_in(src_body)
                 one_time = bool(_NONCE.search(src_body or ""))
                 expected = 1 if isinstance(action, Burst) else (0 if one_time else -1)
-                if tokens and expected >= 0:
+                what = "a burst" if isinstance(action, Burst) else "a replay"
+                if expected < 0:
+                    notes.append(
+                        f"replay_duplicate not applicable at step {index}: the replayed request has no one-time token"
+                    )
+                elif not tokens:
+                    notes.append(
+                        f"replay_duplicate inconclusive at step {index}: {what} carries no Sentri value to count"
+                    )
+                elif not list_pages:
+                    notes.append(f"replay_duplicate inconclusive at step {index}: no list page to count records on")
+                    counts += [CountProbe(t, "", 0, 0, expected, inconclusive=True) for t in tokens]
+                else:
                     probe = (session.current, tokens, expected)
-            pages_before: dict[str, str] = {}
+            pages_before: dict[str, tuple[str, str | None]] = {}
             if probe is not None:
-                for _who, path in health:
-                    pages_before[path] = (await _fetch_text(session, probe[0], path))[1]
+                for path in list_pages:
+                    _st, text, ctype = await _fetch(session, probe[0], path)
+                    pages_before[path] = (text, ctype)
             outcome = await session.execute(action)
             if not outcome.ok and step.get("expect_ok", True):
                 notes.append(f"attempt {attempt} failed at step {index}/{len(repro)}: {outcome.error}")
                 completed = False
                 break
             if probe is not None:
-                who, tokens, expected = probe
-                for path, text_before in pages_before.items():
-                    text_after = (await _fetch_text(session, who, path))[1]
-                    for token in tokens:
-                        counts.append(
-                            CountProbe(token, path, text_before.count(token), text_after.count(token), expected)
-                        )
+                counts += await _count_probes(env, session, probe, pages_before, index, notes)
         after = {key: await _fetch_text(session, *key) for key in health}
         probes = tuple(HealthProbe(path, who, before[(who, path)][0], after[(who, path)][0]) for (who, path) in health)
         return Attempt(session.agent_evidence_since(mark, tuple(counts), probes), notes, completed)
     finally:
         await session.close()
+
+
+async def _count_probes(
+    env: ReplayEnv,
+    session: AgentSession,
+    probe: tuple[str, list[str], int],
+    pages_before: dict[str, tuple[str, str | None]],
+    index: int,
+    notes: list[str],
+) -> list[CountProbe]:
+    """Distinct records holding each Sentri value on each list page, before and after the replayed step."""
+    who, tokens, expected = probe
+    out: list[CountProbe] = []
+    for path, (text_before, ctype_before) in pages_before.items():
+        _st, text_after, ctype_after = await _fetch(session, who, path)
+        selectors = env.list_selectors(path)
+        for token in tokens:
+            before = count_records(text_before, token, ctype_before, selectors)
+            after = count_records(text_after, token, ctype_after, selectors)
+            unknown = before is None or after is None
+            out.append(CountProbe(token, path, before or 0, after or 0, expected, inconclusive=unknown))
+    if not any(not p.inconclusive and p.after > 0 for p in out):
+        notes.append(f"replay_duplicate inconclusive at step {index}: no list page shows {', '.join(tokens)[:120]}")
+        out = [CountProbe(p.token, p.page, p.before, p.after, p.expected_increase, inconclusive=True) for p in out]
+    return out
 
 
 def primary_key(results: list[list[OracleResult]]) -> str:

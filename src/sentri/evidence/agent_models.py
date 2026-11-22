@@ -26,6 +26,7 @@ class CountProbe:
     before: int
     after: int
     expected_increase: int = 1
+    inconclusive: bool = False  # no list page, or no record structure to count in: never fires
 
 
 @dataclass(frozen=True)
