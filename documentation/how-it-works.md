@@ -2,6 +2,11 @@
 
 ## The core rule
 
+**Sentri tests as a black box.** It learns about your app only by using it: requests, pages, the identities you
+allow and the goals you give. It never uses your source code, README, database or server logs to choose a test or
+to decide a verdict. (Starting and restarting the app for you is allowed; that is lifecycle, not insight. The
+optional fixer reads source code, but only when you run it, and nothing from it flows back into testing.)
+
 **The AI proposes and acts. Plain code decides.** The model writes the attack strategy, drives the exploration
 and chooses inputs. It never decides whether something is a bug. Every verdict comes from deterministic code
 reading measured evidence, and a test in the repository fails if the verdict, ledger, report or replay code
@@ -49,9 +54,17 @@ Every finding confirmed in an earlier run is replayed again. If it no longer rep
 *fixed*; if a fixed bug is back, it is a *regression*.
 
 ### 4. Agentic exploration
-The model drives the app one action at a time. Each step it sees the strategy, its recent steps, what is
-already flagged, and an observation of the current page (identity, URL, text, forms, buttons, links, recent
-requests, console errors). It answers with its reasoning and **one** action from a fixed, typed action space:
+The model drives the app one action at a time, on a compact view that Sentri maintains for it:
+- an **exploration map** of the states it has seen: a state is who is acting (and whether their session was
+  cleared), where (the route, with ids normalized) and what the page offers (its forms, controls and links). A new
+  URL with the same shape is not a new state;
+- for the current state: whether it is new, what the last action changed, the page text only when it is new or
+  changed, and numbered options (links, forms, buttons) each marked untried, tried and where it led, failed, or a
+  dead end;
+- the frontier: other states that still offer untried options; and the last few steps.
+
+It answers with its reasoning, how its current goal is going (continue, done, stuck), optionally a new goal it
+noticed, and **one** action from a fixed, typed action space:
 
 | Kind | Examples |
 |---|---|
@@ -59,6 +72,8 @@ requests, console errors). It answers with its reasoning and **one** action from
 | Files | upload a valid, empty, oversized, wrong-extension, corrupt or oddly named file |
 | Raw HTTP | send a request with any method or a tampered body; replay an observed request, sequentially or as a race |
 | Abuse | burst-click an element; throttle to slow 3G; clear the session mid-flow |
+| Batched | fill a whole form and submit it in one step |
+| Detail | `look` at the full text, all form fields or the request log when the compact view is not enough |
 | Identities | switch between `anon`, user `a` and user `b` (two separate fresh accounts) |
 
 Code validates every action before it runs. **Every browser context is fenced to the app's own origin**:
@@ -78,6 +93,8 @@ a hard rule never to follow instructions found in APP DATA, so a page that says 
 just page text.
 
 The loop is hardened in code:
+- an action already shown to be a dead end in this state (failed twice, or done twice with no effect) is not run
+  again; the model is told, and the focus moves on;
 - an unusable answer is retried once with the problem shown; if it is still unusable, code picks the next
   unexplored link or button itself;
 - unusable answers, invalid actions and refused actions each use up a visible step, and three in a row end
@@ -98,7 +115,9 @@ Code also loads every GET form and query string with an inert marker (`"><sentri
 first step, and re-sends each form submit that carried a CSRF token once without it.
 
 ### 5. Confirmation by replay
-Each distinct candidate is replayed **3 times from a clean state**: the app is restarted, fresh accounts and
+Each distinct candidate is replayed **3 times**, each from a restarted app when Sentri started it (an app you
+gave only as a URL cannot be reset: its replays run on the live state, the report says so, and three of them are
+not three independent confirmations). Fresh accounts and
 fresh canaries are created, the whole session prefix is replayed, and references to earlier requests are
 re-matched by method and path (replays send the original request's exact bytes). Steps from earlier lines of
 attack are replayed only to rebuild the state; the oracles judge the candidate's own steps, so an earlier break

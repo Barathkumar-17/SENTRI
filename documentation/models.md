@@ -39,7 +39,11 @@ servers use their own default unless you pass `--model`. `--model-smart` sets th
   happens to be in your environment is never spent silently.
 - Keys are scrubbed from evidence, reports, the ledger and prompts. `sentri models` shows which key variables
   exist by name, never their values.
-- Paid APIs are capped per run by `SENTRI_LLM_BUDGET_USD` (default 1.00).
+- Paid APIs are capped per run by `SENTRI_LLM_BUDGET_USD` (default 1.00). The cap is only enforceable where
+  Sentri knows the model's price; for other models the report says the cost is **unknown** (never $0).
+- Further limits: `SENTRI_LLM_MAX_CALLS` and `SENTRI_LLM_MAX_TOKENS` (input + output, with each call's output
+  reserved before it is made), and `SENTRI_LLM_TIMEOUT_S` per call (default 60 s). When one is reached, model use
+  stops cleanly and the report names the limit. Every report shows calls, tokens and retries per role.
 
 ## How answers are checked
 Every model answer must match a schema (for example a typed action, or a list of hypotheses). During

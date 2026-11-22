@@ -2,7 +2,8 @@
 
 Sentri attacks your running web app like a hostile or careless user, so it breaks in testing instead of in a live demo.
 
-**Core rule:** the AI proposes attacks; plain code decides pass or fail. The AI never grades the result.
+**Core rules:** the AI proposes attacks; plain code decides pass or fail. And Sentri tests as a **black box**: it
+learns about your app only by using it, never from its source, README, database or logs.
 
 - Runs your app in a throwaway sandbox (Docker container, or a plain local process).
 - **Recon:** explores the app first (every reachable page, form and link, logged out and logged in, plus the
@@ -13,8 +14,9 @@ Sentri attacks your running web app like a hostile or careless user, so it break
 - **Agentic exploration:** the model drives a real browser and raw HTTP requests step by step (huge or odd
   inputs, logged-out and other-user access, changed ids, wrong methods, back/refresh/two tabs, replays and
   races, bursts, big uploads, slow network) and decides each next move from what happened.
-- **Plain-code verdicts:** every suspected break is replayed 3 times from a clean state, from the very first
-  step of the session, and judged by eleven deterministic checks: HTTP 5xx, exceptions in the logs, browser
+- **Plain-code verdicts:** every suspected break is replayed 3 times from a restarted app (or, for an app you
+  started yourself, on its live state), from the very first step of the session, and judged by eleven
+  deterministic checks: HTTP 5xx, stack traces the app sends back, browser
   errors, duplicates, hangs, logged-out access to protected data, one user seeing another's data (in pages or
   by opening a record by its id), input written back into a page unescaped (XSS), a state change accepted
   without its CSRF token, duplicates from replays or races, and state corruption.
@@ -178,7 +180,7 @@ budgets: `SENTRI_EXPLORE_STEPS` (default 60) and `SENTRI_EXPLORE_MINUTES` (defau
 
 ## Verdicts and score
 
-Each check (flow x attack, or agentic finding) runs 3 times from a clean app state:
+Each check (flow x attack, or agentic finding) runs 3 times, each from a restarted app when Sentri starts it:
 
 | Verdict | Rule |
 |---|---|
@@ -196,6 +198,8 @@ The agentic impact is the sum over agentic findings that replay **confirmed**, b
 tripped: data exposure (logged-out access, cross-user exposure, XSS) 15, state corruption (duplicates, CSRF,
 state corruption) 10, crash (5xx, exception, hang) 5, minor (console error) 2; half for a flaky finding.
 Unconfirmed candidates never count. The report shows both parts: "Baseline suite: 75 · Agentic impact: -15".
+With no applicable baseline check there is **no number**: the report says "insufficient coverage", lists what was
+explored and found, and never implies the app is safe.
 
 A pass means "survived these attacks", nothing more. Sentri does not check business logic, such as a wrong total.
 

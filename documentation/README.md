@@ -25,7 +25,7 @@ flowchart LR
     A[Your app] -->|started in a sandbox| R[Recon<br/>pages, forms, API, auth boundary]
     R --> S[Strategy<br/>app-specific hypotheses]
     S --> E[Agentic exploration<br/>model picks one action per step]
-    E -->|suspected break| C[Replay 3x from a clean state]
+    E -->|suspected break| C[Replay 3x, restarted app<br/>or live state in URL mode]
     C --> O[Plain-code oracles<br/>11 deterministic checks]
     O --> L[(Bug ledger)]
     B[Baseline suite<br/>6 fixed attacks] --> O

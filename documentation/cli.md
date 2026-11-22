@@ -7,7 +7,7 @@
 | `sentri setup [--with-deps]` | Install the Chromium build Playwright drives (`--with-deps` also installs Linux system packages) |
 | `sentri doctor` | Check Python, Chromium, Docker, git, gh, local DNS and the model settings; exit 4 if a required item is missing |
 | `sentri models` | List signed-in agent CLIs, running local model servers and their models, and which key variables are set |
-| `sentri plan --app-dir DIR (--run CMD \| --dockerfile FILE) --port N` | Start the app, run recon and draft `contract.draft.yaml` |
+| `sentri plan --app-dir DIR (--run CMD \| --dockerfile FILE) --port N` or `sentri plan --url URL` | Start the app (or use a running one), explore it from outside and draft `contract.draft.yaml` |
 | `sentri contract check FILE` | Validate a contract |
 | `sentri contract approve FILE --as NAME [--out FILE]` | Record the human approval |
 | `sentri run` | Run Sentri (options below) |
@@ -64,6 +64,7 @@
 | `SENTRI_OLLAMA_MODEL` | none | Shortcut for a local Ollama model |
 | `SENTRI_LLM_BUDGET_USD` | 1.00 | Spending cap per run for paid APIs |
 | `SENTRI_LLM_TIMEOUT_S` | 60 | Per model call (CLIs and local models get more) |
+| `SENTRI_LLM_MAX_CALLS` / `SENTRI_LLM_MAX_TOKENS` | 0 (no limit) | Model calls / tokens (input + output) per run |
 | `SENTRI_EXPLORE_STEPS` / `SENTRI_EXPLORE_MINUTES` | 60 / 10 | Exploration budget |
 | `SENTRI_MAX_PROBES_PER_FLOW` | 2 | Follow-up probes in the baseline suite |
 | `SENTRI_REGRESSION_PENALTY` | 5 | Score points per regressed bug |

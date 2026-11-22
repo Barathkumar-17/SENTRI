@@ -3,7 +3,9 @@
 | Limitation | Detail |
 |---|---|
 | Business logic | Sentri catches crashes, errors, hangs, duplicates, logged-out access, cross-user exposure, unescaped reflected input, missing CSRF checks and state corruption. It does not know that a total is wrong or a discount is too big. |
-| A pass is narrow | It means the app survived these attacks in this run, not that it is safe. |
+| A pass is narrow | It means the app survived these attacks in this run, not that it is safe. A run with no applicable baseline check shows "insufficient coverage", not a score. |
+| Black box | Crashes are seen only through what the app shows (HTTP 5xx, error text in responses, browser errors). An exception the app swallows and only logs is not detected. |
+| URL mode replays | For an app Sentri did not start there is no reset: replays run on the live state, so three replays are not three independent confirmations. |
 | Exploration varies | The agent decides what to try, so two runs explore differently. Confirmed findings are replayed on every later run; the baseline score is the comparable number. |
 | Model quality | A weak model explores less well. It cannot make Sentri report a false bug, because replay and plain code decide. |
 | Canvas interfaces | Apps drawn on a canvas (Flutter web) expose little to a browser; Sentri then works through their API (OpenAPI spec, token login). |

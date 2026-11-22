@@ -79,17 +79,17 @@ identity makes **to the app** (never to another origin, also not through a redir
 ### `app`
 | Field | Default | Meaning |
 |---|---|---|
-| `run` or `docker` | required (one) | How to start the app. `{python}` in `run` is the interpreter running Sentri. |
+| `run` or `docker` | one, or neither | How Sentri starts the app. `{python}` in `run` is the interpreter running Sentri. Give neither, plus `base_url`, for an app that is already running (URL mode: Sentri never starts, resets or stops it, and replays run on its live state) |
 | `docker.context`, `dockerfile`, `container_port`, `env` | `.`, `Dockerfile` | Docker mode |
 | `cwd` | `.` | Working directory for command mode, relative to the contract |
 | `env` | `{}` | Extra environment for the app. `PORT` is set to `port` unless you set it here. |
-| `port` | required | Port Sentri connects to |
+| `port` | required with `run`/`docker` | Port Sentri connects to |
 | `base_url` | `http://localhost:<port>` | Its origin is "the app": nothing outside it is attacked or counted |
 | `startup_timeout_s` | 60 | Port open and health check below 500 within this time |
 | `health_path` | `/` | Must answer below 500 before attacks start |
 | `reset` / `reset_command` | `restart` | Clean state between attempts: restart the app, or run a command |
 | `clean` | `[]` | Files deleted before every start (SQLite `-wal`/`-shm` included), inside the app folder only |
-| `log_patterns_extra` | `[]` | Extra regexes that count as an exception in the app's logs |
+| `log_patterns_extra` | `[]` | Extra regexes that count as an exception in the error text the app sends back |
 | `ignore_console` | `favicon.ico` | Regexes for browser console messages to ignore (baseline suite and agentic phase alike) |
 | `offsite_assets` | `allow` | `block` also stops off-origin scripts, styles, images and fonts. Every other request to another origin (links, form posts, popups, fetch calls, websockets, and redirects from the app to another site) is always blocked |
 
@@ -128,7 +128,8 @@ existing account. Nothing is hard-coded.
 | `meta.approved_by`, `meta.approved_at` | Written by `sentri contract approve` |
 | `defaults` | `action_timeout_s` (10), `settle_ms` (1500), `slow_network_timeout_multiplier` (3) |
 | `attacks_enabled` | Which of the six baseline attacks to run |
-| `duplicate_db` | Optional `sqlite:///path` and table per flow, for exact record counts |
+| `goals` | Optional plain-language goals for the agentic phase, e.g. `["Buy something and check the order shows up"]` |
+| `duplicate_db` | Ignored: verdicts are black-box, so duplicates are counted on the list page (`list_selector`) |
 
 Validate with `sentri contract check contract.yaml`; errors name the YAML location, e.g.
 `flows[1].steps[2].upload.selector: field required`.

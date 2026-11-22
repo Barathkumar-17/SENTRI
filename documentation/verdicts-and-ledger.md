@@ -2,13 +2,14 @@
 
 ## The eleven oracles
 
-Each oracle is a pure function of measured evidence: requests and responses, browser console, the app's logs,
+Each oracle is a pure function of what the app shows from outside: requests and responses (including error text
+it sends back), browser console,
 page text, counts and timing. Same evidence, same answer.
 
 | Oracle | Fires when |
 |---|---|
 | HTTP 5xx | the app (its own origin) answered with a server error |
-| Exception | a stack trace or fatal error appears in the app's logs |
+| Exception | the app sent back a stack trace or fatal error in a response (Sentri does not read server logs) |
 | Console error | the browser reported a JavaScript error (4xx resource messages and `favicon.ico` are ignored) |
 | Duplicates | a double submit, rapid repeat or slow-network retry created more records than expected (needs a list or count hint in the contract) |
 | Timeout | a navigation or the app's own request did not finish in time, or the page crashed |
@@ -26,7 +27,7 @@ on its front page are not flagged); a record is private when a logged-out visito
 
 ## Fail, flaky, pass
 
-Every check runs **3 times from a clean state**.
+Every check runs **3 times**, each from a restarted app when Sentri starts it (URL mode: on the live state).
 
 | Verdict | Rule |
 |---|---|
@@ -74,8 +75,14 @@ agentic finding that replay confirmed costs points by the most severe oracle it 
 | Minor | console error | 2 |
 
 Each finding counts once per run. Unconfirmed candidates never count, and a finding whose bugs a person marked
-*intended* costs nothing. If the contract has no applicable baseline check but the agentic phase ran, the
-score is `100 - agentic impact`. The report prints the formula with the real numbers and the split, for example
+*intended* costs nothing.
+
+**No applicable baseline check means no score.** The report then says **insufficient coverage** instead of a
+number, whatever exploration found (its findings are still listed with their impact). A readiness number only
+describes the baseline checks that ran; exploration can lower it but never create it. Every report also shows what
+was measured (checks by status: passed, failed, flaky, inapplicable, inconclusive, reused; exploration steps by who
+chose them, distinct states, candidates, confirmations, stop reasons) and says plainly that this is not a safety
+rating. The report prints the formula with the real numbers and the split, for example
 `Baseline suite: 75 · Agentic impact: -15 (1 data exposure)`, and each finding's cost in the findings table.
 
 **A pass means "survived these attacks", nothing more.** See [Limitations](limitations.md).
