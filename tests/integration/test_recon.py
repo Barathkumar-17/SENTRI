@@ -50,6 +50,8 @@ async def test_recon_maps_the_demo_app(tmp_path: Path):
     assert {"/", "/signup", "/users", "/login", "/comments", "/tasks", "/tasks/new", "/profile"} <= paths, paths
     tasks = app_map.page("/tasks")
     assert tasks is not None and tasks.requires_login and tasks.anon_outcome == "redirect -> /login"
+    assert tasks.auth_evidence == "redirect" and "/tasks" in app_map.proven_protected_paths()
+    assert app_map.anon_shells and any("Log in" in s for s in app_map.anon_shells)  # home + login page bodies
     comments = app_map.page("/comments")
     assert comments is not None and comments.requires_login is False
     endpoints = {(e.method, e.path) for e in app_map.endpoints}
