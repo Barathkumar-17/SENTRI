@@ -77,6 +77,7 @@ class RunOrchestrator:
         provider: BudgetedProvider,
         options: RunOptions,
         echo: Any = None,
+        on_run_created: Any = None,
     ):
         self.contract = contract
         self.workdir = workdir
@@ -89,6 +90,8 @@ class RunOrchestrator:
         self.llm_used = False
         self.static_used = False
         self._last_outcome: CheckOutcome | None = None
+        self.on_run_created = on_run_created  # UI jobs learn the run id as soon as it exists
+        self.run_id: int | None = None
 
     # ---- grid ---------------------------------------------------------------------------------------
     def build_grid(self) -> list[Cell]:
@@ -134,6 +137,9 @@ class RunOrchestrator:
         fingerprint = app_fingerprint(app_root, self.options.exclude_paths)
         chash = contract_hash(c)
         run_id = self.ledger.create_run(self.options.commit, self.options.branch, fingerprint, chash)
+        self.run_id = run_id
+        if self.on_run_created is not None:
+            self.on_run_created(run_id)
         bus = EventBus(self.ledger, run_id, self.echo)
         started = time.monotonic()
         evidence_dir = self.settings.evidence_dir / str(run_id)
