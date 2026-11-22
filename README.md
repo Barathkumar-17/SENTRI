@@ -13,14 +13,32 @@ Sentri attacks your running web app like a hostile or careless user, so it break
 - **Agentic exploration:** the model drives a real browser and raw HTTP requests step by step (huge or odd
   inputs, logged-out and other-user access, changed ids, wrong methods, back/refresh/two tabs, replays and
   races, bursts, big uploads, slow network) and decides each next move from what happened.
-- **Plain-code verdicts:** every suspected break is replayed 3 times from a clean state and judged by nine
-  deterministic checks: HTTP 5xx, exceptions in the logs, browser errors, duplicates, hangs, logged-out access
-  to protected data, one user seeing another's data, duplicates from replays or races, and state corruption.
+- **Plain-code verdicts:** every suspected break is replayed 3 times from a clean state, from the very first
+  step of the session, and judged by eleven deterministic checks: HTTP 5xx, exceptions in the logs, browser
+  errors, duplicates, hangs, logged-out access to protected data, one user seeing another's data (in pages or
+  by opening a record by its id), input written back into a page unescaped (XSS), a state change accepted
+  without its CSRF token, duplicates from replays or races, and state corruption.
+- **Code-owned checks:** Sentri itself marks the content each test user writes, finds the records they create,
+  and opens them as the other user and logged out. These checks do not depend on the model.
 - **Baseline suite:** six fixed attacks (empty input, double submit, expired session, slow network, bad file,
   rapid repeat) give a readiness score that stays comparable from commit to commit.
 - Keeps a bug ledger across commits, re-checks every confirmed finding on later runs, flags regressions, and
   reports the attack tree: the actual path the agent took through the app.
-- Optionally proposes fixes as draft pull requests that must pass a fixed gate first.
+- Optionally proposes fixes for crash bugs (it needs a stack trace) as draft pull requests that must pass a
+  fixed gate first. Agentic findings are fixed by hand; the next run re-checks them.
+
+## Why not ZAP, Burp, Playwright fuzzing or Nuclei?
+
+They are good tools; Sentri answers a different question.
+
+| Tool | What it is best at | Where Sentri differs |
+|---|---|---|
+| OWASP ZAP, Burp Suite | Proxy-based scanning and expert manual testing of known vulnerability classes (injection, headers, TLS, ...) | Sentri drives the app as users would, logged out and as two separate accounts, through multi-step flows, and asks "does it break or leak": crashes, duplicates, races, state corruption, one user reading another's records. It does not replace a security scan. |
+| Playwright tests or fuzzing scripts | Exact, repeatable checks you write and maintain | Sentri writes the plan itself from recon, explores beyond the paths you scripted, and turns every confirmed break into a replayable repro and a ledger entry that is re-checked on every later commit. |
+| Nuclei | Fast template matching for known CVEs and misconfigurations across many hosts | Sentri has no CVE templates; it tests your app's own logic and flows in a sandbox, one app at a time. |
+
+Use Sentri next to them: a scanner for known vulnerability classes, Sentri for "what happens when real (and
+hostile) users get their hands on this build".
 
 ## Documentation
 
@@ -50,8 +68,14 @@ Try it on the bundled demo app, which has planted bugs:
 git clone https://github.com/Barathkumar-17/SENTRI.git && cd SENTRI
 pip install -e ".[dev]" && sentri setup
 sentri contract approve examples/buggy-app/contract.yaml --as "<your name>" --out examples/buggy-app/approved.yaml
-sentri run --contract examples/buggy-app/approved.yaml --out report.md
+sentri run --contract examples/buggy-app/approved.yaml --llm-provider claude_code --out report.md
+#   or --ollama qwen2.5:7b, --llm-provider anthropic, ... (see "Choosing a model")
 ```
+
+**No model = no agent, baseline suite only.** Without `--llm-provider` (or `--ollama`) Sentri skips recon,
+strategy and exploration and runs only the six fixed attacks.
+
+What a real run finds, how long it takes and what it costs: [example report](documentation/example-report.md).
 
 On your own app:
 
@@ -62,22 +86,22 @@ sentri plan --app-dir . --run "npm start" --port 3000
 # 2. Review contract.draft.yaml, fix selectors, then approve it (a human decision)
 sentri contract approve contract.draft.yaml --as "you@example.com"
 
-# 3. Attack
-sentri run --contract contract.yaml --out report.md
+# 3. Attack (pick your model; without one, only the baseline suite runs)
+sentri run --contract contract.yaml --llm-provider auto --out report.md
 ```
 
 ## Web app (local)
 
-`sentri ui` starts a local web app for the whole process, as an alternative to the CLI: point at a project
-folder, choose a model, review and approve the proposed flows, run, and read the results. Everything stays on
-your machine and there is no login. The server answers only on localhost and refuses actions sent by other
-websites, so pages open in the same browser cannot drive it. The screens are being built; the API they use
-(`/docs` on the server) is complete.
+`sentri ui` starts a local server and opens it in your browser. **The web screens are in progress.** Today the
+server provides the API those screens will use (listed at `/docs` on the server): you can script a run with it
+or follow one live, but the point-and-click workflow is not there yet; use the CLI. Everything stays on your
+machine. The server answers only on localhost and refuses actions sent by other websites.
 
 ## Choosing a model
 
-**You bring the model, or none.** Sentri ships no API key and uses none by default: with no model it runs
-every check with its built-in payloads. The model only picks attack payloads, proposes flows and drafts
+**You bring the model, or none.** Sentri ships no API key and uses none by default. With no model there is
+no agent: Sentri runs the baseline suite with built-in payloads. With a model, the model writes the attack
+strategy for your app, drives the exploration step by step, picks attack payloads, proposes flows and drafts
 fixes; plain code decides every verdict.
 
 `sentri models` lists what this computer has: signed-in coding-agent CLIs, running local model servers and
@@ -95,7 +119,9 @@ first, then a local server. It never picks a paid API key on its own.
 | Anthropic API with your key | `--llm-provider anthropic` with `ANTHROPIC_API_KEY` (read only after you choose this provider) |
 | Any OpenAI-compatible API with your key (OpenAI, Gemini, OpenRouter, Groq, Together, Mistral, DeepSeek...) | `--llm-provider openai_compatible --llm-base-url <url> --model <id>` and `SENTRI_LLM_API_KEY=...` |
 
-Claude models default to `claude-sonnet-5-5` for every role. Other CLIs use their own default model unless you
+Claude models default to `claude-sonnet-5-5` (Sonnet 5.5) for every role. The Claude Code provider starts one
+`claude` process per model call, so exploration takes seconds per step; an API provider is faster. Small local
+models work for payloads but are untested for driving exploration. Other CLIs use their own default model unless you
 pass `--model`. Each flag has an environment variable: `SENTRI_LLM_PROVIDER`, `SENTRI_LLM_BASE_URL`,
 `SENTRI_LLM_API_KEY`, `SENTRI_MODEL_FAST` (`--model`), `SENTRI_MODEL_SMART` (`--model-smart`, used by the
 fixer). `sentri doctor` shows which model will be used and whether it is reachable. Paid APIs are capped per
@@ -152,7 +178,7 @@ budgets: `SENTRI_EXPLORE_STEPS` (default 60) and `SENTRI_EXPLORE_MINUTES` (defau
 
 ## Verdicts and score
 
-Each check (flow x attack) runs 3 times from a clean app state:
+Each check (flow x attack, or agentic finding) runs 3 times from a clean app state:
 
 | Verdict | Rule |
 |---|---|
@@ -161,7 +187,15 @@ Each check (flow x attack) runs 3 times from a clean app state:
 | pass | no oracle fires |
 | N/A | the attack does not apply to the flow |
 
-`score = 100 x (passed + 0.5 x flaky) / applicable - 5 per regressed bug` (never below 0).
+```
+baseline = 100 x (passed + 0.5 x flaky) / applicable  -  5 per regressed bug
+score    = baseline  -  agentic impact                                        (never below 0)
+```
+
+The agentic impact is the sum over agentic findings that replay **confirmed**, by the worst check they
+tripped: data exposure (logged-out access, cross-user exposure, XSS) 15, state corruption (duplicates, CSRF,
+state corruption) 10, crash (5xx, exception, hang) 5, minor (console error) 2; half for a flaky finding.
+Unconfirmed candidates never count. The report shows both parts: "Baseline suite: 75 · Agentic impact: -15".
 
 A pass means "survived these attacks", nothing more. Sentri does not check business logic, such as a wrong total.
 
@@ -176,11 +210,15 @@ A pass means "survived these attacks", nothing more. Sentri does not check busin
 | `sentri run` | Agentic run (recon, strategy, exploration, confirmation, then the baseline suite); `--mode baseline` runs only the six fixed attacks; `--serve` also starts the dashboard API; `--fresh` disables reuse |
 | `sentri report` | Rebuild `report.md` from the ledger (`--efficiency` shows time and cost per run) |
 | `sentri bug list` / `bug mark BUG-001 intended --note "..."` | Inspect bugs / record a human decision |
-| `sentri ui` | Start the local web app and open the browser (full workflow; the screens are in progress, the API behind them works today) |
+| `sentri ui` | Start the local server and open the browser (screens in progress; the API behind them works today) |
 | `sentri serve` | Same server without opening a browser, for scripts (REST + live event stream at http://127.0.0.1:8787) |
-| `sentri fix BUG-001` | Optional: propose a patch, run the gate, open a draft PR |
+| `sentri fix BUG-001` | Optional: propose a patch for a baseline crash bug (needs a stack trace), run the gate, open a draft PR |
 
 Exit codes: 0 finished, 1 gate (`--fail-under`, `--fail-on-regression`), 2 contract or config error, 3 app failed to start, 4 infrastructure missing.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
 
 ## Development
 
@@ -229,6 +267,11 @@ regressions, and a link to the evidence. It is report-only by default; add `fail
 
 ## Safety
 
+- **Only run Sentri on apps you own or have permission to test.** It behaves like a hostile user on purpose.
 - Only the sandboxed copy of your app is attacked, never a live system.
+- Every browser request is fenced to the app's own origin: links, form posts, popups, scripts and redirects to
+  other sites are blocked, and test-account tokens are only ever sent to the app.
+- Page text, logs and READMEs reach the model only as fenced, untrusted APP DATA it is told never to obey; and
+  whatever it answers is validated and judged by plain code anyway.
 - A human approves the contract, decides whether a failure is intended, and merges every fix.
 - API keys come from environment variables and are scrubbed from the ledger, evidence files and prompts.

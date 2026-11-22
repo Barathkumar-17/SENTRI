@@ -1,10 +1,10 @@
 # Local web app and API
 
-`sentri ui` starts a local server at `http://127.0.0.1:8787` and opens it. The web screens are being built.
-The API they will use is complete, so you can already drive the whole workflow from a script; the full list is
-at `http://127.0.0.1:8787/docs`.
+`sentri ui` starts a local server at `http://127.0.0.1:8787` and opens it. **The web screens are in progress**;
+for now, use the CLI. What the server provides today is the API the screens will use, so a script can already
+call each step below; the full list is at `http://127.0.0.1:8787/docs`.
 
-## The workflow
+## The API, step by step
 
 | Step | Endpoint |
 |---|---|

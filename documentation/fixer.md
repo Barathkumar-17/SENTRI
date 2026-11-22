@@ -1,7 +1,12 @@
 # Fixer
 
 `sentri fix BUG-007` asks the model for a patch to a confirmed bug and opens a **draft** pull request only if
-the patch passes a fixed gate. It never merges, never marks a bug fixed, and never pushes outside a
+the patch passes a fixed gate.
+
+**It handles crash bugs from the baseline suite only.** It needs a stack trace in the app's logs to know which
+files to change, and its gate re-runs a baseline check. Agentic findings (cross-user exposure, logged-out
+access, XSS, CSRF, duplicates from replays, state corruption) are declined before any model call: fix them by
+hand, and the next run's re-check marks them fixed. It never merges, never marks a bug fixed, and never pushes outside a
 `sentri/fix-*` branch. A person reviews and merges.
 
 ## Steps

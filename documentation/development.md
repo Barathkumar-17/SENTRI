@@ -28,7 +28,9 @@ imports.
 ## The demo app
 
 `examples/buggy-app` is a small Flask app with planted bugs behind `FIX_*` environment flags, one flaky bug, a
-clean flow, no built-in accounts and a random secret per start. `expected_grid.yaml` holds the expected verdict
+clean flow, no built-in accounts and a random secret per start. Besides the baseline bugs it plants three for
+the agentic checks: notes any signed-in user can open by id (`FIX_NOTES_IDOR`), a search page that echoes the
+query unescaped (`FIX_SEARCH_XSS`) and a settings form whose CSRF token is never verified (`FIX_SETTINGS_CSRF`). `expected_grid.yaml` holds the expected verdict
 of every baseline check; the integration test compares a full run against it exactly.
 
 ## Repository layout
@@ -45,7 +47,7 @@ action.yml         the GitHub Action
 ```
 
 ## Conventions
-- The model only proposes; anything that decides is plain code with tests.
+- The model proposes and acts; anything that decides is plain code with tests.
 - Every model answer goes through a schema; invalid answers are discarded, never guessed at.
 - Nothing hard-coded: no accounts, secrets or keys in code, examples or tests.
 - Must run on Windows, macOS and Linux, Python 3.12+, Docker optional.

@@ -33,6 +33,10 @@ sentri run --contract examples/buggy-app/approved.yaml --mode baseline --out rep
 sentri run --contract examples/buggy-app/approved.yaml --llm-provider claude_code --out report.md
 ```
 
+**No model = no agent, baseline suite only.** Agentic mode (recon, strategy, exploration, confirmation) runs
+only when you pass a model (`--llm-provider ...` or `--ollama MODEL`); otherwise Sentri says so and runs the
+six fixed attacks. **Only run Sentri on apps you own or have permission to test.**
+
 Open `report.md`, or run `sentri bug list`.
 
 ## 3. Run it on your own app
@@ -61,8 +65,8 @@ If your app is mostly an API, or its interface is drawn on a canvas (Flutter web
 sentri ui
 ```
 
-This starts the local web app and opens it. The screens are being built; the API behind them already covers
-the whole workflow (see [Local web app and API](web-app.md)).
+This starts the local server and opens it. The web screens are in progress; for now use the CLI. The server
+already provides the API the screens will use (see [Local web app and API](web-app.md)).
 
 ## Where results live
 

@@ -71,7 +71,8 @@ auth:
     scheme: "Bearer"
 ```
 
-Each identity (`a`, `b`) registers its own fresh account, and its token is sent on every request it makes.
+Each identity (`a`, `b`) registers its own fresh account. Its token is attached to every request that
+identity makes **to the app** (never to another origin, also not through a redirect).
 
 ## Fields
 
@@ -94,6 +95,11 @@ Each identity (`a`, `b`) registers its own fresh account, and its token is sent 
 
 ### `auth`
 Exactly one of `login_flow` (the id of a browser flow) or `api` (token login, above).
+
+**Without an `auth` block there is only the logged-out identity.** Cross-user checks (user `b` reading user
+`a`'s pages or records), the direct-by-id check, and most login-boundary tests (what a logged-out visitor can
+reach that a signed-in user can) then do not run; the run feed says so at the start. Add `login_flow` or `api`
+to get them.
 
 ### `flows[]`
 | Field | Meaning |
