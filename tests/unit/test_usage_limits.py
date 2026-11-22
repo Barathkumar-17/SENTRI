@@ -55,3 +55,23 @@ async def test_token_limit_reserves_the_prompt_and_the_output_before_calling():
     second = await p.complete_json("explorer", "s", "u" * 400, Out, 300)  # 120 used + 400 reserved > 500
     assert first.ok and not second.ok and inner.seen == 1
     assert p.stop_reason == "token limit 500 reached"
+
+
+def test_usage_line_reports_unknown_cost_and_stop_reason():
+    from sentri.report.markdown import usage_line
+
+    line = usage_line(
+        {
+            "calls": 2,
+            "input_tokens": 2387,
+            "output_tokens": 1226,
+            "retries": 0,
+            "cost_usd": None,
+            "unpriced_calls": 2,
+            "stop_reason": "provider quota exhausted (rate limit beyond the wait cap)",
+            "roles": {"strategist": {"calls": 1}, "explorer": {"calls": 1}},
+        }
+    )
+    assert "2 calls (strategist 1, explorer 1)" in line and "2387 input + 1226 output" in line
+    assert "cost unknown" in line and "stopped: provider quota exhausted" in line
+    assert usage_line({"calls": 0}) == ""

@@ -275,3 +275,29 @@ async def test_a_provider_quota_ends_exploration_without_a_fallback_step():
     assert session.executed == [] and steps == []
     assert result.stopped == "model use stopped: provider quota exhausted (rate limit beyond the wait cap)"
     assert len(model.prompts) == 1  # one refused call, no retry of a quota refusal
+
+
+async def test_body_variants_of_a_request_that_always_answers_the_same_become_a_dead_end():
+    """Found by the flaskr run: 7 near-identical logged-out POST /create, each answered by the same redirect."""
+    from types import SimpleNamespace
+
+    class Redirecting(FlowSession):
+        async def execute(self, action):
+            self.executed.append(action)
+            rid = len(self.requests) + 1
+            self.requests.append(SimpleNamespace(id=rid, status=302, url="http://127.0.0.1/create"))
+            return ActionResult(True, None, "http://127.0.0.1/", [rid], action)
+
+    bodies = iter(f"title=t{i}&body=b{i}" for i in range(10))
+
+    class Poster(OptionFollower):
+        async def complete_json(self, role, system, user, schema, max_tokens=4000):
+            self.prompts.append(user)
+            spec = ActionSpec(kind="request", method="POST", path="/create", body=next(bodies))
+            return LLMResult(True, Decision(hypothesis_id="checkout", action=spec))
+
+    model = Poster()
+    result, steps, session, _ = await _explore(model, Redirecting(), ExploreBudget(max_steps=5))
+    assert len(session.executed) == 3  # three different bodies, all 302 and no change: the rest are refused
+    refused = [s for s in steps if (s["error"] or "").startswith("not run: known dead end")]
+    assert refused and "POST /create answered (302,) 3x here with no change" in refused[0]["error"]
