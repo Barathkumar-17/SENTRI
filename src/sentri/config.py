@@ -40,6 +40,8 @@ class Settings:
     bad_file_mb: int = field(default_factory=lambda: _env_int("SENTRI_BAD_FILE_MB", 50))
     evidence_url: str | None = field(default_factory=lambda: os.environ.get("SENTRI_EVIDENCE_URL"))
     ollama_model: str | None = field(default_factory=lambda: os.environ.get("SENTRI_OLLAMA_MODEL") or None)
+    explore_steps: int = field(default_factory=lambda: _env_int("SENTRI_EXPLORE_STEPS", 60))
+    explore_minutes: float = field(default_factory=lambda: _env_float("SENTRI_EXPLORE_MINUTES", 10.0))
     attempts: int = 3
     live_view: bool = False
 

@@ -38,6 +38,7 @@ class RunOptions:
     only: list[str] = field(default_factory=list)  # "flow" or "flow:attack"
     preflight: bool = True
     exclude_paths: list[Path] = field(default_factory=list)  # contract/report files inside the app dir
+    mode: str = "agentic"  # agentic (recon, strategy, exploration, then the baseline suite) | baseline
 
 
 @dataclass
@@ -189,9 +190,47 @@ class RunOrchestrator:
                 if problems:
                     return self._abort(run_id, bus, started, "contract preflight failed: " + "; ".join(problems))
 
+            regressions = 0
+            if self.options.mode == "agentic":
+                if self.provider.available:
+                    from sentri.agent.explorer import ExploreBudget
+                    from sentri.agent.run import run_agentic
+
+                    budget = ExploreBudget(
+                        max_steps=self.settings.explore_steps, max_seconds=self.settings.explore_minutes * 60
+                    )
+                    agentic = await run_agentic(
+                        contract=c,
+                        workdir=self.workdir,
+                        sandbox=sandbox,
+                        browser=browser,
+                        provider=self.provider,
+                        ledger=self.ledger,
+                        bus=bus,
+                        run_id=run_id,
+                        commit=self.options.commit,
+                        budget=budget,
+                        evidence_dir=evidence_dir,
+                        on_page=self._set_page,
+                    )
+                    self.llm_used = True
+                    regressions += agentic.regressions
+                    runner.sandbox_fresh = False
+                    bus.emit(
+                        "agentic_finished",
+                        f"agentic: {agentic.confirmed} confirmed of {agentic.candidates} candidates in "
+                        f"{agentic.steps} steps; {agentic.rechecked} earlier findings re-checked",
+                        **agentic.__dict__,
+                    )
+                else:
+                    bus.emit(
+                        "agentic_skipped",
+                        "agentic mode needs a model; running the baseline suite only "
+                        "(choose one with --llm-provider, or see `sentri models`)",
+                    )
+            bus.emit("phase", "baseline suite: the six fixed attacks (comparable score across commits)")
             attacker = Attacker(self.provider)
             prober = Prober(self.provider, self.settings.max_probes_per_flow)
-            regressions = 0
             for cell in cells:
                 regressions += await self._run_cell(run_id, cell, runner, attacker, bus, fingerprint, chash)
                 if cell.applies:

@@ -18,7 +18,7 @@ import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from fastapi import FastAPI, HTTPException
@@ -103,6 +103,7 @@ class RunRequest(BaseModel):
     skip_preflight: bool = False
     commit: str | None = None
     branch: str | None = None
+    mode: Literal["agentic", "baseline"] = "agentic"
     model: ModelSelection | None = None
 
 
@@ -265,6 +266,7 @@ def register(app: FastAPI, state: ControlState) -> None:
                 only=body.only,
                 preflight=not body.skip_preflight,
                 exclude_paths=[path],
+                mode=body.mode,
             )
             ledger = Ledger(settings.db_path)
             try:

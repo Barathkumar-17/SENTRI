@@ -440,6 +440,13 @@ def run_cmd(
     allow_unapproved: Annotated[bool, typer.Option("--allow-unapproved")] = False,
     only: Annotated[list[str] | None, typer.Option(help="Limit to FLOW or FLOW:ATTACK (repeatable).")] = None,
     skip_preflight: Annotated[bool, typer.Option("--skip-preflight")] = False,
+    mode: Annotated[
+        str,
+        typer.Option(
+            help="agentic: recon, strategy and model-driven exploration, then the baseline suite. "
+            "baseline: only the six fixed attacks."
+        ),
+    ] = "agentic",
     attempts: Annotated[int, typer.Option(help="Attempts per check (3 = spec rule).")] = 3,
     fail_under: Annotated[int | None, typer.Option(help="Exit 1 if the score is below this.")] = None,
     fail_on_regression: Annotated[bool, typer.Option("--fail-on-regression")] = False,
@@ -454,6 +461,9 @@ def run_cmd(
     from sentri.report import build_report
     from sentri.runner.orchestrator import RunOptions, RunOrchestrator, RunResult
 
+    if mode not in ("agentic", "baseline"):
+        err.print("--mode must be agentic or baseline")
+        raise typer.Exit(EXIT_CONTRACT)
     c = _load(contract)
     if not c.approved and not allow_unapproved:
         err.print("[red]contract is not approved[/red]; run `sentri contract approve` (or pass --allow-unapproved)")
@@ -471,6 +481,7 @@ def run_cmd(
         only=only or [],
         preflight=not skip_preflight,
         exclude_paths=[contract, *([out] if out else [])],
+        mode=mode,
     )
     ledger = Ledger(s.db_path)
     console.print(f"sentri {__version__} · llm: {describe_provider(s, provider)} · ledger: {s.db_path}")
