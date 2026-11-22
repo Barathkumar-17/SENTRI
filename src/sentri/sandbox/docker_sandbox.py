@@ -25,7 +25,7 @@ class DockerSandbox:
         self.app = app
         self.spec = app.docker
         self.context = (workdir / self.spec.context).resolve()
-        self.env = {**app.env, **self.spec.env, **(extra_env or {})}
+        self.env = {"PORT": str(self.spec.container_port or app.port), **app.env, **self.spec.env, **(extra_env or {})}
         self.base_url = app.url
         self.logs = LogBuffer()
         tag = hashlib.sha256(str(self.context).encode()).hexdigest()[:10]

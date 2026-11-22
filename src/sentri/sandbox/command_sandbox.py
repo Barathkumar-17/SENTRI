@@ -36,7 +36,15 @@ class CommandSandbox:
         self.app = app
         self.command = expand_command(app.run)
         self.workdir = (workdir / app.cwd).resolve()
-        self.env = {**os.environ, **app.env, **(extra_env or {}), "PYTHONUNBUFFERED": "1"}
+        # PORT tells most frameworks where to listen; the contract's port wins over the shell's, and an explicit
+        # app.env PORT wins over both.
+        self.env = {
+            **os.environ,
+            "PORT": str(app.port),
+            **app.env,
+            **(extra_env or {}),
+            "PYTHONUNBUFFERED": "1",
+        }
         self.base_url = app.url
         self.logs = LogBuffer()
         self._proc: subprocess.Popen[bytes] | None = None
