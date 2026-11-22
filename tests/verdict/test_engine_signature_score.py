@@ -6,7 +6,7 @@ import pytest
 
 from sentri.verdict.engine import decide
 from sentri.verdict.oracles import ORACLE_IDS, OracleResult
-from sentri.verdict.scorer import compute
+from sentri.verdict.scorer import AgenticFinding, compute, parse_hits
 from sentri.verdict.signature import normalize_error, normalize_path, normalize_route, signature
 
 
@@ -56,3 +56,52 @@ def test_score_examples():
     assert compute(["fail"], regressed=3).score == 0  # clamped
     assert compute(["pass", "pass"], 0).score == 100
     assert compute(["pass", "error"], 0).applicable == 1
+
+
+# ---- agentic impact -----------------------------------------------------------------------------------
+
+
+def _f(key: str, hits: str, verdict: str = "fail", attempts: int = 3) -> AgenticFinding:
+    return AgenticFinding(key, parse_hits(hits), attempts, verdict)
+
+
+def test_confirmed_agentic_findings_subtract_by_severity():
+    findings = [
+        _f("cross_user_exposure GET /tasks", "cross_user_exposure:3"),  # data exposure -15
+        _f("state_corruption GET /", "state_corruption:3"),  # -10
+        _f("http_500 POST /api/x", "http_500:3"),  # crash -5
+        _f("console_error", "console_error:3"),  # minor -2
+    ]
+    b = compute(["pass"] * 4, 0, agentic=findings)
+    assert b.baseline == 100 and b.agentic_impact == 32 and b.score == 68
+    assert b.agentic_counts == {"data_exposure": 1, "state_corruption": 1, "crash": 1, "minor": 1}
+    assert "agentic 32 (1 data exposure, 1 state corruption, 1 crash, 1 minor)" in b.formula
+    assert b.formula.endswith("= 68")
+
+
+def test_worst_oracle_decides_and_partial_reproduction_costs_half():
+    # http_500 in all 3 attempts (-5) but the data leak only once (-7.5): the leak still decides.
+    mixed = _f("auth_bypass GET /admin", "http_500:3,auth_bypass:1")
+    assert compute(["pass"], 0, agentic=[mixed]).agentic_impact == 8  # round(7.5)
+    flaky = _f("cross_user_exposure GET /t", "cross_user_exposure:2", verdict="flaky")
+    assert compute(["pass"], 0, agentic=[flaky]).agentic_findings[0]["points"] == 7.5
+
+
+def test_intended_or_unconfirmed_findings_do_not_affect_the_score():
+    intended = _f("auth_bypass GET /public", "auth_bypass:3", verdict="pass")  # a human marked it intended
+    b = compute(["pass", "fail"], 0, agentic=[intended])
+    assert b.score == b.baseline == 50 and b.agentic_impact == 0 and "agentic" not in b.formula
+
+
+def test_the_same_finding_counts_once_and_the_score_is_clamped():
+    twice = [_f("cross_user_exposure GET /t", "cross_user_exposure:3")] * 2
+    assert compute(["pass"], 0, agentic=twice).agentic_impact == 15
+    many = [_f(f"auth_bypass GET /{i}", "auth_bypass:3") for i in range(10)]
+    assert compute(["pass"], 0, agentic=many).score == 0
+
+
+def test_agentic_only_contract_is_still_scored():
+    assert compute(["na"], 0).score is None  # nothing ran at all
+    b = compute(["na"], 0, agentic=[_f("http_500 POST /api", "http_500:3")], agentic_ran=True)
+    assert b.score == 95 and b.baseline is None
+    assert compute([], 0, agentic_ran=True).score == 100

@@ -109,3 +109,43 @@ def test_dashboard_agentic_endpoint(tmp_path):
     data = client.get(f"/api/runs/{run}/agentic").json()
     assert data["findings"][0]["verdict"] == "fail" and data["tree"][0]["paths"][0]["children"]
     assert client.get("/api/runs/999/agentic").status_code == 404
+
+
+def test_score_and_report_include_confirmed_agentic_findings(tmp_path):
+    from sentri.ledger import CheckRecord
+    from sentri.runner.orchestrator import score_run
+
+    lg = Ledger(tmp_path / "s.db")
+    run = lg.create_run("c1", "main", "fp", "ch")
+    for verdict in ("pass", "pass", "pass", "fail"):
+        lg.insert_check(CheckRecord(run, "signup", f"a{verdict}{lg.conn.total_changes}", verdict, attempts=3))
+    check = lg.insert_check(
+        CheckRecord(
+            run,
+            "agentic",
+            "cross_user_exposure GET /tasks",
+            "fail",
+            oracle_hits="cross_user_exposure:3",
+            attempts=3,
+            is_probe=True,
+        )
+    )
+    lg.add_finding(
+        run,
+        {
+            "title": "B sees A's tasks",
+            "oracle_ids": ["cross_user_exposure"],
+            "verdict": "fail",
+            "attempts": 3,
+            "check_id": check,
+            "from_step": 1,
+            "to_step": 4,
+        },
+    )
+    b = score_run(lg, run, 0, agentic_ran=True)
+    assert (b.baseline, b.agentic_impact, b.score) == (75, 15, 60)
+    lg.finish_run(run, "finished", b.score, 1, 0, "llm", b.__dict__)
+    md = build_report(lg, run)
+    assert "## Sentri readiness: 60" in md
+    assert "Baseline suite: **75** · Agentic impact: **-15** (1 data exposure" in md
+    assert "| -15 (data exposure) |" in md
