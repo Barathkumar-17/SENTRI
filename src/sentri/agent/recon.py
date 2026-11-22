@@ -58,6 +58,25 @@ def _body_fields(op: dict[str, Any], schemas: dict[str, Any]) -> dict[str, str]:
 
 
 SKIP_WORDS = ("logout", "log-out", "signout", "sign-out", "delete", "remove", "destroy", "unsubscribe")
+NAV_WORDS = re.compile(
+    r"^\s*(next|continue|get started|start|begin|proceed|submit|go|view|open|more|let'?s go|sign up|try it)\b", re.I
+)
+# Buttons outside forms (forms are probed separately), with a selector built like runner/extract.py builds them.
+NAV_BUTTONS_JS = r"""
+() => {
+  const esc = (v) => (window.CSS && CSS.escape) ? CSS.escape(v) : v;
+  const sel = (el) => {
+    const tag = el.tagName.toLowerCase();
+    if (el.dataset && el.dataset.testid) return `[data-testid="${el.dataset.testid}"]`;
+    if (el.id) return `#${esc(el.id)}`;
+    const text = (el.innerText || el.value || '').trim();
+    return `${tag}:has-text("${text.slice(0, 40)}")`;
+  };
+  return Array.from(document.querySelectorAll('button, [role=button], input[type=button], input[type=submit]'))
+    .filter((el) => !el.closest('form') && el.offsetParent !== null)
+    .map((el) => ({selector: sel(el), text: (el.innerText || el.value || '').trim().slice(0, 60)}));
+}
+"""
 
 
 class PageEntry(BaseModel):
@@ -70,6 +89,7 @@ class PageEntry(BaseModel):
     forms: list[dict[str, Any]] = Field(default_factory=list)
     buttons: list[dict[str, Any]] = Field(default_factory=list)
     list_selectors: list[str] = Field(default_factory=list)
+    leads_to: list[dict[str, str]] = Field(default_factory=list)  # navigational buttons: {button, text, to}
 
 
 class EndpointEntry(BaseModel):
@@ -97,6 +117,8 @@ class AppMap(BaseModel):
     api_spec: str | None = None  # where an OpenAPI/Swagger spec was found
     notes: list[str] = Field(default_factory=list)
     anon_shells: list[str] = Field(default_factory=list)  # logged-out bodies of /, the login page, an unknown path
+    redirects: dict[str, str] = Field(default_factory=dict)  # path -> where it redirected (trailing slash, locale...)
+    flows: list[dict[str, Any]] = Field(default_factory=list)  # multi-step sequences: {kind, start, steps, end}
 
     def protected_paths(self) -> set[str]:
         """Normalized paths recon proved (or the spec declares) need login: pages and endpoints."""
@@ -162,6 +184,9 @@ class AppMap(BaseModel):
             ],
             "api_spec": self.api_spec,
             "login_path": self.login_path,
+            "redirects": dict(list(self.redirects.items())[:20]),
+            "flows": self.flows[:10],
+            "navigation": [{"page": p.path, **edge} for p in self.pages[:max_pages] for edge in p.leads_to[:3]][:30],
             "identities": ["anon", "a", "b"] if self.has_login_flow else ["anon"],
         }
 
@@ -226,7 +251,14 @@ class Recon:
                 continue
             final = data["final_path"]
             if final != path:
-                continue  # redirected: recorded by the auth check, crawled under its own path
+                # Redirected (trailing slash, locale prefix, login wall...): remember it and crawl the target under
+                # its own path. The redirecting path itself is not a page for this identity (the auth check uses
+                # exactly that), but its target is.
+                self.map.redirects[path] = final
+                if final in seen or _skip(final):
+                    continue
+                seen.add(final)
+                path = final
             self._record_page(path, data, who)
             if depth >= self.max_depth:
                 continue
@@ -235,9 +267,61 @@ class Recon:
                     target = _path(resolve_same_origin(self.s.page.url, href)).split("#")[0]
                     if target not in seen:
                         queue.append((target, depth + 1))
+            for target in await self._follow_nav_buttons(path, who):
+                if target not in seen:
+                    queue.append((target, depth + 1))
 
-    async def probe_forms(self, who: str) -> None:
-        """Submit each form once with ordinary generated values, to reveal the endpoints behind it."""
+    async def _follow_nav_buttons(self, path: str, who: str, limit: int = 3) -> list[str]:
+        """Click buttons that look navigational (Next, Continue, Get started...) and record where they lead."""
+        entry = self.map.page(path)
+        page = self.s.page
+        buttons: list[dict[str, str]] = []
+        with contextlib.suppress(PlaywrightError):
+            buttons = await page.evaluate(NAV_BUTTONS_JS)
+        targets: list[str] = []
+        clicked = 0
+        for b in buttons:
+            text, selector = b.get("text", ""), b.get("selector", "")
+            if clicked >= limit or not selector or not NAV_WORDS.match(text) or _skip(text):
+                continue
+            if _path(page.url) != path and await self._visit(path) is None:
+                break
+            clicked += 1
+            with contextlib.suppress(PlaywrightError):
+                await self.s.page.locator(selector).first.click(timeout=3000)
+                await self.s.settle()
+            to = _path(self.s.page.url).split("#")[0]
+            if entry is not None and to != path and self.s.same_origin(self.s.page.url):
+                edge = {"button": selector, "text": text, "to": to}
+                if edge not in entry.leads_to:
+                    entry.leads_to.append(edge)
+                targets.append(to)
+        return targets
+
+    async def _submit(self, form: dict[str, Any]) -> bool:
+        """Fill a form on the current page with ordinary generated values and submit it."""
+        page = self.s.page
+        try:
+            for f in form.get("fields", []):
+                sel, typ = f.get("selector"), (f.get("type") or "").lower()
+                if not sel or typ in ("hidden", "submit", "button", "checkbox", "radio"):
+                    continue
+                if typ == "file":
+                    await page.locator(sel).first.set_input_files(self.gen.resolve("{file}"), timeout=3000)
+                elif f.get("tag") == "select":
+                    continue
+                else:
+                    value = {"email": "{email}", "password": "{password}", "number": "{number}"}.get(typ, "{text}")
+                    await page.locator(sel).first.fill(self.gen.resolve(value), timeout=3000)
+            await page.locator(form["buttons"][0]["selector"]).first.click(timeout=3000)
+            await self.s.settle()
+            return True
+        except PlaywrightError:
+            return False
+
+    async def probe_forms(self, who: str, max_chain: int = 4) -> None:
+        """Submit each form once with ordinary generated values, to reveal the endpoints behind it. When a submit
+        lands on another page with its own form (a checkout, a wizard), keep going and record the sequence."""
         if who != "anon":
             await self.s.execute_switch(who)
         for entry in list(self.map.pages):
@@ -248,23 +332,48 @@ class Recon:
                     continue
                 if await self._visit(entry.path) is None:
                     continue
-                page = self.s.page
-                with contextlib.suppress(PlaywrightError):
-                    for f in form.get("fields", []):
-                        sel, typ = f.get("selector"), (f.get("type") or "").lower()
-                        if not sel or typ in ("hidden", "submit", "button", "checkbox", "radio"):
-                            continue
-                        if typ == "file":
-                            await page.locator(sel).first.set_input_files(self.gen.resolve("{file}"), timeout=3000)
-                        elif f.get("tag") == "select":
-                            continue
-                        else:
-                            value = {"email": "{email}", "password": "{password}", "number": "{number}"}.get(
-                                typ, "{text}"
-                            )
-                            await page.locator(sel).first.fill(self.gen.resolve(value), timeout=3000)
-                    await page.locator(form["buttons"][0]["selector"]).first.click(timeout=3000)
-                    await self.s.settle()
+                steps: list[dict[str, str]] = []
+                here, current = entry.path, form
+                while len(steps) < max_chain and await self._submit(current):
+                    to = _path(self.s.page.url).split("#")[0]
+                    steps.append({"page": here, "form": str(current.get("selector")), "to": to})
+                    if to == here or not self.s.same_origin(self.s.page.url) or _skip(to):
+                        break
+                    data: dict[str, Any] = {}
+                    with contextlib.suppress(PlaywrightError):
+                        data = await self.s.page.evaluate(EXTRACT_JS)
+                    nxt = next(
+                        (f for f in data.get("forms", []) if f.get("buttons") and not _skip(str(f.get("action", "")))),
+                        None,
+                    )
+                    if nxt is None:
+                        break
+                    if self.map.page(to) is None:
+                        self._record_page(to, {**data, "final_path": to}, who)
+                    here, current = to, nxt
+                if len(steps) >= 2:
+                    flow = {"kind": "form_sequence", "start": entry.path, "steps": steps, "end": steps[-1]["to"]}
+                    if flow not in self.map.flows:
+                        self.map.flows.append(flow)
+
+    def button_flows(self, max_len: int = 5) -> None:
+        """Chains of navigational buttons (Next -> Next -> Finish) become flows in the app map."""
+        edges = {p.path: p.leads_to for p in self.map.pages if p.leads_to}
+        targets = {e["to"] for es in edges.values() for e in es}
+        for start in edges:
+            if start in targets:
+                continue  # only chains that start somewhere nothing leads to
+            steps: list[dict[str, str]] = []
+            here, seen = start, {start}
+            while here in edges and len(steps) < max_len:
+                edge = edges[here][0]
+                steps.append({"page": here, "button": edge["button"], "to": edge["to"]})
+                if edge["to"] in seen:
+                    break
+                seen.add(edge["to"])
+                here = edge["to"]
+            if len(steps) >= 2:
+                self.map.flows.append({"kind": "button_sequence", "start": start, "steps": steps, "end": here})
 
     async def auth_boundary(self) -> None:
         """Pages seen only as a signed-in user: does a logged-out visitor get them too?"""
@@ -386,6 +495,7 @@ class Recon:
         else:
             await self.probe_forms("anon")
         await self.probe_endpoints()
+        self.button_flows()
         await self.record_shells()
         self.collect_endpoints()
         if not self.map.pages:
