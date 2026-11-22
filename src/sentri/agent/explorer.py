@@ -34,7 +34,7 @@ from sentri.agent.actions import (
 )
 from sentri.agent.recon import SKIP_WORDS, AppMap
 from sentri.agent.session import AgentSession
-from sentri.agent.statemap import ExplorationMap, StateNode, action_sig
+from sentri.agent.statemap import ExplorationMap, StateNode, action_sig, route_of
 from sentri.agent.strategy import Hypothesis, Strategy
 from sentri.llm import BudgetedProvider, load_prompt
 from sentri.llm.untrusted import build_user_prompt
@@ -565,7 +565,12 @@ class Explorer:
                 self.history.append({"step": step, "look": action.part})
                 result.steps = step
                 continue
-            known = self.map.dead_end(node_before, sig) if node_before is not None and not by_code else None
+            route = route_of(action.model_dump(), {r.id: r.url for r in getattr(self.s, "requests", [])})
+            known = None
+            if node_before is not None and not by_code:
+                known = self.map.dead_end(node_before, sig) or (
+                    self.map.route_dead_end(node_before, route) if route else None
+                )
             if known is not None:
                 # Already proven pointless in this state: not run again, the model is told why.
                 failures += 1
@@ -707,6 +712,12 @@ class Explorer:
                 tried = self.map.record(
                     node_before, sig, outcome.ok, outcome.error, node_after, changed, len(signals), step
                 )
+                if route:
+                    statuses = tuple(
+                        r.status for r in getattr(self.s, "requests", []) if r.id in set(outcome.new_requests)
+                    )
+                    state_changed = node_after is not node_before or self._text_changed
+                    self.map.record_route(node_before, route, statuses, state_changed, len(signals))
                 self._changes = {
                     "action": describe(action),
                     "ok": outcome.ok,

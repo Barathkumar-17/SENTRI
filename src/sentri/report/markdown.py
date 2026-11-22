@@ -68,7 +68,7 @@ def _cost(value: float | None, digits: int = 2) -> str:
     return "cost unknown" if value is None else f"${value:.{digits}f}"
 
 
-def _usage_line(usage: dict[str, Any]) -> str:
+def usage_line(usage: dict[str, Any]) -> str:
     if not usage or not usage.get("calls"):
         return ""
     roles = ", ".join(f"{r} {u['calls']}" for r, u in (usage.get("roles") or {}).items())
@@ -190,9 +190,9 @@ def build_report(ledger: Ledger, run_id: int, base_branch: str | None = "main", 
         f" · Reused: {reused} · Probes: {len(probes)} ({probe_fails} fail)"
         f" · LLM: {run['llm_mode']}, {_cost(run['llm_cost_usd'])} · Duration: {_fmt_duration(run['duration_s'])}"
     )
-    usage_line = _usage_line(json.loads(run["usage"] or "{}"))
-    if usage_line:
-        lines.append(usage_line)
+    usage_text = usage_line(json.loads(run["usage"] or "{}"))
+    if usage_text:
+        lines.append(usage_text)
     if evidence_url:
         lines.append(f"Evidence: {evidence_url}")
     return "\n".join(lines) + "\n"

@@ -12,7 +12,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Annotated, Literal, cast
+from typing import Annotated, Any, Literal, cast
 
 import typer
 from rich.console import Console
@@ -145,6 +145,15 @@ def _provider(settings: Settings, enabled: bool = True):  # type: ignore[no-unty
     except LLMConfigError as exc:
         err.print(f"[red]LLM configuration error:[/red] {exc}")
         raise typer.Exit(EXIT_CONTRACT) from None
+
+
+def _print_usage(provider: Any) -> None:
+    """Model use of a command (plan, fix), measured like a run's: calls, tokens, retries, cost or unknown."""
+    from sentri.report.markdown import usage_line
+
+    line = usage_line(provider.usage())
+    if line:
+        console.print(line)
 
 
 def _load(contract: Path):  # type: ignore[no-untyped-def]
@@ -415,6 +424,7 @@ def plan(
     console.print(
         f"draft written to {out} ({result.source}); review it, then `sentri contract approve {out} --as NAME`"
     )
+    _print_usage(provider)
     for flow_id, sels in result.unverified.items():
         console.print(f"[yellow]unverified selectors in {flow_id}:[/yellow] {', '.join(sels)}")
     for e in result.errors:
@@ -695,6 +705,7 @@ def fix(
     except FixerError as exc:
         err.print(f"[red]fixer:[/red] {exc}")
         raise typer.Exit(EXIT_GATE) from None
+    _print_usage(provider)
     table = Table("Gate check", "Result", "Detail")
     for g in result.gate:
         table.add_row(g.name, "[green]pass[/green]" if g.passed else "[red]FAIL[/red]", g.detail)

@@ -43,6 +43,8 @@ class StateNode:
     text_hash: str = ""
     tried: dict[str, Tried] = field(default_factory=dict)
     options: list[dict[str, str]] = field(default_factory=list)  # what the page offers: {id, sig, do}
+    # Raw requests per route ("POST /create"): the outcome of each try (response statuses, state changed, signals).
+    routes: dict[str, list[tuple[tuple[int | None, ...], bool, int]]] = field(default_factory=dict)
 
 
 def _path(url: str) -> str:
@@ -70,6 +72,16 @@ def option_list(obs: dict[str, Any], limit: int = 30) -> list[dict[str, str]]:
         sel = b.get("selector") or ""
         out.append({"id": f"B{i + 1}", "sig": f"click {sel}", "do": f"click {sel} '{(b.get('text') or '')[:30]}'"})
     return out[:limit]
+
+
+def route_of(action: dict[str, Any], base_paths: dict[int, str] | None = None) -> str | None:
+    """`METHOD /path` of a raw request action (path normalized), for route-level dead ends."""
+    if action.get("kind") != "request":
+        return None
+    path = action.get("path") or (base_paths or {}).get(action.get("from_request") or -1)
+    if not path:
+        return None
+    return f"{action.get('method', 'GET')} {normalize_path('/' + str(path).lstrip('/'))}"
 
 
 def action_sig(action: dict[str, Any]) -> str:
@@ -164,6 +176,25 @@ class ExplorationMap:
             return f"failed {tried.errors}x here ({tried.last_error})"
         if tried.count >= 2 and tried.changed == 0 and tried.signals == 0:
             return f"tried {tried.count}x here with no change"
+        return None
+
+    ROUTE_DEAD_END_TRIES = 3
+
+    @staticmethod
+    def record_route(
+        node: StateNode, route: str, statuses: tuple[int | None, ...], changed: bool, signals: int
+    ) -> None:
+        node.routes.setdefault(route, []).append((statuses, changed, signals))
+
+    @classmethod
+    def route_dead_end(cls, node: StateNode, route: str) -> str | None:
+        """A route that answered the same way several times here, with no change and no signal: more body variants
+        of the same request are a dead end (found by the flaskr run: 7 near-identical logged-out POSTs)."""
+        tries = node.routes.get(route, [])
+        if len(tries) < cls.ROUTE_DEAD_END_TRIES:
+            return None
+        if len({t[0] for t in tries}) == 1 and not any(t[1] or t[2] for t in tries):
+            return f"{route} answered {tries[0][0]} {len(tries)}x here with no change"
         return None
 
     def options_view(self, node: StateNode) -> list[dict[str, str]]:
