@@ -77,13 +77,13 @@ def test_providers_include_no_model_local_and_hosted(client: TestClient):
 
 
 def test_model_settings_never_echo_the_key(client: TestClient, settings: Settings):
-    r = client.put("/api/settings/model", json={"preset": "groq", "api_key": "gsk_live_123", "model": "llama-x"})
+    r = client.put("/api/settings/model", json={"preset": "groq", "api_key": "test-key-not-real", "model": "llama-x"})
     assert r.status_code == 200
     body = r.json()
-    assert body["has_key"] is True and "api_key" not in body and "gsk_live_123" not in json.dumps(body)
+    assert body["has_key"] is True and "api_key" not in body and "test-key-not-real" not in json.dumps(body)
     assert client.get("/api/settings/model").json()["preset"] == "groq"
     prefs = (settings.db_path.parent / "ui-settings.json").read_text()
-    assert "gsk_live_123" not in prefs  # the key is kept in memory only
+    assert "test-key-not-real" not in prefs  # the key is kept in memory only
 
 
 def test_model_settings_validation(client: TestClient):

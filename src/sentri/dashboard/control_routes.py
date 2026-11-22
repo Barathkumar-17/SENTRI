@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 
 from sentri.config import Settings
 from sentri.contract.loader import ContractError, approve_contract, load_contract, parse_contract
+from sentri.control.discovery import discover_all
 from sentri.control.jobs import Job, JobConflict, JobManager
 from sentri.control.models import PRESETS, ModelSelection, discover_local, pull_ollama, test_selection
 from sentri.control.projects import inspect_project
@@ -117,6 +118,11 @@ def register(app: FastAPI, state: ControlState) -> None:
     @app.get("/api/providers")
     def providers() -> list[dict[str, Any]]:
         return [p.model_dump() for p in PRESETS]
+
+    @app.get("/api/models/available")
+    async def available() -> dict[str, Any]:
+        """Everything usable on this machine: agent CLIs, local servers, which key variables are set."""
+        return await discover_all()
 
     @app.get("/api/models/local")
     async def local_models() -> list[dict[str, Any]]:

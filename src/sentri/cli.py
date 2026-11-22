@@ -119,7 +119,13 @@ def main(
 
 
 DbOpt = Annotated[Path | None, typer.Option("--db", help="Ledger path (default .sentri/ledger.db or SENTRI_DB).")]
-ProviderOpt = Annotated[str | None, typer.Option("--llm-provider", help="anthropic | openai_compatible | none")]
+ProviderOpt = Annotated[
+    str | None,
+    typer.Option(
+        "--llm-provider",
+        help="auto | claude_code | codex | gemini_cli | anthropic | openai_compatible | none (see `sentri models`)",
+    ),
+]
 BaseUrlOpt = Annotated[str | None, typer.Option("--llm-base-url", help="Base URL for openai_compatible.")]
 FastOpt = Annotated[
     str | None, typer.Option("--model", "--model-fast", help="Model for payloads, probes and the planner.")
@@ -289,6 +295,41 @@ def doctor(
     console.print(table)
     required_ok = py_ok and rows[1][1]
     raise typer.Exit(EXIT_OK if required_ok else EXIT_INFRA)
+
+
+@app.command()
+def models() -> None:
+    """List every model source on this machine: signed-in agent CLIs, local servers, and set key variables."""
+    from sentri.control.discovery import discover_all
+
+    found = asyncio.run(discover_all())
+    table = Table("Source", "Status", "Use with")
+    for c in found["agent_clis"]:
+        table.add_row(
+            c["label"],
+            f"[green]found[/green] {c['path']}" if c["available"] else "not installed",
+            f"--llm-provider {c['preset']}",
+        )
+    for s in found["local_servers"]:
+        name = "Ollama" if s["preset"] == "ollama" else "LM Studio"
+        ids = ", ".join(m["id"] for m in s["models"][:6]) or "no models installed"
+        status = f"[green]running[/green]: {ids}" if s["running"] else (s["install_hint"] or "not running")
+        use = (
+            f"--ollama {s['models'][0]['id']}"
+            if s["preset"] == "ollama" and s["models"]
+            else (f"--llm-provider openai_compatible --llm-base-url {s['base_url']} --model <id>")
+        )
+        table.add_row(name, status, use)
+    for k in found["api_keys"]:
+        status = f"[green]set[/green]: {', '.join(k['variables'])}" if k["available"] else "no key variable set"
+        table.add_row(f"API key: {k['preset']}", status, "choose it explicitly (keys are never used automatically)")
+    console.print(table)
+    choice = found["auto_choice"]
+    if choice:
+        model = f", model {choice['model']}" if choice.get("model") else ""
+        console.print(f"--llm-provider auto would use: [bold]{choice['preset']}[/bold]{model}")
+    else:
+        console.print("--llm-provider auto would use: no model (basic tests with built-in payloads)")
 
 
 # ---- contract -----------------------------------------------------------------------------------------
