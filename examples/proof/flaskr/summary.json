@@ -1,0 +1,59 @@
+{
+ "run_id": 1,
+ "status": "finished",
+ "readiness": 100,
+ "breakdown": {
+  "score": 100,
+  "passed": 5,
+  "flaky": 0,
+  "failed": 0,
+  "applicable": 5,
+  "na": 0,
+  "errors": 0,
+  "regressed": 0,
+  "penalty_per_regression": 5,
+  "formula": "score = 100 x (5 + 0.5 x 0) / 5 = 100",
+  "baseline": 100,
+  "agentic_impact": 0,
+  "agentic_counts": {},
+  "agentic_findings": []
+ },
+ "duration_s": 622.99,
+ "llm_cost_usd": 0.0,
+ "llm_mode": "llm",
+ "steps": 15,
+ "findings": [],
+ "checks": [
+  {
+   "flow": "create_post",
+   "attack": "empty_input",
+   "verdict": "pass",
+   "hits": ""
+  },
+  {
+   "flow": "create_post",
+   "attack": "double_submit",
+   "verdict": "pass",
+   "hits": ""
+  },
+  {
+   "flow": "create_post",
+   "attack": "expired_session",
+   "verdict": "pass",
+   "hits": ""
+  },
+  {
+   "flow": "create_post",
+   "attack": "slow_network",
+   "verdict": "pass",
+   "hits": ""
+  },
+  {
+   "flow": "create_post",
+   "attack": "rapid_repeat",
+   "verdict": "pass",
+   "hits": ""
+  }
+ ],
+ "bugs": []
+}

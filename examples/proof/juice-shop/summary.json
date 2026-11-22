@@ -1,0 +1,86 @@
+{
+ "run_id": 1,
+ "status": "finished",
+ "readiness": 95,
+ "breakdown": {
+  "score": 95,
+  "passed": 0,
+  "flaky": 0,
+  "failed": 0,
+  "applicable": 0,
+  "na": 0,
+  "errors": 0,
+  "regressed": 0,
+  "penalty_per_regression": 5,
+  "formula": "no applicable baseline checks; score = 100 - agentic 5 (1 crash) = 95",
+  "baseline": null,
+  "agentic_impact": 5,
+  "agentic_counts": {
+   "crash": 1
+  },
+  "agentic_findings": [
+   {
+    "key": "exception info: solved <n>-star errorhandlingchallenge (error handling",
+    "severity": "crash",
+    "oracle_id": "exception",
+    "points": 5.0
+   }
+  ]
+ },
+ "duration_s": 691.41,
+ "llm_cost_usd": 0.0,
+ "llm_mode": "llm",
+ "steps": 8,
+ "findings": [
+  {
+   "title": "reflected_input",
+   "verdict": "fail",
+   "oracle_ids": "exception",
+   "from_step": 1,
+   "to_step": 1,
+   "attempts": 3
+  },
+  {
+   "title": "Unauthenticated users can fetch /rest/admin/application-configuration",
+   "verdict": "unconfirmed",
+   "oracle_ids": "",
+   "from_step": 2,
+   "to_step": 2,
+   "attempts": 3
+  },
+  {
+   "title": "Unauthenticated users can fetch /rest/admin/application-version",
+   "verdict": "unconfirmed",
+   "oracle_ids": "",
+   "from_step": 5,
+   "to_step": 5,
+   "attempts": 3
+  }
+ ],
+ "checks": [
+  {
+   "flow": "agentic",
+   "attack": "exception info: solved <n>-star errorhandlingchallenge (error handling",
+   "verdict": "fail",
+   "hits": "exception:3"
+  }
+ ],
+ "bugs": [
+  {
+   "id": "BUG-001",
+   "flow_id": "agentic",
+   "attack_id": "exception info: solved <n>-star errorhandlingchallenge (error handling",
+   "oracle_id": "exception",
+   "signature": "bd087d8ef07f9ea4",
+   "status": "open",
+   "first_commit": "2021a5bc6c72cfdb1d1606f95d5c8d894f1f5510",
+   "fixed_commit": null,
+   "last_seen_commit": "2021a5bc6c72cfdb1d1606f95d5c8d894f1f5510",
+   "regressions": 0,
+   "human_note": null,
+   "related_bug_id": null,
+   "needs_review": 0,
+   "sample_detail": "log: info: solved <n>-star errorhandlingchallenge (error handling)"
+  }
+ ]
+}

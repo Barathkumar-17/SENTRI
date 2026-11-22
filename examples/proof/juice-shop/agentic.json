@@ -1,0 +1,1105 @@
+{
+ "app_map": {
+  "base_url": "http://127.0.0.1:3123",
+  "pages": [
+   {
+    "path": "/",
+    "title": "OWASP Juice Shop",
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "requires_login": false,
+    "anon_outcome": null,
+    "auth_evidence": null,
+    "forms": [],
+    "buttons": [
+     {
+      "selector": "button[type=\"submit\"]",
+      "text": ""
+     },
+     {
+      "selector": "button:has-text(\"menu\")",
+      "text": "menu"
+     },
+     {
+      "selector": "button:has-text(\"OWASP Juice Shop\")",
+      "text": "OWASP Juice Shop"
+     },
+     {
+      "selector": "button:has-text(\"search\")",
+      "text": "search"
+     },
+     {
+      "selector": "button:has-text(\"close\")",
+      "text": "close"
+     },
+     {
+      "selector": "#navbarAccount",
+      "text": "account_circle\nAccount"
+     },
+     {
+      "selector": "button:has-text(\"shopping_cart\nYour Basket\n0\")",
+      "text": "shopping_cart\nYour Basket\n0"
+     },
+     {
+      "selector": "#navbarLanguageButton",
+      "text": "language\nEN"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button:has-text(\"add_shopping_cart\nAdd to Basket\")",
+      "text": "add_shopping_cart\nAdd to Basket"
+     },
+     {
+      "selector": "button[type=\"button\"]",
+      "text": ""
+     },
+     {
+      "selector": "button[type=\"button\"]",
+      "text": ""
+     },
+     {
+      "selector": "button:has-text(\"school\nHelp getting started\")",
+      "text": "school\nHelp getting started"
+     },
+     {
+      "selector": "button:has-text(\"visibility_off\nDismiss\")",
+      "text": "visibility_off\nDismiss"
+     },
+     {
+      "selector": "button:has-text(\"Force page reload\")",
+      "text": "Force page reload"
+     }
+    ],
+    "list_selectors": [],
+    "leads_to": []
+   },
+   {
+    "path": "/redirect?to=https://github.com/juice-shop/juice-shop",
+    "title": "Blocked",
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "requires_login": false,
+    "anon_outcome": null,
+    "auth_evidence": null,
+    "forms": [],
+    "buttons": [],
+    "list_selectors": [],
+    "leads_to": []
+   }
+  ],
+  "endpoints": [
+   {
+    "method": "GET",
+    "path": "/api/Challenges/",
+    "examples": [
+     "/api/Challenges/?name=Score%20Board"
+    ],
+    "statuses": [
+     200
+    ],
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "content_type": null,
+    "state_changing": false,
+    "request_ids": [
+     14,
+     18,
+     42,
+     46,
+     88
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   },
+   {
+    "method": "GET",
+    "path": "/api/Quantitys/",
+    "examples": [
+     "/api/Quantitys/"
+    ],
+    "statuses": [
+     200
+    ],
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "content_type": null,
+    "state_changing": false,
+    "request_ids": [
+     22,
+     50,
+     96
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   },
+   {
+    "method": "GET",
+    "path": "/assets/i18n/en.json",
+    "examples": [
+     "/assets/i18n/en.json"
+    ],
+    "statuses": [
+     200
+    ],
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "content_type": null,
+    "state_changing": false,
+    "request_ids": [
+     11,
+     39,
+     85
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   },
+   {
+    "method": "GET",
+    "path": "/rest/admin/application-configuration",
+    "examples": [
+     "/rest/admin/application-configuration"
+    ],
+    "statuses": [
+     200
+    ],
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "content_type": null,
+    "state_changing": false,
+    "request_ids": [
+     13,
+     17,
+     19,
+     20,
+     21
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   },
+   {
+    "method": "GET",
+    "path": "/rest/admin/application-version",
+    "examples": [
+     "/rest/admin/application-version"
+    ],
+    "statuses": [
+     200
+    ],
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "content_type": null,
+    "state_changing": false,
+    "request_ids": [
+     12,
+     16,
+     40,
+     44,
+     86
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   },
+   {
+    "method": "GET",
+    "path": "/rest/continue-code",
+    "examples": [
+     "/rest/continue-code"
+    ],
+    "statuses": [
+     200
+    ],
+    "seen_as": [
+     "anon"
+    ],
+    "content_type": null,
+    "state_changing": false,
+    "request_ids": [
+     57
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   },
+   {
+    "method": "GET",
+    "path": "/rest/languages",
+    "examples": [
+     "/rest/languages"
+    ],
+    "statuses": [
+     200
+    ],
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "content_type": null,
+    "state_changing": false,
+    "request_ids": [
+     15,
+     43,
+     89
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   },
+   {
+    "method": "GET",
+    "path": "/rest/products/search",
+    "examples": [
+     "/rest/products/search?q="
+    ],
+    "statuses": [
+     200
+    ],
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "content_type": null,
+    "state_changing": false,
+    "request_ids": [
+     23,
+     51,
+     97
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   },
+   {
+    "method": "GET",
+    "path": "/socket.io/",
+    "examples": [
+     "/socket.io/?EIO=4&transport=polling&t=xjoyr73w",
+     "/socket.io/?EIO=4&transport=polling&t=xjp0qxrh&sid=BgmAqmKxDqJm0N3cAAAA",
+     "/socket.io/?EIO=4&transport=polling&t=xjp716aq",
+     "/socket.io/?EIO=4&transport=polling&t=xjp85pcb&sid=Qu-OLzDd2WH2G0diAAAB",
+     "/socket.io/?EIO=4&transport=polling&t=xjqc1y18"
+    ],
+    "statuses": [
+     200
+    ],
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "content_type": null,
+    "state_changing": false,
+    "request_ids": [
+     10,
+     27,
+     38,
+     55,
+     84
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   },
+   {
+    "method": "POST",
+    "path": "/socket.io/",
+    "examples": [
+     "/socket.io/?EIO=4&transport=polling&t=xjp0ol59&sid=BgmAqmKxDqJm0N3cAAAA",
+     "/socket.io/?EIO=4&transport=polling&t=xjp849am&sid=Qu-OLzDd2WH2G0diAAAB",
+     "/socket.io/?EIO=4&transport=polling&t=xjqdt0of&sid=_hzUf6TXxDYUPyXnAAAC"
+    ],
+    "statuses": [
+     200
+    ],
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "content_type": "text/plain;charset=UTF-8",
+    "state_changing": true,
+    "request_ids": [
+     26,
+     54,
+     100
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   }
+  ],
+  "login_path": null,
+  "has_login_flow": true,
+  "api_spec": null,
+  "notes": [],
+  "anon_shells": [
+   "<!--\r\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich & the OWASP Juice Shop contributors.\r\n  ~ SPDX-License-Identifier: MIT\r\n  -->\r\n\r\n<!doctype html>\r\n<html lang=\"en\" data-beasties-container>\r\n<head>\r\n  <meta charset=\"utf-8\">\r\n  <title>OWASP Juice Shop</title>\r\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\r\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\r\n  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\r\n  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\r\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/vt323/v18/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/vt323/v18/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/vt323/v18/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}</style>\r\n  <link id=\"favicon\" rel=\"icon\" type=\"image/x-icon\" href=\"assets/public/favicon_js.ico\">\r\n  <script>\r\n    window.addEventListener(\"load\", function(){\r\n      window.cookieconsent.initialise({\r\n        \"palette\": {\r\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\r\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\r\n        },\r\n        \"theme\": \"classic\",\r\n        \"position\": \"bottom-right\",\r\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\r\n      })});\r\n  </script>\r\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-background-darker:#333638;--theme-background-dark:#303030;--theme-background-darkest:#2b2b2b;--theme-text:#e8ecef;--theme-text-lighter:#f2f5f7;--theme-text-light:#fff;--theme-text-darker:#b8c0c7;--theme-text-dark:#7f8a93;--mat-sys-surface:#333638;--mat-sys-on-surface:#e8ecef;--mat-sys-surface-container:#3e3e3e;--mat-sys-surface-container-high:#404244;--mat-sys-on-surface-variant:#b8c0c7;--mat-sys-outline:#5a5a5a;--mat-sys-outline-variant:#404244}.bluegrey-lightgreen-theme{--theme-warn:#f44336;--theme-warn-lighter:rgb(96.3089160192%, 36.9160192379%, 32.5538290788%);--theme-warn-light:rgb(96.7240103589%, 44.0103588605%, 40.1387347392%);--theme-warn-darker:rgb(95.0636330004%, 15.63300037%, 9.7991120977%);--theme-warn-dark:rgb(91.8368479467%, 10.9655937847%, 5.0258971513%);--theme-warn-fade-10:#f44336;--theme-warn-fade-20:#f44336;--theme-warn-fade-30:#f44336;--theme-warn-fade-40:#f44336;--theme-warn-fade-50:#f44336;--mat-sys-error:#f44336;--mat-sys-on-error:#fff}@media screen and (-webkit-min-device-pixel-ratio:0){}</style><link rel=\"stylesheet\" href=\"styles.css\" media=\"print\" data-beasties-media=\"all\"><noscript><link rel=\"stylesheet\" href=\"styles.css\"></noscript></head>\r\n<body class=\"bluegrey-lightgreen-theme\">\r\n  <app-root></app-root>\r\n<link rel=\"modulepreload\" href=\"rolldown-runtime-kqx1xuJ_.js\"><link rel=\"modulepreload\" href=\"chunk-3CyVWL1v.js\"><link rel=\"modulepreload\" href=\"chunk-CajNVifV.js\"><link rel=\"modulepreload\" href=\"chunk-CE5v8pBj.js\"><script src=\"polyfills.js\" type=\"module\"></script><script src=\"scripts.js\" defer></script><script src=\"main.js\" type=\"module\"></script><script>document.querySelectorAll('link[data-beasties-media]').forEach(function(l){l.media=l.getAttribute('data-beasties-media');l.removeAttribute('data-beasties-media')})</script></body>\r\n</html>\r\n",
+   "<!--\r\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich & the OWASP Juice Shop contributors.\r\n  ~ SPDX-License-Identifier: MIT\r\n  -->\r\n\r\n<!doctype html>\r\n<html lang=\"en\" data-beasties-container>\r\n<head>\r\n  <meta charset=\"utf-8\">\r\n  <title>OWASP Juice Shop</title>\r\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\r\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\r\n  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\r\n  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\r\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/vt323/v18/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/vt323/v18/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/vt323/v18/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}</style>\r\n  <link id=\"favicon\" rel=\"icon\" type=\"image/x-icon\" href=\"assets/public/favicon_js.ico\">\r\n  <script>\r\n    window.addEventListener(\"load\", function(){\r\n      window.cookieconsent.initialise({\r\n        \"palette\": {\r\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\r\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\r\n        },\r\n        \"theme\": \"classic\",\r\n        \"position\": \"bottom-right\",\r\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\r\n      })});\r\n  </script>\r\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-background-darker:#333638;--theme-background-dark:#303030;--theme-background-darkest:#2b2b2b;--theme-text:#e8ecef;--theme-text-lighter:#f2f5f7;--theme-text-light:#fff;--theme-text-darker:#b8c0c7;--theme-text-dark:#7f8a93;--mat-sys-surface:#333638;--mat-sys-on-surface:#e8ecef;--mat-sys-surface-container:#3e3e3e;--mat-sys-surface-container-high:#404244;--mat-sys-on-surface-variant:#b8c0c7;--mat-sys-outline:#5a5a5a;--mat-sys-outline-variant:#404244}.bluegrey-lightgreen-theme{--theme-warn:#f44336;--theme-warn-lighter:rgb(96.3089160192%, 36.9160192379%, 32.5538290788%);--theme-warn-light:rgb(96.7240103589%, 44.0103588605%, 40.1387347392%);--theme-warn-darker:rgb(95.0636330004%, 15.63300037%, 9.7991120977%);--theme-warn-dark:rgb(91.8368479467%, 10.9655937847%, 5.0258971513%);--theme-warn-fade-10:#f44336;--theme-warn-fade-20:#f44336;--theme-warn-fade-30:#f44336;--theme-warn-fade-40:#f44336;--theme-warn-fade-50:#f44336;--mat-sys-error:#f44336;--mat-sys-on-error:#fff}@media screen and (-webkit-min-device-pixel-ratio:0){}</style><link rel=\"stylesheet\" href=\"styles.css\" media=\"print\" data-beasties-media=\"all\"><noscript><link rel=\"stylesheet\" href=\"styles.css\"></noscript></head>\r\n<body class=\"bluegrey-lightgreen-theme\">\r\n  <app-root></app-root>\r\n<link rel=\"modulepreload\" href=\"rolldown-runtime-kqx1xuJ_.js\"><link rel=\"modulepreload\" href=\"chunk-3CyVWL1v.js\"><link rel=\"modulepreload\" href=\"chunk-CajNVifV.js\"><link rel=\"modulepreload\" href=\"chunk-CE5v8pBj.js\"><script src=\"polyfills.js\" type=\"module\"></script><script src=\"scripts.js\" defer></script><script src=\"main.js\" type=\"module\"></script><script>document.querySelectorAll('link[data-beasties-media]').forEach(function(l){l.media=l.getAttribute('data-beasties-media');l.removeAttribute('data-beasties-media')})</script></body>\r\n</html>\r\n",
+   "<!--\r\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich & the OWASP Juice Shop contributors.\r\n  ~ SPDX-License-Identifier: MIT\r\n  -->\r\n\r\n<!doctype html>\r\n<html lang=\"en\" data-beasties-container>\r\n<head>\r\n  <meta charset=\"utf-8\">\r\n  <title>OWASP Juice Shop</title>\r\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\r\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\r\n  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\r\n  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\r\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/vt323/v18/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/vt323/v18/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/vt323/v18/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}</style>\r\n  <link id=\"favicon\" rel=\"icon\" type=\"image/x-icon\" href=\"assets/public/favicon_js.ico\">\r\n  <script>\r\n    window.addEventListener(\"load\", function(){\r\n      window.cookieconsent.initialise({\r\n        \"palette\": {\r\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\r\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\r\n        },\r\n        \"theme\": \"classic\",\r\n        \"position\": \"bottom-right\",\r\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\r\n      })});\r\n  </script>\r\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-background-darker:#333638;--theme-background-dark:#303030;--theme-background-darkest:#2b2b2b;--theme-text:#e8ecef;--theme-text-lighter:#f2f5f7;--theme-text-light:#fff;--theme-text-darker:#b8c0c7;--theme-text-dark:#7f8a93;--mat-sys-surface:#333638;--mat-sys-on-surface:#e8ecef;--mat-sys-surface-container:#3e3e3e;--mat-sys-surface-container-high:#404244;--mat-sys-on-surface-variant:#b8c0c7;--mat-sys-outline:#5a5a5a;--mat-sys-outline-variant:#404244}.bluegrey-lightgreen-theme{--theme-warn:#f44336;--theme-warn-lighter:rgb(96.3089160192%, 36.9160192379%, 32.5538290788%);--theme-warn-light:rgb(96.7240103589%, 44.0103588605%, 40.1387347392%);--theme-warn-darker:rgb(95.0636330004%, 15.63300037%, 9.7991120977%);--theme-warn-dark:rgb(91.8368479467%, 10.9655937847%, 5.0258971513%);--theme-warn-fade-10:#f44336;--theme-warn-fade-20:#f44336;--theme-warn-fade-30:#f44336;--theme-warn-fade-40:#f44336;--theme-warn-fade-50:#f44336;--mat-sys-error:#f44336;--mat-sys-on-error:#fff}@media screen and (-webkit-min-device-pixel-ratio:0){}</style><link rel=\"stylesheet\" href=\"styles.css\" media=\"print\" data-beasties-media=\"all\"><noscript><link rel=\"stylesheet\" href=\"styles.css\"></noscript></head>\r\n<body class=\"bluegrey-lightgreen-theme\">\r\n  <app-root></app-root>\r\n<link rel=\"modulepreload\" href=\"rolldown-runtime-kqx1xuJ_.js\"><link rel=\"modulepreload\" href=\"chunk-3CyVWL1v.js\"><link rel=\"modulepreload\" href=\"chunk-CajNVifV.js\"><link rel=\"modulepreload\" href=\"chunk-CE5v8pBj.js\"><script src=\"polyfills.js\" type=\"module\"></script><script src=\"scripts.js\" defer></script><script src=\"main.js\" type=\"module\"></script><script>document.querySelectorAll('link[data-beasties-media]').forEach(function(l){l.media=l.getAttribute('data-beasties-media');l.removeAttribute('data-beasties-media')})</script></body>\r\n</html>\r\n"
+  ],
+  "redirects": {},
+  "flows": []
+ },
+ "strategy": {
+  "source": "llm",
+  "strategy": {
+   "app_kind": "OWASP Juice Shop demo e\u2011commerce",
+   "sensitive_areas": [
+    "/rest/admin/application-configuration",
+    "/rest/admin/application-version",
+    "/socket.io/ (POST)",
+    "/rest/products/search",
+    "/rest/continue-code",
+    "/api/Challenges/",
+    "shopping basket (add to cart)"
+   ],
+   "fragile_flows": [
+    "Adding items to basket via hidden POST endpoint",
+    "Open\u2011redirect handling at /redirect",
+    "Real\u2011time communication via POST /socket.io/",
+    "Product search query processing",
+    "Challenge list retrieval"
+   ],
+   "hypotheses": [
+    {
+     "id": "admin_config_access",
+     "title": "Unauthenticated users can fetch /rest/admin/application-configuration",
+     "category": "access",
+     "targets": [
+      "GET /rest/admin/application-configuration"
+     ],
+     "rationale": "Endpoint is reachable by anon in the map but returns configuration that should be admin\u2011only",
+     "first_moves": [
+      "Send GET to /rest/admin/application-configuration as anon",
+      "Inspect response for sensitive config values"
+     ],
+     "priority": 1
+    },
+    {
+     "id": "admin_version_access",
+     "title": "Unauthenticated users can fetch /rest/admin/application-version",
+     "category": "access",
+     "targets": [
+      "GET /rest/admin/application-version"
+     ],
+     "rationale": "Version information is exposed without login, potentially aiding exploit development",
+     "first_moves": [
+      "GET /rest/admin/application-version as anon",
+      "Check version string in response"
+     ],
+     "priority": 1
+    },
+    {
+     "id": "socketio_state_change",
+     "title": "POST to /socket.io/ can be used without authentication to trigger server\u2011side actions",
+     "category": "access",
+     "targets": [
+      "POST /socket.io/"
+     ],
+     "rationale": "Endpoint is marked state_changing and allowed for anon; could be abused to manipulate server state or cause errors",
+     "first_moves": [
+      "Send an empty POST to /socket.io/ as anon",
+      "Record status code and any response data"
+     ],
+     "priority": 1
+    },
+    {
+     "id": "open_redirect",
+     "title": "The /redirect endpoint can be abused to redirect to arbitrary external URLs",
+     "category": "access",
+     "targets": [
+      "/redirect?to=https://example.com"
+     ],
+     "rationale": "Page shows \"Blocked\" but may reflect the to\u2011parameter; if not validated it enables open\u2011redirect",
+     "first_moves": [
+      "Visit /redirect?to=https://evil.com",
+      "Observe whether browser follows the URL or page reflects it"
+     ],
+     "priority": 2
+    },
+    {
+     "id": "product_search_xss",
+     "title": "Inject script payload into q parameter of /rest/products/search to achieve reflected XSS",
+     "category": "input",
+     "targets": [
+      "GET /rest/products/search"
+     ],
+     "rationale": "Search results often echo the query term; unsanitized input may lead to script execution",
+     "first_moves": [
+      "GET /rest/products/search?q=<script>alert(1)</script>",
+      "Check if the script runs in the browser"
+     ],
+     "priority": 2
+    },
+    {
+     "id": "quantity_endpoint_overflow",
+     "title": "Supply huge numeric values to /api/Quantitys/ to cause integer overflow or crash",
+     "category": "input",
+     "targets": [
+      "GET /api/Quantitys/"
+     ],
+     "rationale": "Endpoint likely processes numeric quantities; extreme values may break processing logic",
+     "first_moves": [
+      "GET /api/Quantitys/?value=9999999999999999999",
+      "Observe response code and latency"
+     ],
+     "priority": 3
+    },
+    {
+     "id": "challenges_info_leak",
+     "title": "Unauthenticated request to /api/Challenges/ reveals full challenge list including solved status",
+     "category": "access",
+     "targets": [
+      "GET /api/Challenges/"
+     ],
+     "rationale": "Challenge data is exposed to anon, leaking scoring and potentially solution hints",
+     "first_moves": [
+      "GET /api/Challenges/ as anon",
+      "Parse JSON for solved flags"
+     ],
+     "priority": 3
+    },
+    {
+     "id": "socketio_flood",
+     "title": "Rapid repeated POSTs to /socket.io/ can exhaust server resources leading to denial of service",
+     "category": "resource",
+     "targets": [
+      "POST /socket.io/"
+     ],
+     "rationale": "No rate limiting observed for state\u2011changing socket endpoint; high request volume may degrade service",
+     "first_moves": [
+      "Send 100 POST requests to /socket.io/ in quick succession",
+      "Monitor for timeouts or 5xx errors"
+     ],
+     "priority": 4
+    }
+   ]
+  },
+  "dropped": [],
+  "error": null
+ },
+ "findings": [
+  {
+   "id": 1,
+   "run_id": 1,
+   "hypothesis_id": "reflected_input",
+   "title": "reflected_input",
+   "oracle_ids": "exception",
+   "repro": [
+    {
+     "action": {
+      "kind": "switch_user",
+      "user": "anon"
+     },
+     "match": null,
+     "expect_ok": true,
+     "setup": true
+    },
+    {
+     "action": {
+      "kind": "navigate",
+      "path": "/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E"
+     },
+     "match": null,
+     "expect_ok": true,
+     "setup": false
+    }
+   ],
+   "from_step": 1,
+   "to_step": 1,
+   "verdict": "fail",
+   "attempts": 3,
+   "check_id": 1,
+   "created_at": "2026-11-22T14:37:08.397851Z"
+  },
+  {
+   "id": 2,
+   "run_id": 1,
+   "hypothesis_id": "admin_config_access",
+   "title": "Unauthenticated users can fetch /rest/admin/application-configuration",
+   "oracle_ids": "",
+   "repro": [
+    {
+     "action": {
+      "kind": "switch_user",
+      "user": "anon"
+     },
+     "match": null,
+     "expect_ok": true,
+     "setup": true
+    },
+    {
+     "action": {
+      "kind": "navigate",
+      "path": "/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E"
+     },
+     "match": null,
+     "expect_ok": true,
+     "setup": true
+    },
+    {
+     "action": {
+      "kind": "request",
+      "method": "GET",
+      "path": "rest/admin/application-configuration",
+      "from_request": null,
+      "body": null,
+      "content_type": null
+     },
+     "match": null,
+     "expect_ok": true,
+     "setup": false
+    }
+   ],
+   "from_step": 2,
+   "to_step": 2,
+   "verdict": "unconfirmed",
+   "attempts": 3,
+   "check_id": null,
+   "created_at": "2026-11-22T14:37:24.382386Z"
+  },
+  {
+   "id": 3,
+   "run_id": 1,
+   "hypothesis_id": "admin_version_access",
+   "title": "Unauthenticated users can fetch /rest/admin/application-version",
+   "oracle_ids": "",
+   "repro": [
+    {
+     "action": {
+      "kind": "switch_user",
+      "user": "anon"
+     },
+     "match": null,
+     "expect_ok": true,
+     "setup": true
+    },
+    {
+     "action": {
+      "kind": "navigate",
+      "path": "/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E"
+     },
+     "match": null,
+     "expect_ok": true,
+     "setup": true
+    },
+    {
+     "action": {
+      "kind": "request",
+      "method": "GET",
+      "path": "rest/admin/application-configuration",
+      "from_request": null,
+      "body": null,
+      "content_type": null
+     },
+     "match": null,
+     "expect_ok": true,
+     "setup": true
+    },
+    {
+     "action": {
+      "kind": "request",
+      "method": "GET",
+      "path": "rest/admin/application-version",
+      "from_request": null,
+      "body": null,
+      "content_type": null
+     },
+     "match": null,
+     "expect_ok": true,
+     "setup": true
+    },
+    {
+     "action": {
+      "kind": "finish",
+      "reason": "Unauthenticated access to admin configuration returned 200, exposing sensitive data"
+     },
+     "match": null,
+     "expect_ok": true,
+     "setup": true
+    },
+    {
+     "action": {
+      "kind": "finish",
+      "reason": "Unauthenticated admin version access succeeded"
+     },
+     "match": null,
+     "expect_ok": true,
+     "setup": false
+    }
+   ],
+   "from_step": 5,
+   "to_step": 5,
+   "verdict": "unconfirmed",
+   "attempts": 3,
+   "check_id": null,
+   "created_at": "2026-11-22T14:37:42.006145Z"
+  }
+ ],
+ "steps": [
+  {
+   "id": 1,
+   "run_id": 1,
+   "step": 1,
+   "parent_step": null,
+   "hypothesis_id": "reflected_input",
+   "identity": "anon",
+   "thought": "code probe: does this page write input back without escaping? (xss_reflection)",
+   "action": {
+    "kind": "navigate",
+    "path": "/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E"
+   },
+   "action_text": "navigate(path='/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+   "signals": [
+    {
+     "oracle_id": "exception",
+     "detail": "log: info: solved <n>-star errorhandlingchallenge (error handling)",
+     "route": null
+    }
+   ],
+   "ts": "2026-11-22T14:26:30.101309Z"
+  },
+  {
+   "id": 2,
+   "run_id": 1,
+   "step": 2,
+   "parent_step": null,
+   "hypothesis_id": "admin_config_access",
+   "identity": "anon",
+   "thought": "The anon GET to /rest/admin/application-configuration succeeded with 200, confirming unauthenticated access to admin config.",
+   "action": {
+    "kind": "request",
+    "method": "GET",
+    "path": "rest/admin/application-configuration",
+    "from_request": null,
+    "body": null,
+    "content_type": null
+   },
+   "action_text": "request(path='rest/admin/application-configuration')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+   "signals": [],
+   "ts": "2026-11-22T14:26:44.772273Z"
+  },
+  {
+   "id": 3,
+   "run_id": 1,
+   "step": 3,
+   "parent_step": null,
+   "hypothesis_id": "admin_config_access",
+   "identity": "anon",
+   "thought": "Admin config is already exposed; confirm further admin endpoints are accessible",
+   "action": {
+    "kind": "request",
+    "method": "GET",
+    "path": "rest/admin/application-version",
+    "from_request": null,
+    "body": null,
+    "content_type": null
+   },
+   "action_text": "request(path='rest/admin/application-version')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+   "signals": [],
+   "ts": "2026-11-22T14:27:29.505276Z"
+  },
+  {
+   "id": 4,
+   "run_id": 1,
+   "step": 4,
+   "parent_step": 3,
+   "hypothesis_id": "admin_config_access",
+   "identity": "anon",
+   "thought": "The recent unauthenticated GET to /rest/admin/application-configuration returned 200, confirming the admin_config_access hypothesis and exposing a security break.",
+   "action": {
+    "kind": "finish",
+    "reason": "Unauthenticated access to admin configuration returned 200, exposing sensitive data"
+   },
+   "action_text": "finish(reason='Unauthenticated access to admin configuration returned 200, exposing sensitive data')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+   "signals": [],
+   "ts": "2026-11-22T14:28:01.939027Z"
+  },
+  {
+   "id": 5,
+   "run_id": 1,
+   "step": 5,
+   "parent_step": null,
+   "hypothesis_id": "admin_version_access",
+   "identity": "anon",
+   "thought": "Observed 200 from admin version endpoint, confirming unauthenticated access",
+   "action": {
+    "kind": "finish",
+    "reason": "Unauthenticated admin version access succeeded"
+   },
+   "action_text": "finish(reason='Unauthenticated admin version access succeeded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+   "signals": [],
+   "ts": "2026-11-22T14:28:34.950042Z"
+  },
+  {
+   "id": 6,
+   "run_id": 1,
+   "step": 6,
+   "parent_step": null,
+   "hypothesis_id": "socketio_state_change",
+   "identity": "anon",
+   "thought": "Send a raw POST request to /socket.io/ as anonymous to see if the endpoint responds without authentication, fulfilling the first move of the socketio_state_change hypothesis.",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "socket.io/",
+    "from_request": null,
+    "body": null,
+    "content_type": null
+   },
+   "action_text": "request(method='POST', path='socket.io/')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+   "signals": [],
+   "ts": "2026-11-22T14:28:46.577005Z"
+  },
+  {
+   "id": 7,
+   "run_id": 1,
+   "step": 7,
+   "parent_step": 6,
+   "hypothesis_id": "socketio_state_change",
+   "identity": "anon",
+   "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m81q084weh29v5f)",
+   "action": {
+    "kind": "navigate",
+    "path": "/"
+   },
+   "action_text": "navigate(path='/')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:3123/#/",
+   "signals": [],
+   "ts": "2026-11-22T14:32:49.938143Z"
+  },
+  {
+   "id": 8,
+   "run_id": 1,
+   "step": 8,
+   "parent_step": 7,
+   "hypothesis_id": "socketio_state_change",
+   "identity": "anon",
+   "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m81q084weh29v5f)",
+   "action": {
+    "kind": "navigate",
+    "path": "/redirect?to=https://github.com/juice-shop/juice-shop"
+   },
+   "action_text": "navigate(path='/redirect?to=https://github.com/juice-shop/juice-shop')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:3123/redirect?to=https://github.com/juice-shop/juice-shop",
+   "signals": [],
+   "ts": "2026-11-22T14:36:52.848403Z"
+  }
+ ],
+ "tree": [
+  {
+   "hypothesis_id": "reflected_input",
+   "paths": [
+    {
+     "id": 1,
+     "run_id": 1,
+     "step": 1,
+     "parent_step": null,
+     "hypothesis_id": "reflected_input",
+     "identity": "anon",
+     "thought": "code probe: does this page write input back without escaping? (xss_reflection)",
+     "action": {
+      "kind": "navigate",
+      "path": "/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E"
+     },
+     "action_text": "navigate(path='/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E')",
+     "ok": 1,
+     "error": null,
+     "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+     "signals": [
+      {
+       "oracle_id": "exception",
+       "detail": "log: info: solved <n>-star errorhandlingchallenge (error handling)",
+       "route": null
+      }
+     ],
+     "ts": "2026-11-22T14:26:30.101309Z",
+     "children": []
+    }
+   ]
+  },
+  {
+   "hypothesis_id": "admin_config_access",
+   "paths": [
+    {
+     "id": 2,
+     "run_id": 1,
+     "step": 2,
+     "parent_step": null,
+     "hypothesis_id": "admin_config_access",
+     "identity": "anon",
+     "thought": "The anon GET to /rest/admin/application-configuration succeeded with 200, confirming unauthenticated access to admin config.",
+     "action": {
+      "kind": "request",
+      "method": "GET",
+      "path": "rest/admin/application-configuration",
+      "from_request": null,
+      "body": null,
+      "content_type": null
+     },
+     "action_text": "request(path='rest/admin/application-configuration')",
+     "ok": 1,
+     "error": null,
+     "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+     "signals": [],
+     "ts": "2026-11-22T14:26:44.772273Z",
+     "children": []
+    },
+    {
+     "id": 3,
+     "run_id": 1,
+     "step": 3,
+     "parent_step": null,
+     "hypothesis_id": "admin_config_access",
+     "identity": "anon",
+     "thought": "Admin config is already exposed; confirm further admin endpoints are accessible",
+     "action": {
+      "kind": "request",
+      "method": "GET",
+      "path": "rest/admin/application-version",
+      "from_request": null,
+      "body": null,
+      "content_type": null
+     },
+     "action_text": "request(path='rest/admin/application-version')",
+     "ok": 1,
+     "error": null,
+     "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+     "signals": [],
+     "ts": "2026-11-22T14:27:29.505276Z",
+     "children": [
+      {
+       "id": 4,
+       "run_id": 1,
+       "step": 4,
+       "parent_step": 3,
+       "hypothesis_id": "admin_config_access",
+       "identity": "anon",
+       "thought": "The recent unauthenticated GET to /rest/admin/application-configuration returned 200, confirming the admin_config_access hypothesis and exposing a security break.",
+       "action": {
+        "kind": "finish",
+        "reason": "Unauthenticated access to admin configuration returned 200, exposing sensitive data"
+       },
+       "action_text": "finish(reason='Unauthenticated access to admin configuration returned 200, exposing sensitive data')",
+       "ok": 1,
+       "error": null,
+       "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+       "signals": [],
+       "ts": "2026-11-22T14:28:01.939027Z",
+       "children": []
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "hypothesis_id": "admin_version_access",
+   "paths": [
+    {
+     "id": 5,
+     "run_id": 1,
+     "step": 5,
+     "parent_step": null,
+     "hypothesis_id": "admin_version_access",
+     "identity": "anon",
+     "thought": "Observed 200 from admin version endpoint, confirming unauthenticated access",
+     "action": {
+      "kind": "finish",
+      "reason": "Unauthenticated admin version access succeeded"
+     },
+     "action_text": "finish(reason='Unauthenticated admin version access succeeded')",
+     "ok": 1,
+     "error": null,
+     "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+     "signals": [],
+     "ts": "2026-11-22T14:28:34.950042Z",
+     "children": []
+    }
+   ]
+  },
+  {
+   "hypothesis_id": "socketio_state_change",
+   "paths": [
+    {
+     "id": 6,
+     "run_id": 1,
+     "step": 6,
+     "parent_step": null,
+     "hypothesis_id": "socketio_state_change",
+     "identity": "anon",
+     "thought": "Send a raw POST request to /socket.io/ as anonymous to see if the endpoint responds without authentication, fulfilling the first move of the socketio_state_change hypothesis.",
+     "action": {
+      "kind": "request",
+      "method": "POST",
+      "path": "socket.io/",
+      "from_request": null,
+      "body": null,
+      "content_type": null
+     },
+     "action_text": "request(method='POST', path='socket.io/')",
+     "ok": 1,
+     "error": null,
+     "url_after": "http://127.0.0.1:3123/redirect?to=%22%3E%3Csentri-xss-cae2ce%3E",
+     "signals": [],
+     "ts": "2026-11-22T14:28:46.577005Z",
+     "children": [
+      {
+       "id": 7,
+       "run_id": 1,
+       "step": 7,
+       "parent_step": 6,
+       "hypothesis_id": "socketio_state_change",
+       "identity": "anon",
+       "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m81q084weh29v5f)",
+       "action": {
+        "kind": "navigate",
+        "path": "/"
+       },
+       "action_text": "navigate(path='/')",
+       "ok": 1,
+       "error": null,
+       "url_after": "http://127.0.0.1:3123/#/",
+       "signals": [],
+       "ts": "2026-11-22T14:32:49.938143Z",
+       "children": [
+        {
+         "id": 8,
+         "run_id": 1,
+         "step": 8,
+         "parent_step": 7,
+         "hypothesis_id": "socketio_state_change",
+         "identity": "anon",
+         "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m81q084weh29v5f)",
+         "action": {
+          "kind": "navigate",
+          "path": "/redirect?to=https://github.com/juice-shop/juice-shop"
+         },
+         "action_text": "navigate(path='/redirect?to=https://github.com/juice-shop/juice-shop')",
+         "ok": 1,
+         "error": null,
+         "url_after": "http://127.0.0.1:3123/redirect?to=https://github.com/juice-shop/juice-shop",
+         "signals": [],
+         "ts": "2026-11-22T14:36:52.848403Z",
+         "children": []
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

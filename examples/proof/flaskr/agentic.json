@@ -1,0 +1,1114 @@
+{
+ "app_map": {
+  "base_url": "http://127.0.0.1:5077",
+  "pages": [
+   {
+    "path": "/",
+    "title": "Posts - Flaskr",
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "requires_login": false,
+    "anon_outcome": null,
+    "auth_evidence": null,
+    "forms": [],
+    "buttons": [],
+    "list_selectors": [],
+    "leads_to": []
+   },
+   {
+    "path": "/auth/register",
+    "title": "Register - Flaskr",
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "requires_login": false,
+    "anon_outcome": null,
+    "auth_evidence": null,
+    "forms": [
+     {
+      "selector": "form",
+      "action": "",
+      "method": "post",
+      "fields": [
+       {
+        "selector": "#username",
+        "tag": "input",
+        "type": "text",
+        "name": "username",
+        "label": "Username",
+        "required": true
+       },
+       {
+        "selector": "#password",
+        "tag": "input",
+        "type": "password",
+        "name": "password",
+        "label": "Password",
+        "required": true
+       },
+       {
+        "selector": "input:has-text(\"Register\")",
+        "tag": "input",
+        "type": "submit",
+        "name": "",
+        "label": "",
+        "required": false
+       }
+      ],
+      "buttons": [
+       {
+        "selector": "input:has-text(\"Register\")",
+        "text": "Register"
+       }
+      ]
+     }
+    ],
+    "buttons": [],
+    "list_selectors": [],
+    "leads_to": []
+   },
+   {
+    "path": "/auth/login",
+    "title": "Log In - Flaskr",
+    "seen_as": [
+     "anon",
+     "a"
+    ],
+    "requires_login": false,
+    "anon_outcome": null,
+    "auth_evidence": null,
+    "forms": [
+     {
+      "selector": "form",
+      "action": "",
+      "method": "post",
+      "fields": [
+       {
+        "selector": "#username",
+        "tag": "input",
+        "type": "text",
+        "name": "username",
+        "label": "Username",
+        "required": true
+       },
+       {
+        "selector": "#password",
+        "tag": "input",
+        "type": "password",
+        "name": "password",
+        "label": "Password",
+        "required": true
+       },
+       {
+        "selector": "input:has-text(\"Log In\")",
+        "tag": "input",
+        "type": "submit",
+        "name": "",
+        "label": "",
+        "required": false
+       }
+      ],
+      "buttons": [
+       {
+        "selector": "input:has-text(\"Log In\")",
+        "text": "Log In"
+       }
+      ]
+     }
+    ],
+    "buttons": [],
+    "list_selectors": [],
+    "leads_to": []
+   },
+   {
+    "path": "/create",
+    "title": "New Post - Flaskr",
+    "seen_as": [
+     "a"
+    ],
+    "requires_login": true,
+    "anon_outcome": "redirect -> /auth/login",
+    "auth_evidence": "redirect",
+    "forms": [
+     {
+      "selector": "form",
+      "action": "",
+      "method": "post",
+      "fields": [
+       {
+        "selector": "#title",
+        "tag": "input",
+        "type": "text",
+        "name": "title",
+        "label": "Title",
+        "required": true
+       },
+       {
+        "selector": "#body",
+        "tag": "textarea",
+        "type": "textarea",
+        "name": "body",
+        "label": "Body",
+        "required": false
+       },
+       {
+        "selector": "input:has-text(\"Save\")",
+        "tag": "input",
+        "type": "submit",
+        "name": "",
+        "label": "",
+        "required": false
+       }
+      ],
+      "buttons": [
+       {
+        "selector": "input:has-text(\"Save\")",
+        "text": "Save"
+       }
+      ]
+     }
+    ],
+    "buttons": [],
+    "list_selectors": [],
+    "leads_to": []
+   }
+  ],
+  "endpoints": [
+   {
+    "method": "POST",
+    "path": "/auth/login",
+    "examples": [
+     "/auth/login"
+    ],
+    "statuses": [
+     302
+    ],
+    "seen_as": [
+     "a"
+    ],
+    "content_type": "application/x-www-form-urlencoded",
+    "state_changing": true,
+    "request_ids": [
+     14,
+     30,
+     35
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   },
+   {
+    "method": "POST",
+    "path": "/auth/register",
+    "examples": [
+     "/auth/register"
+    ],
+    "statuses": [
+     302
+    ],
+    "seen_as": [
+     "a"
+    ],
+    "content_type": "application/x-www-form-urlencoded",
+    "state_changing": true,
+    "request_ids": [
+     11,
+     27
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   },
+   {
+    "method": "POST",
+    "path": "/create",
+    "examples": [
+     "/create"
+    ],
+    "statuses": [
+     302
+    ],
+    "seen_as": [
+     "a"
+    ],
+    "content_type": "application/x-www-form-urlencoded",
+    "state_changing": true,
+    "request_ids": [
+     40
+    ],
+    "requires_login": false,
+    "auth_evidence": null,
+    "body_fields": {},
+    "query_params": [],
+    "from_spec": false
+   }
+  ],
+  "login_path": "/auth/login",
+  "has_login_flow": true,
+  "api_spec": null,
+  "notes": [],
+  "anon_shells": [
+   "<!doctype html>\n<title>Posts - Flaskr</title>\n<link rel=\"stylesheet\" href=\"/static/style.css\">\n<nav>\n  <h1><a href=\"/\">Flaskr</a></h1>\n  <ul>\n    \n      <li><a href=\"/auth/register\">Register</a>\n      <li><a href=\"/auth/login\">Log In</a>\n    \n  </ul>\n</nav>\n<section class=\"content\">\n  <header>\n    \n  <h1>Posts</h1>\n  \n\n  </header>\n  \n  \n  \n    <article class=\"post\">\n      <header>\n        <div>\n          <h1>Sentri text r1-9xhxqs</h1>\n          <div class=\"about\">by Sentri text r1-9xhxqs on 2026-11-22</div>\n        </div>\n        \n      </header>\n      <p class=\"body\">Sentri text r1-9xhxqs</p>\n    </article>\n    \n  \n\n</section>",
+   "<!doctype html>\n<title>Log In - Flaskr</title>\n<link rel=\"stylesheet\" href=\"/static/style.css\">\n<nav>\n  <h1><a href=\"/\">Flaskr</a></h1>\n  <ul>\n    \n      <li><a href=\"/auth/register\">Register</a>\n      <li><a href=\"/auth/login\">Log In</a>\n    \n  </ul>\n</nav>\n<section class=\"content\">\n  <header>\n    \n  <h1>Log In</h1>\n\n  </header>\n  \n  \n  <form method=\"post\">\n    <label for=\"username\">Username</label>\n    <input name=\"username\" id=\"username\" required>\n    <label for=\"password\">Password</label>\n    <input type=\"password\" name=\"password\" id=\"password\" required>\n    <input type=\"submit\" value=\"Log In\">\n  </form>\n\n</section>"
+  ],
+  "redirects": {},
+  "flows": [
+   {
+    "kind": "form_sequence",
+    "start": "/auth/register",
+    "steps": [
+     {
+      "page": "/auth/register",
+      "form": "form",
+      "to": "/auth/login"
+     },
+     {
+      "page": "/auth/login",
+      "form": "form",
+      "to": "/"
+     }
+    ],
+    "end": "/"
+   }
+  ]
+ },
+ "strategy": {
+  "source": "llm",
+  "strategy": {
+   "app_kind": "simple Flaskr blog with user registration, login and post creation",
+   "sensitive_areas": [
+    "/create (post creation)",
+    "POST /auth/login (authentication)",
+    "POST /auth/register (account creation)",
+    "post titles/body displayed on home page"
+   ],
+   "fragile_flows": [
+    "register \u2192 login \u2192 create post sequence",
+    "POST /create endpoint accessed without login"
+   ],
+   "hypotheses": [
+    {
+     "id": "unauth_create_allowed",
+     "title": "Unauthenticated visitors can create a post via POST /create",
+     "category": "access",
+     "targets": [
+      "/create"
+     ],
+     "rationale": "The /create page is marked requires_login=true but its POST endpoint is listed as requires_login=false, suggesting the check is only UI\u2011side.",
+     "first_moves": [
+      "Open a new browser session as anon",
+      "Send a POST request to /create with form fields title=Test&body=Demo"
+     ],
+     "priority": 1
+    },
+    {
+     "id": "xss_in_post_title",
+     "title": "Post titles are rendered without sanitisation, enabling stored XSS",
+     "category": "input",
+     "targets": [
+      "/create"
+     ],
+     "rationale": "User\u2011supplied title/body are displayed on the home page; without escaping, script payloads could execute for any visitor.",
+     "first_moves": [
+      "Log in as a",
+      "Create a post with title=<script>alert(1)</script> and any body",
+      "Visit the home page as anon to see if the alert fires"
+     ],
+     "priority": 1
+    },
+    {
+     "id": "csrf_create_post",
+     "title": "Logged\u2011in users can be forced to create a post via CSRF",
+     "category": "access",
+     "targets": [
+      "/create"
+     ],
+     "rationale": "No CSRF token is described in the form; a remote site could POST to /create using the victim's session cookie.",
+     "first_moves": [
+      "Log in as user a",
+      "From a different origin (e.g., curl or a crafted HTML form) POST to /create with title=CSRF&body=Injected"
+     ],
+     "priority": 2
+    },
+    {
+     "id": "duplicate_username_register",
+     "title": "Registering the same username twice succeeds or leaks info",
+     "category": "input",
+     "targets": [
+      "/auth/register"
+     ],
+     "rationale": "No explicit uniqueness validation is shown; attempting a second registration may reveal whether a username exists or allow duplicate accounts.",
+     "first_moves": [
+      "Register a new account with username=testdup",
+      "Attempt to register again with username=testdup, same password"
+     ],
+     "priority": 2
+    },
+    {
+     "id": "race_duplicate_posts",
+     "title": "Rapid concurrent POST /create can create duplicate posts or corrupt state",
+     "category": "flow",
+     "targets": [
+      "/create"
+     ],
+     "rationale": "The create endpoint likely writes directly to the database without concurrency guards; firing two requests at once may duplicate entries.",
+     "first_moves": [
+      "Log in as a",
+      "Fire two POST /create requests with identical data almost simultaneously (e.g., using curl & background jobs)"
+     ],
+     "priority": 2
+    },
+    {
+     "id": "login_bruteforce_no_rate_limit",
+     "title": "Login endpoint allows unlimited password attempts",
+     "category": "resource",
+     "targets": [
+      "POST /auth/login"
+     ],
+     "rationale": "Observed POST /auth/login has no rate\u2011limiting or captcha; repeated failures may be possible.",
+     "first_moves": [
+      "Pick a known username (e.g., a)",
+      "Send many POST /auth/login requests with wrong password in a loop"
+     ],
+     "priority": 3
+    },
+    {
+     "id": "login_redirect_open",
+     "title": "Login redirect can be manipulated to open an arbitrary URL",
+     "category": "access",
+     "targets": [
+      "POST /auth/login"
+     ],
+     "rationale": "The login flow redirects to '/' after success; if a 'next' parameter is accepted without validation, it could lead to open redirect.",
+     "first_moves": [
+      "Send a POST /auth/login with a crafted 'next' query string pointing to https://evil.example/"
+     ],
+     "priority": 3
+    },
+    {
+     "id": "session_fixation_possible",
+     "title": "Session ID can be set before login and reused after authentication",
+     "category": "access",
+     "targets": [
+      "POST /auth/login"
+     ],
+     "rationale": "If the app does not rotate the session cookie on login, an attacker could set a session, lure a victim to login, then hijack the session.",
+     "first_moves": [
+      "Create a session cookie via a GET to the site as anon",
+      "Log in as user b using the same browser (same cookie)",
+      "Check if the session remains unchanged"
+     ],
+     "priority": 4
+    }
+   ]
+  },
+  "dropped": [],
+  "error": null
+ },
+ "findings": [],
+ "steps": [
+  {
+   "id": 1,
+   "run_id": 1,
+   "step": 1,
+   "parent_step": null,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Attempt to create a post without authentication to test unauthenticated POST /create access.",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "/create",
+    "from_request": null,
+    "body": "title=Test&body=Demo",
+    "content_type": "application/x-www-form-urlencoded"
+   },
+   "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:37:26.647840Z"
+  },
+  {
+   "id": 2,
+   "run_id": 1,
+   "step": 2,
+   "parent_step": 1,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Refresh the home page to see if the unauthenticated POST created a visible post entry.",
+   "action": {
+    "kind": "refresh"
+   },
+   "action_text": "refresh",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:38:07.870272Z"
+  },
+  {
+   "id": 3,
+   "run_id": 1,
+   "step": 3,
+   "parent_step": 2,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Send a proper POST with title and body as anon to see if creation succeeds",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "/create",
+    "from_request": null,
+    "body": "title=Test&body=Demo",
+    "content_type": "application/x-www-form-urlencoded"
+   },
+   "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:38:41.254789Z"
+  },
+  {
+   "id": 4,
+   "run_id": 1,
+   "step": 4,
+   "parent_step": 3,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Send a proper POST with title and body as anon to verify unauthenticated creation",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "create",
+    "from_request": null,
+    "body": "title=Test&body=Demo",
+    "content_type": "application/x-www-form-urlencoded"
+   },
+   "action_text": "request(method='POST', path='create', content_type='application/x-www-form-urlencoded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:39:04.984428Z"
+  },
+  {
+   "id": 5,
+   "run_id": 1,
+   "step": 5,
+   "parent_step": 4,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Send a POST /create with title and body fields as anon to test if post creation succeeds without authentication.",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "/create",
+    "from_request": null,
+    "body": "title=unauth_test&body=testing",
+    "content_type": "application/x-www-form-urlencoded"
+   },
+   "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:39:41.145048Z"
+  },
+  {
+   "id": 6,
+   "run_id": 1,
+   "step": 6,
+   "parent_step": 5,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Send a POST /create as anon with a unique title containing the XSS marker to later check if it appears on the home page, testing unauthenticated creation.",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "/create",
+    "from_request": null,
+    "body": "title=%22%3E%3Csentri-xss-b5ee89%3E&body=demo",
+    "content_type": "application/x-www-form-urlencoded"
+   },
+   "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:40:29.926442Z"
+  },
+  {
+   "id": 7,
+   "run_id": 1,
+   "step": 7,
+   "parent_step": 6,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Send a POST /create with title and body fields as anon to verify if unauthenticated creation succeeds",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "/create",
+    "from_request": null,
+    "body": "title=Test+Post&body=Demo",
+    "content_type": "application/x-www-form-urlencoded"
+   },
+   "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:40:57.348085Z"
+  },
+  {
+   "id": 8,
+   "run_id": 1,
+   "step": 8,
+   "parent_step": 7,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Attempt to create a post as anon with required form fields to see if creation succeeds.",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "/create",
+    "from_request": null,
+    "body": "title=Test&body=Demo",
+    "content_type": "application/x-www-form-urlencoded"
+   },
+   "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:41:36.411474Z"
+  },
+  {
+   "id": 9,
+   "run_id": 1,
+   "step": 9,
+   "parent_step": 8,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Send a POST to /create with explicit title/body fields as anon to see if a post is created and visible on the home page.",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "/create",
+    "from_request": null,
+    "body": "title=UnauthTest&body=Demo",
+    "content_type": "application/x-www-form-urlencoded"
+   },
+   "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:42:28.921174Z"
+  },
+  {
+   "id": 10,
+   "run_id": 1,
+   "step": 10,
+   "parent_step": 9,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Check if anonymous user can access the post creation page; if it redirects to login, creation likely not allowed despite 302 responses.",
+   "action": {
+    "kind": "navigate",
+    "path": "/create"
+   },
+   "action_text": "navigate(path='/create')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/auth/login",
+   "signals": [],
+   "ts": "2026-11-22T13:43:00.811429Z"
+  },
+  {
+   "id": 11,
+   "run_id": 1,
+   "step": 11,
+   "parent_step": 10,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Check if unauthenticated POSTs actually created visible posts by visiting the home page.",
+   "action": {
+    "kind": "navigate",
+    "path": "/"
+   },
+   "action_text": "navigate(path='/')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:43:44.293357Z"
+  },
+  {
+   "id": 12,
+   "run_id": 1,
+   "step": 12,
+   "parent_step": 11,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Send an unauthenticated POST to /create with title and body fields to see if a post is created, then we can verify on the home page.",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "/create",
+    "from_request": null,
+    "body": "title=Test&body=Demo",
+    "content_type": "application/x-www-form-urlencoded"
+   },
+   "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:44:24.759905Z"
+  },
+  {
+   "id": 13,
+   "run_id": 1,
+   "step": 13,
+   "parent_step": 12,
+   "hypothesis_id": "unauth_create_allowed",
+   "identity": "anon",
+   "thought": "Send a POST /create with a unique title to test if unauthenticated creation persists and can be seen on the home page.",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "create",
+    "from_request": null,
+    "body": "title=uniq12345&body=demo",
+    "content_type": "application/x-www-form-urlencoded"
+   },
+   "action_text": "request(method='POST', path='create', content_type='application/x-www-form-urlencoded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:44:42.376080Z"
+  },
+  {
+   "id": 14,
+   "run_id": 1,
+   "step": 14,
+   "parent_step": null,
+   "hypothesis_id": "xss_in_post_title",
+   "identity": "anon",
+   "thought": "Switch to user a to be able to create a post for XSS test.",
+   "action": {
+    "kind": "switch_user",
+    "user": "a"
+   },
+   "action_text": "switch_user(user='a')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:45:26.179278Z"
+  },
+  {
+   "id": 15,
+   "run_id": 1,
+   "step": 15,
+   "parent_step": 14,
+   "hypothesis_id": "xss_in_post_title",
+   "identity": "a",
+   "thought": "Create a post as user a with the XSS marker in the title via a direct POST request to /create, testing for stored XSS.",
+   "action": {
+    "kind": "request",
+    "method": "POST",
+    "path": "create",
+    "from_request": null,
+    "body": "title=%22%3E%3Csentri-xss-b5ee89%3E&body=demo",
+    "content_type": "application/x-www-form-urlencoded"
+   },
+   "action_text": "request(method='POST', path='create', content_type='application/x-www-form-urlencoded')",
+   "ok": 1,
+   "error": null,
+   "url_after": "http://127.0.0.1:5077/",
+   "signals": [],
+   "ts": "2026-11-22T13:45:45.442777Z"
+  }
+ ],
+ "tree": [
+  {
+   "hypothesis_id": "unauth_create_allowed",
+   "paths": [
+    {
+     "id": 1,
+     "run_id": 1,
+     "step": 1,
+     "parent_step": null,
+     "hypothesis_id": "unauth_create_allowed",
+     "identity": "anon",
+     "thought": "Attempt to create a post without authentication to test unauthenticated POST /create access.",
+     "action": {
+      "kind": "request",
+      "method": "POST",
+      "path": "/create",
+      "from_request": null,
+      "body": "title=Test&body=Demo",
+      "content_type": "application/x-www-form-urlencoded"
+     },
+     "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+     "ok": 1,
+     "error": null,
+     "url_after": "http://127.0.0.1:5077/",
+     "signals": [],
+     "ts": "2026-11-22T13:37:26.647840Z",
+     "children": [
+      {
+       "id": 2,
+       "run_id": 1,
+       "step": 2,
+       "parent_step": 1,
+       "hypothesis_id": "unauth_create_allowed",
+       "identity": "anon",
+       "thought": "Refresh the home page to see if the unauthenticated POST created a visible post entry.",
+       "action": {
+        "kind": "refresh"
+       },
+       "action_text": "refresh",
+       "ok": 1,
+       "error": null,
+       "url_after": "http://127.0.0.1:5077/",
+       "signals": [],
+       "ts": "2026-11-22T13:38:07.870272Z",
+       "children": [
+        {
+         "id": 3,
+         "run_id": 1,
+         "step": 3,
+         "parent_step": 2,
+         "hypothesis_id": "unauth_create_allowed",
+         "identity": "anon",
+         "thought": "Send a proper POST with title and body as anon to see if creation succeeds",
+         "action": {
+          "kind": "request",
+          "method": "POST",
+          "path": "/create",
+          "from_request": null,
+          "body": "title=Test&body=Demo",
+          "content_type": "application/x-www-form-urlencoded"
+         },
+         "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+         "ok": 1,
+         "error": null,
+         "url_after": "http://127.0.0.1:5077/",
+         "signals": [],
+         "ts": "2026-11-22T13:38:41.254789Z",
+         "children": [
+          {
+           "id": 4,
+           "run_id": 1,
+           "step": 4,
+           "parent_step": 3,
+           "hypothesis_id": "unauth_create_allowed",
+           "identity": "anon",
+           "thought": "Send a proper POST with title and body as anon to verify unauthenticated creation",
+           "action": {
+            "kind": "request",
+            "method": "POST",
+            "path": "create",
+            "from_request": null,
+            "body": "title=Test&body=Demo",
+            "content_type": "application/x-www-form-urlencoded"
+           },
+           "action_text": "request(method='POST', path='create', content_type='application/x-www-form-urlencoded')",
+           "ok": 1,
+           "error": null,
+           "url_after": "http://127.0.0.1:5077/",
+           "signals": [],
+           "ts": "2026-11-22T13:39:04.984428Z",
+           "children": [
+            {
+             "id": 5,
+             "run_id": 1,
+             "step": 5,
+             "parent_step": 4,
+             "hypothesis_id": "unauth_create_allowed",
+             "identity": "anon",
+             "thought": "Send a POST /create with title and body fields as anon to test if post creation succeeds without authentication.",
+             "action": {
+              "kind": "request",
+              "method": "POST",
+              "path": "/create",
+              "from_request": null,
+              "body": "title=unauth_test&body=testing",
+              "content_type": "application/x-www-form-urlencoded"
+             },
+             "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+             "ok": 1,
+             "error": null,
+             "url_after": "http://127.0.0.1:5077/",
+             "signals": [],
+             "ts": "2026-11-22T13:39:41.145048Z",
+             "children": [
+              {
+               "id": 6,
+               "run_id": 1,
+               "step": 6,
+               "parent_step": 5,
+               "hypothesis_id": "unauth_create_allowed",
+               "identity": "anon",
+               "thought": "Send a POST /create as anon with a unique title containing the XSS marker to later check if it appears on the home page, testing unauthenticated creation.",
+               "action": {
+                "kind": "request",
+                "method": "POST",
+                "path": "/create",
+                "from_request": null,
+                "body": "title=%22%3E%3Csentri-xss-b5ee89%3E&body=demo",
+                "content_type": "application/x-www-form-urlencoded"
+               },
+               "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+               "ok": 1,
+               "error": null,
+               "url_after": "http://127.0.0.1:5077/",
+               "signals": [],
+               "ts": "2026-11-22T13:40:29.926442Z",
+               "children": [
+                {
+                 "id": 7,
+                 "run_id": 1,
+                 "step": 7,
+                 "parent_step": 6,
+                 "hypothesis_id": "unauth_create_allowed",
+                 "identity": "anon",
+                 "thought": "Send a POST /create with title and body fields as anon to verify if unauthenticated creation succeeds",
+                 "action": {
+                  "kind": "request",
+                  "method": "POST",
+                  "path": "/create",
+                  "from_request": null,
+                  "body": "title=Test+Post&body=Demo",
+                  "content_type": "application/x-www-form-urlencoded"
+                 },
+                 "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+                 "ok": 1,
+                 "error": null,
+                 "url_after": "http://127.0.0.1:5077/",
+                 "signals": [],
+                 "ts": "2026-11-22T13:40:57.348085Z",
+                 "children": [
+                  {
+                   "id": 8,
+                   "run_id": 1,
+                   "step": 8,
+                   "parent_step": 7,
+                   "hypothesis_id": "unauth_create_allowed",
+                   "identity": "anon",
+                   "thought": "Attempt to create a post as anon with required form fields to see if creation succeeds.",
+                   "action": {
+                    "kind": "request",
+                    "method": "POST",
+                    "path": "/create",
+                    "from_request": null,
+                    "body": "title=Test&body=Demo",
+                    "content_type": "application/x-www-form-urlencoded"
+                   },
+                   "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+                   "ok": 1,
+                   "error": null,
+                   "url_after": "http://127.0.0.1:5077/",
+                   "signals": [],
+                   "ts": "2026-11-22T13:41:36.411474Z",
+                   "children": [
+                    {
+                     "id": 9,
+                     "run_id": 1,
+                     "step": 9,
+                     "parent_step": 8,
+                     "hypothesis_id": "unauth_create_allowed",
+                     "identity": "anon",
+                     "thought": "Send a POST to /create with explicit title/body fields as anon to see if a post is created and visible on the home page.",
+                     "action": {
+                      "kind": "request",
+                      "method": "POST",
+                      "path": "/create",
+                      "from_request": null,
+                      "body": "title=UnauthTest&body=Demo",
+                      "content_type": "application/x-www-form-urlencoded"
+                     },
+                     "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+                     "ok": 1,
+                     "error": null,
+                     "url_after": "http://127.0.0.1:5077/",
+                     "signals": [],
+                     "ts": "2026-11-22T13:42:28.921174Z",
+                     "children": [
+                      {
+                       "id": 10,
+                       "run_id": 1,
+                       "step": 10,
+                       "parent_step": 9,
+                       "hypothesis_id": "unauth_create_allowed",
+                       "identity": "anon",
+                       "thought": "Check if anonymous user can access the post creation page; if it redirects to login, creation likely not allowed despite 302 responses.",
+                       "action": {
+                        "kind": "navigate",
+                        "path": "/create"
+                       },
+                       "action_text": "navigate(path='/create')",
+                       "ok": 1,
+                       "error": null,
+                       "url_after": "http://127.0.0.1:5077/auth/login",
+                       "signals": [],
+                       "ts": "2026-11-22T13:43:00.811429Z",
+                       "children": [
+                        {
+                         "id": 11,
+                         "run_id": 1,
+                         "step": 11,
+                         "parent_step": 10,
+                         "hypothesis_id": "unauth_create_allowed",
+                         "identity": "anon",
+                         "thought": "Check if unauthenticated POSTs actually created visible posts by visiting the home page.",
+                         "action": {
+                          "kind": "navigate",
+                          "path": "/"
+                         },
+                         "action_text": "navigate(path='/')",
+                         "ok": 1,
+                         "error": null,
+                         "url_after": "http://127.0.0.1:5077/",
+                         "signals": [],
+                         "ts": "2026-11-22T13:43:44.293357Z",
+                         "children": [
+                          {
+                           "id": 12,
+                           "run_id": 1,
+                           "step": 12,
+                           "parent_step": 11,
+                           "hypothesis_id": "unauth_create_allowed",
+                           "identity": "anon",
+                           "thought": "Send an unauthenticated POST to /create with title and body fields to see if a post is created, then we can verify on the home page.",
+                           "action": {
+                            "kind": "request",
+                            "method": "POST",
+                            "path": "/create",
+                            "from_request": null,
+                            "body": "title=Test&body=Demo",
+                            "content_type": "application/x-www-form-urlencoded"
+                           },
+                           "action_text": "request(method='POST', path='/create', content_type='application/x-www-form-urlencoded')",
+                           "ok": 1,
+                           "error": null,
+                           "url_after": "http://127.0.0.1:5077/",
+                           "signals": [],
+                           "ts": "2026-11-22T13:44:24.759905Z",
+                           "children": [
+                            {
+                             "id": 13,
+                             "run_id": 1,
+                             "step": 13,
+                             "parent_step": 12,
+                             "hypothesis_id": "unauth_create_allowed",
+                             "identity": "anon",
+                             "thought": "Send a POST /create with a unique title to test if unauthenticated creation persists and can be seen on the home page.",
+                             "action": {
+                              "kind": "request",
+                              "method": "POST",
+                              "path": "create",
+                              "from_request": null,
+                              "body": "title=uniq12345&body=demo",
+                              "content_type": "application/x-www-form-urlencoded"
+                             },
+                             "action_text": "request(method='POST', path='create', content_type='application/x-www-form-urlencoded')",
+                             "ok": 1,
+                             "error": null,
+                             "url_after": "http://127.0.0.1:5077/",
+                             "signals": [],
+                             "ts": "2026-11-22T13:44:42.376080Z",
+                             "children": []
+                            }
+                           ]
+                          }
+                         ]
+                        }
+                       ]
+                      }
+                     ]
+                    }
+                   ]
+                  }
+                 ]
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "hypothesis_id": "xss_in_post_title",
+   "paths": [
+    {
+     "id": 14,
+     "run_id": 1,
+     "step": 14,
+     "parent_step": null,
+     "hypothesis_id": "xss_in_post_title",
+     "identity": "anon",
+     "thought": "Switch to user a to be able to create a post for XSS test.",
+     "action": {
+      "kind": "switch_user",
+      "user": "a"
+     },
+     "action_text": "switch_user(user='a')",
+     "ok": 1,
+     "error": null,
+     "url_after": "http://127.0.0.1:5077/",
+     "signals": [],
+     "ts": "2026-11-22T13:45:26.179278Z",
+     "children": [
+      {
+       "id": 15,
+       "run_id": 1,
+       "step": 15,
+       "parent_step": 14,
+       "hypothesis_id": "xss_in_post_title",
+       "identity": "a",
+       "thought": "Create a post as user a with the XSS marker in the title via a direct POST request to /create, testing for stored XSS.",
+       "action": {
+        "kind": "request",
+        "method": "POST",
+        "path": "create",
+        "from_request": null,
+        "body": "title=%22%3E%3Csentri-xss-b5ee89%3E&body=demo",
+        "content_type": "application/x-www-form-urlencoded"
+       },
+       "action_text": "request(method='POST', path='create', content_type='application/x-www-form-urlencoded')",
+       "ok": 1,
+       "error": null,
+       "url_after": "http://127.0.0.1:5077/",
+       "signals": [],
+       "ts": "2026-11-22T13:45:45.442777Z",
+       "children": []
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
