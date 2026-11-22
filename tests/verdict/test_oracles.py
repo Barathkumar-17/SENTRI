@@ -137,3 +137,14 @@ def test_console_ignores_third_party_resource_failures_only():
     assert oracles.console_error(Evidence(console=(own,)), app).fired  # the app's own resource still counts
     assert oracles.console_error(Evidence(console=(script,)), app).fired  # script errors always count
     assert oracles.console_error(Evidence(console=(cdn,)), cfg()).fired  # without an origin nothing is filtered
+
+
+def test_console_errors_from_the_origin_fence_are_not_app_bugs():
+    from sentri.evidence.models import ConsoleRecord, Evidence
+    from sentri.verdict.oracles import OracleConfig, console_error
+
+    cfg = OracleConfig(flow_id="f", attack_id="a")
+    fenced = Evidence(console=(ConsoleRecord("console_error", "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT"),))
+    assert not console_error(fenced, cfg).fired
+    real = Evidence(console=(ConsoleRecord("console_error", "TypeError: x is undefined"),))
+    assert console_error(real, cfg).fired
