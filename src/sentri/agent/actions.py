@@ -120,6 +120,30 @@ class Wait(_A):
     ms: int = Field(default=500, ge=0, le=5000)
 
 
+class FieldValue(_A):
+    selector: str = Field(max_length=500)
+    text: str = Field(default="", max_length=5000)
+
+
+class FillForm(_A):
+    """Fill several fields and submit, as one decision (a predictable mechanical sequence). The observation after
+    it is what the model replans on."""
+
+    kind: Literal["fill_form"] = "fill_form"
+    selector: str = Field(default="form", max_length=500)  # the form (or any container of the fields)
+    fields: list[FieldValue] = Field(default_factory=list, max_length=20)
+    submit: bool = True
+    submit_selector: str | None = Field(default=None, max_length=500)  # default: the form's first button
+
+
+class Look(_A):
+    """Ask for more detail of the current page next step (full text, all form fields or the request log). Touches
+    nothing in the app."""
+
+    kind: Literal["look"] = "look"
+    part: Literal["text", "forms", "requests"] = "text"
+
+
 class Finish(_A):
     kind: Literal["finish"] = "finish"
     reason: str = Field(default="", max_length=500)
@@ -141,6 +165,8 @@ Action = Annotated[
     | Throttle
     | SwitchUser
     | Wait
+    | FillForm
+    | Look
     | Finish,
     Field(discriminator="kind"),
 ]
@@ -161,6 +187,8 @@ ACTION_KINDS = [
     "throttle",
     "switch_user",
     "wait",
+    "fill_form",
+    "look",
     "finish",
 ]
 
@@ -197,6 +225,9 @@ def resolve_same_origin(base_url: str, target: str) -> str:
 def describe(action: Action) -> str:
     """One-line human description for the feed and the attack tree."""
     d = action.model_dump(exclude={"kind"}, exclude_defaults=True)
+    if isinstance(action, FillForm):
+        names = ", ".join(f.selector for f in action.fields[:4]) + (" ..." if len(action.fields) > 4 else "")
+        return f"fill_form {action.selector} ({names})" + (" + submit" if action.submit else "")
     if isinstance(action, TypeText):
         text = action.text if len(action.text) <= 40 else action.text[:37] + "..."
         size = f" x{action.repeat} ({len(action.text) * action.repeat} chars)" if action.repeat > 1 else ""

@@ -169,7 +169,13 @@ class BudgetedProvider:
 
     @property
     def available(self) -> bool:
-        return self.inner.available and self._limit_reason() is None
+        if not self.inner.available:
+            return False
+        reason = self._limit_reason()
+        if reason is not None:
+            self.stop_reason = self.stop_reason or reason
+            return False
+        return True
 
     @property
     def cost_known(self) -> bool:

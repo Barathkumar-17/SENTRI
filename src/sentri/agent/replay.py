@@ -311,6 +311,7 @@ def record(
     verdict: CheckVerdict,
     key: str,
     run_hits: dict[str, CheckVerdict] | None = None,
+    replay_state: str = "restart",
 ) -> tuple[int | None, list[LedgerEvent]]:
     """Store the outcome. Confirmed findings become checks and bugs (outside the comparable base score).
 
@@ -342,6 +343,7 @@ def record(
                 payload_source="llm",
                 reason=candidate.get("title"),
                 is_probe=True,
+                origin=candidate.get("origin") or "ai",
             )
         )
         events, _ = ledger.record_check_result(run_id, check_id, "agentic", key, commit, verdict)
@@ -375,6 +377,8 @@ def record(
             "verdict": status,
             "attempts": verdict.attempts,
             "check_id": check_id,
+            "origin": candidate.get("origin") or "ai",
+            "replay_state": replay_state,
         },
     )
     return check_id, events

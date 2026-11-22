@@ -11,6 +11,13 @@ from typing import Any
 
 from sentri.ledger.ledger import Ledger
 
+ORIGIN_LABEL = {
+    "ai": "model-chosen action",
+    "ai_suspicion": "model suspicion",
+    "code_probe": "Sentri probe",
+    "code_fallback": "code fallback step",
+}
+
 
 def attack_tree(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Group steps by hypothesis, then nest each step under its parent step."""
@@ -83,8 +90,8 @@ def agentic_markdown(ledger: Ledger, run_id: int, max_steps: int = 80) -> str:
         points = {i["key"]: i for i in breakdown.get("agentic_findings") or []}
         lines += [
             "#### Findings (replayed 3x from a clean state, judged by plain code)",
-            "| Verdict | Finding | Oracles | Steps | Score impact |",
-            "|---|---|---|---|---|",
+            "| Verdict | Finding | Found by | Oracles | Steps | Score impact |",
+            "|---|---|---|---|---|---|",
         ]
         icon = {"fail": "❌ confirmed", "flaky": "⚠️ flaky", "unconfirmed": "· unconfirmed", "pass": "✅ fixed"}
         for f in findings:
@@ -92,9 +99,12 @@ def agentic_markdown(ledger: Ledger, run_id: int, max_steps: int = 80) -> str:
             check = ledger.check(f["check_id"]) if f.get("check_id") else None
             hit = points.get(check["attack_id"]) if check is not None else None
             impact = f"-{hit['points']:g} ({str(hit['severity']).replace('_', ' ')})" if hit else "-"
+            found_by = ORIGIN_LABEL.get(f.get("origin") or "", f.get("origin") or "-")
+            if f.get("replay_state") == "none":
+                found_by += " (replayed on live state)"
             lines.append(
-                f"| {icon.get(f['verdict'], f['verdict'])} | {f['title'] or ''} | {f['oracle_ids'] or '-'} | {span}"
-                f" | {impact} |"
+                f"| {icon.get(f['verdict'], f['verdict'])} | {f['title'] or ''} | {found_by} | {f['oracle_ids'] or '-'}"
+                f" | {span} | {impact} |"
             )
         lines.append("")
 

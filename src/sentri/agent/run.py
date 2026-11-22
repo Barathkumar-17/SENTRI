@@ -119,8 +119,9 @@ async def run_agentic(
             "repro": stored["repro"],
             "hypothesis_id": stored["hypothesis_id"],
             "recheck": True,
+            "origin": stored.get("origin") or "ai",
         }
-        _check, events = record(ledger, run_id, commit, candidate, verdict, key, run_hits)
+        _check, events = record(ledger, run_id, commit, candidate, verdict, key, run_hits, sandbox.reset_kind)
         out.rechecked += 1
         if verdict.verdict == "error":
             out.notes.append(f"re-check '{stored['title']}' could not be replayed: {'; '.join(notes[:2])}")
@@ -187,7 +188,7 @@ async def run_agentic(
             continue  # the same break, already confirmed through a shorter path
         seen.add(fingerprint)
         verdict, key, notes = await confirm(env, data["repro"])
-        _check, events = record(ledger, run_id, commit, data, verdict, key, run_hits)
+        _check, events = record(ledger, run_id, commit, data, verdict, key, run_hits, sandbox.reset_kind)
         out.regressions += sum(1 for e in events if e.kind == "regression")
         if verdict.verdict in ("fail", "flaky"):
             out.confirmed += 1

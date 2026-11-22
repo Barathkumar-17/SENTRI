@@ -30,7 +30,9 @@ from sentri.agent.actions import (
     Burst,
     ClearSession,
     Click,
+    FillForm,
     Finish,
+    Look,
     Navigate,
     NewTab,
     Refresh,
@@ -482,6 +484,13 @@ class AgentSession:
             if kind in ("textarea", "editable", "text", "search"):
                 return action.model_copy(update={"text": f"{action.text} {canary}"})
             return action
+        if isinstance(action, FillForm):
+            fields = []
+            for f in action.fields:
+                typed = await self._with_canary(TypeText(selector=f.selector, text=f.text))
+                assert isinstance(typed, TypeText)
+                fields.append(f.model_copy(update={"text": typed.text}))
+            return action.model_copy(update={"fields": fields})
         if isinstance(action, SendRequest) and action.method in ("POST", "PUT", "PATCH") and action.body:
             body = action.body.replace("{canary}", canary)
             if canary not in body:
@@ -701,7 +710,16 @@ class AgentSession:
             set_throttled(self.contexts[self.current], action.on)
         elif isinstance(action, Wait):
             await page.wait_for_timeout(action.ms)
-        elif isinstance(action, Finish):
+        elif isinstance(action, FillForm):
+            for f in action.fields:
+                typed = await self._with_canary(TypeText(selector=f.selector, text=f.text))
+                assert isinstance(typed, TypeText)
+                await page.locator(typed.selector).first.fill(typed.text, timeout=t)
+                self._note(self.current, typed.text, page.url)
+            if action.submit:
+                target = action.submit_selector or (f"{action.selector} button, {action.selector} input[type=submit]")
+                await page.locator(target).first.click(timeout=t)
+        elif isinstance(action, (Finish, Look)):
             return
 
     async def execute_switch(self, who: str) -> None:

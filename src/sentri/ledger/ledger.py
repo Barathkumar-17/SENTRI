@@ -62,6 +62,7 @@ class CheckRecord:
     is_probe: bool = False
     reused_from_check_id: int | None = None
     duration_s: float | None = None
+    origin: str | None = None  # baseline | probe | ai | ai_suspicion | code_probe | code_fallback (default by kind)
 
 
 class Ledger:
@@ -144,7 +145,7 @@ class Ledger:
         cur = self.conn.execute(
             "INSERT INTO checks (run_id, flow_id, attack_id, verdict, score_verdict, oracle_hits, attempts,"
             " payload, payload_source, reason, error_msg, screenshot_path, evidence_path, duplicate_method,"
-            " is_probe, reused_from_check_id, duration_s) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " is_probe, reused_from_check_id, duration_s, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 rec.run_id,
                 rec.flow_id,
@@ -163,6 +164,7 @@ class Ledger:
                 int(rec.is_probe),
                 rec.reused_from_check_id,
                 rec.duration_s,
+                rec.origin or ("probe" if rec.is_probe else "baseline"),
             ),
         )
         self.conn.commit()
@@ -444,7 +446,7 @@ class Ledger:
     def add_step(self, run_id: int, step: dict[str, Any]) -> int:
         cur = self.conn.execute(
             "INSERT INTO exploration_steps (run_id, step, parent_step, hypothesis_id, identity, thought, action,"
-            " action_text, ok, error, url_after, signals, ts) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " action_text, ok, error, url_after, signals, ts, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 run_id,
                 step["step"],
@@ -459,6 +461,7 @@ class Ledger:
                 step.get("url_after"),
                 json.dumps(step.get("signals", [])),
                 now(),
+                step.get("origin"),
             ),
         )
         self.conn.commit()
@@ -477,7 +480,7 @@ class Ledger:
     def add_finding(self, run_id: int, finding: dict[str, Any]) -> int:
         cur = self.conn.execute(
             "INSERT INTO findings (run_id, hypothesis_id, title, oracle_ids, repro, from_step, to_step, verdict,"
-            " attempts, check_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            " attempts, check_id, created_at, origin, replay_state) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 run_id,
                 finding.get("hypothesis_id"),
@@ -490,6 +493,8 @@ class Ledger:
                 finding.get("attempts", 0),
                 finding.get("check_id"),
                 now(),
+                finding.get("origin"),
+                finding.get("replay_state"),
             ),
         )
         self.conn.commit()

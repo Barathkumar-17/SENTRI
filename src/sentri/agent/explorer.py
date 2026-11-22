@@ -22,8 +22,10 @@ from sentri.agent.actions import (
     ACTION_ADAPTER,
     Action,
     Burst,
+    ClearSession,
     Click,
     Finish,
+    Look,
     Navigate,
     Replay,
     SendRequest,
@@ -32,6 +34,7 @@ from sentri.agent.actions import (
 )
 from sentri.agent.recon import SKIP_WORDS, AppMap
 from sentri.agent.session import AgentSession
+from sentri.agent.statemap import ExplorationMap, StateNode, action_sig
 from sentri.agent.strategy import Hypothesis, Strategy
 from sentri.llm import BudgetedProvider, load_prompt
 from sentri.llm.untrusted import build_user_prompt
@@ -55,8 +58,15 @@ Kind = Literal[
     "throttle",
     "switch_user",
     "wait",
+    "fill_form",
+    "look",
     "finish",
 ]
+
+
+class FieldSpec(BaseModel):
+    selector: str
+    text: str = ""
 
 
 class ActionSpec(BaseModel):
@@ -84,6 +94,9 @@ class ActionSpec(BaseModel):
     user: str | None = None
     ms: int | None = None
     reason: str | None = None
+    fields: list[FieldSpec] | None = None
+    submit_selector: str | None = None
+    part: str | None = None
 
 
 class Decision(BaseModel):
@@ -93,6 +106,8 @@ class Decision(BaseModel):
     suspect: bool = False
     suspect_reason: str = Field(default="", max_length=500)
     new_path: bool = False
+    goal_status: Literal["continue", "done", "stuck"] = "continue"  # about the focus hypothesis
+    new_goal: str = Field(default="", max_length=200)  # a goal the observations suggest (grounded by code)
 
 
 def to_action(spec: ActionSpec) -> Action:
@@ -121,6 +136,8 @@ def _kind_classes() -> dict[str, type[BaseModel]]:
         a.Throttle,
         a.SwitchUser,
         a.Wait,
+        a.FillForm,
+        a.Look,
         a.Finish,
     ]
     return {cls.model_fields["kind"].default: cls for cls in classes}
@@ -149,6 +166,7 @@ class Candidate:
     repro: list[ReproStep]
     signals: list[dict[str, Any]]
     suspect_reason: str = ""
+    origin: str = "ai"  # ai | ai_suspicion | code_probe | code_fallback: who found it (not who confirmed it)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -158,6 +176,7 @@ class Candidate:
             "to_step": self.to_step,
             "repro": [r.to_dict() for r in self.repro],
             "signals": self.signals,
+            "origin": self.origin,
         }
 
 
@@ -216,6 +235,25 @@ class Explorer:
         self._focus_note = ""
         self.stalls = 0
         self._code_steps: list[Decision] = []
+        self.map = ExplorationMap()
+        self._node: StateNode | None = None
+        self._is_new = True
+        self._text_changed = True
+        self._detail: str | None = None  # what a `look` asked for, shown once
+        self._changes: dict[str, Any] = {}
+        self._goals_added = 0
+        self.counts: dict[str, int] = {
+            "ai_steps": 0,
+            "code_probe_steps": 0,
+            "fallback_steps": 0,
+            "known_dead_end_refusals": 0,
+            "looks": 0,
+            "goals_done": 0,
+            "goals_stuck": 0,
+            "goals_added": 0,
+            "actions_attempted": 0,
+            "actions_executed_ok": 0,
+        }
 
     # ---- prompt ---------------------------------------------------------------------------------------
     def _request(self, step: int, focus: Hypothesis | None, seconds_left: float) -> str:
@@ -238,12 +276,50 @@ class Explorer:
         }
         if self._focus_note:
             task["note"] = self._focus_note + "; try something different"
-        data = {
-            "observation": observation,
-            "recent_steps": self.history[-10:],
-            "already_flagged": self.flagged[-12:],  # move on: these are queued for replay already
-        }
-        return build_user_prompt(task, data)
+        task["hypotheses"] = [
+            {"id": h["id"], "title": h["title"], "targets": h.get("targets", [])} for h in task["hypotheses"]
+        ]
+        return build_user_prompt(task, self._compact_view(observation))
+
+    def _compact_view(self, obs: dict[str, Any]) -> dict[str, Any]:
+        """What the model needs to decide, not the whole page: the state it is in, what changed, the options with
+        their known outcomes, where else there is something untried, and a short history."""
+        node = self._node
+        data: dict[str, Any] = {}
+        if node is not None:
+            data["state"] = {
+                "id": node.sid,
+                "new": self._is_new,
+                "visits": node.visits,
+                "identity": obs.get("identity"),
+                "url": obs.get("url"),
+                "title": obs.get("title"),
+            }
+            data["options"] = self.map.options_view(node)
+            data["frontier"] = [f for f in self.map.frontier() if f["state"] != node.sid]
+        if self._changes:
+            data["last_step_effect"] = self._changes
+        if self._is_new or self._text_changed or self._detail == "text":
+            limit = 2500 if self._detail == "text" else 1200
+            data["text"] = str(obs.get("text") or "")[:limit]
+        else:
+            data["text"] = "(unchanged since your last visit to this state; `look` with part=text to see it)"
+        if self._detail == "forms" or self._is_new:
+            data["forms"] = obs.get("forms") or []
+        if self._detail == "requests":
+            data["requests"] = obs.get("recent_requests") or []
+        else:
+            data["recent_requests"] = (obs.get("recent_requests") or [])[-6:]
+        for key in ("console_errors", "blocked_offsite", "created_records"):
+            if obs.get(key):
+                data[key] = obs[key]
+        data["recent_steps"] = self.history[-5:]
+        data["already_flagged"] = self.flagged[-8:]  # move on: these are queued for replay already
+        self._detail = None
+        return data
+
+    def _observe_state(self, step: int) -> None:
+        self._node, self._is_new, self._text_changed = self.map.visit(self._observation, step)
 
     # ---- repro bookkeeping ------------------------------------------------------------------------------
     def _repro_step(self, action: Action) -> ReproStep:
@@ -402,13 +478,14 @@ class Explorer:
         current_hyp = ""
         self._code_steps = self._reflection_probes()
         self._observation = await self.s.observe()
+        self._observe_state(0)
         for step in range(1, self.budget.max_steps + 1):
             seconds_left = self.budget.max_seconds - (time.monotonic() - started)
             if seconds_left <= 0:
                 result.stopped = "time budget used"
                 break
-            if not self.provider.available:
-                result.stopped = "model unavailable or budget used"
+            if not self.provider.available and not self._code_steps:
+                result.stopped = f"model use stopped: {getattr(self.provider, 'stop_reason', None) or 'unavailable'}"
                 break
             focus = self._current_focus()
             decision: Decision | None
@@ -426,6 +503,9 @@ class Explorer:
                     break
                 decision = self._fallback(self._observation, focus, error)
                 result.fallbacks += 1
+            step_origin = (
+                ("code_probe" if decision.hypothesis_id == "reflected_input" else "code_fallback") if by_code else "ai"
+            )
             try:
                 action = to_action(decision.action)
             except ValidationError as exc:
@@ -455,6 +535,44 @@ class Explorer:
                     break
                 continue
             hyp = decision.hypothesis_id or (focus.id if focus else "")
+            node_before = self._node
+            sig = action_sig(action.model_dump())
+            if isinstance(action, Look):
+                # More detail next step; nothing in the app is touched.
+                self._detail = action.part
+                self.counts["looks"] += 1
+                self.history.append({"step": step, "look": action.part})
+                result.steps = step
+                continue
+            known = self.map.dead_end(node_before, sig) if node_before is not None and not by_code else None
+            if known is not None:
+                # Already proven pointless in this state: not run again, the model is told why.
+                failures += 1
+                self.counts["known_dead_end_refusals"] += 1
+                self.record_step(
+                    {
+                        "step": step,
+                        "parent_step": parent,
+                        "hypothesis_id": hyp,
+                        "identity": self.s.current,
+                        "thought": decision.thought,
+                        "action": action.model_dump(),
+                        "action_text": describe(action),
+                        "ok": False,
+                        "error": f"not run: known dead end ({known})",
+                        "url_after": self._observation.get("url"),
+                        "signals": [],
+                        "origin": step_origin,
+                    }
+                )
+                self.history.append({"step": step, "action": describe(action), "not_run": f"known dead end ({known})"})
+                result.steps = step
+                self.stalls += 1
+                self._rotate(f"stalled: chose an action already known to be a dead end here ({known})")
+                if failures >= 3:
+                    result.stopped = "3 unusable, invalid or dead-end actions in a row"
+                    break
+                continue
             if decision.new_path or (hyp != current_hyp and current_hyp):
                 path_start, parent = step, None
                 line_index = len(prefix)
@@ -463,11 +581,17 @@ class Explorer:
             identity = self.s.current
             fp_before = _fingerprint(self._observation)
             mark = self.s.mark()
+            self.counts["actions_attempted"] += 1
+            self.counts[{"ai": "ai_steps", "code_probe": "code_probe_steps"}.get(step_origin, "fallback_steps")] += 1
             outcome = await self.s.execute(action)
+            if outcome.ok:
+                self.counts["actions_executed_ok"] += 1
+            if isinstance(action, ClearSession):
+                self.map.cleared.add(identity)
             action = outcome.action or action  # what really ran, e.g. with Sentri's canary added
             evidence = self.s.agent_evidence_since(mark)
             signals = [
-                {"oracle_id": r.oracle_id, "detail": r.detail, "route": r.route}
+                {"oracle_id": r.oracle_id, "detail": r.detail, "route": r.route, "error_key": r.error_key}
                 for r in evaluate_agent(evidence, self.cfg)
                 if r.fired
             ]
@@ -499,6 +623,7 @@ class Explorer:
                 "error": outcome.error,
                 "url_after": outcome.url,
                 "signals": signals,
+                "origin": step_origin,
             }
             self.record_step(record)
             self.emit(
@@ -536,6 +661,7 @@ class Explorer:
                             [dataclasses.replace(r, setup=i < line_index) for i, r in enumerate(prefix)],
                             signals,
                             decision.suspect_reason,
+                            finding_origin(signals, step_origin),
                         )
                     )
                     self.emit("candidate", f"possible break at step {step}: {what}", step=step)
@@ -553,11 +679,64 @@ class Explorer:
                 result.stopped = f"3 unusable or refused actions in a row: {outcome.error}"
                 break
             self._observation = await self.s.observe()
+            self._observe_state(step)
+            node_after = self._node
+            changed = node_after is not node_before or self._text_changed or bool(outcome.new_requests)
+            if node_before is not None:
+                tried = self.map.record(
+                    node_before, sig, outcome.ok, outcome.error, node_after, changed, len(signals), step
+                )
+                self._changes = {
+                    "action": describe(action),
+                    "ok": outcome.ok,
+                    "error": outcome.error,
+                    "from_state": node_before.sid,
+                    "to_state": node_after.sid if node_after else None,
+                    "requests": len(outcome.new_requests),
+                    "signals": [f"{s['oracle_id']}: {s['detail']}" for s in signals],
+                    "times_tried_here": tried.count,
+                }
+            if not by_code:
+                self._goal_update(decision, step)
             self._after_step(_signature(action), fp_before, _fingerprint(self._observation), signals)
         else:
             result.stopped = "step budget used"
         result.stalls = self.stalls
+        result.stats = {**self.map.stats(), **self.counts, "stalls": self.stalls}
         return result
+
+    def _goal_update(self, decision: Decision, step: int) -> None:
+        """The model's view of the focus goal moves the focus (done or stuck); a new goal it proposes is kept only
+        if grounded in the state it was observed in, and at most a few are added."""
+        if decision.new_goal and self._goals_added < 4 and self._node is not None:
+            self._goals_added += 1
+            self.counts["goals_added"] += 1
+            self.strategy.hypotheses.append(
+                Hypothesis(
+                    id=f"goal_{self._goals_added}",
+                    title=decision.new_goal[:200],
+                    targets=[self._node.path],
+                    rationale=f"proposed at step {step} from state {self._node.sid}",
+                )
+            )
+        if decision.goal_status in ("done", "stuck"):
+            self.counts["goals_" + decision.goal_status] += 1
+            self._rotate(f"the model reports the goal {decision.goal_status}")
+
+
+CODE_PROBE_SIGNALS = {("cross_user_exposure", "other_user_record"), ("csrf_missing", None)}
+
+
+def finding_origin(signals: list[dict[str, Any]], step_origin: str) -> str:
+    """Who discovered a candidate. A signal from Sentri's own probes (the direct-by-id check, the CSRF re-send)
+    is a code-probe discovery even when a model-chosen action led to it; model commentary does not change that."""
+    if not signals:
+        return "ai_suspicion" if step_origin == "ai" else step_origin
+    from_probe = all(
+        (s["oracle_id"], s.get("error_key")) in CODE_PROBE_SIGNALS or (s["oracle_id"], None) in CODE_PROBE_SIGNALS
+        for s in signals
+    )
+    return "code_probe" if from_probe else step_origin
 
 
 def _fingerprint(observation: dict[str, Any]) -> str:
