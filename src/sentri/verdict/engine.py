@@ -35,7 +35,13 @@ def decide(flow_id: str, attack_id: str, attempts: list[list[OracleResult]]) -> 
         raise ValueError("decide() needs at least one attempt")
     total = len(attempts)
     hits: list[OracleHit] = []
-    for oracle_id in ORACLE_IDS:
+    # The five universal oracles first, then any others that reported (agentic oracles), in first-seen order.
+    oracle_ids = list(ORACLE_IDS)
+    for attempt in attempts:
+        for r in attempt:
+            if r.oracle_id not in oracle_ids:
+                oracle_ids.append(r.oracle_id)
+    for oracle_id in oracle_ids:
         fired = [r for attempt in attempts for r in attempt if r.oracle_id == oracle_id and r.fired]
         if not fired:
             continue
@@ -60,7 +66,7 @@ def decide(flow_id: str, attack_id: str, attempts: list[list[OracleResult]]) -> 
     verdict: Verdict
     oracle_k = {
         oid: sum(1 for attempt in attempts if any(r.oracle_id == oid and r.fired for r in attempt))
-        for oid in ORACLE_IDS
+        for oid in oracle_ids
     }
     if any(k == total for k in oracle_k.values()):
         verdict = "fail"
