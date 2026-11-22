@@ -45,3 +45,40 @@ async def test_falls_back_to_json_object_when_schema_unsupported():
 async def test_invalid_output_is_a_failure_not_an_exception():
     result = await provider_with(lambda r: reply("I cannot do that")).complete_json("a", "s", "u", PayloadSet)
     assert not result.ok and "schema" in (result.error or "")
+
+
+async def test_rate_limits_are_waited_out_not_counted_as_bad_answers(monkeypatch):
+    import asyncio
+
+    from sentri.llm import openai_compatible as oc
+
+    waits: list[float] = []
+
+    async def no_sleep(seconds):
+        waits.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(429, json={"error": {"message": "Rate limit reached ... Please try again in 7.5s."}})
+        if calls["n"] == 2:
+            return httpx.Response(429, headers={"retry-after": "3"}, json={})
+        return reply('{"values": [], "reason": "ok"}')
+
+    result = await provider_with(handler).complete_json("attacker", "s", "u", PayloadSet)
+    assert result.ok and waits == [8.0, 3.5]
+    assert oc.rate_limit_wait(httpx.Response(429, text="try again in 1m30s")) == oc.MAX_RATE_WAIT_S  # capped
+
+
+async def test_rate_limit_retries_are_bounded(monkeypatch):
+    import asyncio
+
+    async def no_sleep(seconds):
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    result = await provider_with(lambda r: httpx.Response(429, json={})).complete_json("attacker", "s", "u", PayloadSet)
+    assert not result.ok and "429" in (result.error or "")
