@@ -310,11 +310,25 @@ def record(
     candidate: dict[str, Any],
     verdict: CheckVerdict,
     key: str,
+    run_hits: dict[str, CheckVerdict] | None = None,
 ) -> tuple[int | None, list[LedgerEvent]]:
-    """Store the outcome. Confirmed findings become checks and bugs (outside the comparable base score)."""
+    """Store the outcome. Confirmed findings become checks and bugs (outside the comparable base score).
+
+    Several findings of one run can share a key (the same oracle and route reached by different paths). The
+    ledger treats every check as a full run of its cell, so a bug seen by one finding but not the next would be
+    "fixed" and then "regress" inside the same run. `run_hits` (one dict per run) makes each check of a key carry
+    every hit already confirmed for it in this run, and a later non-reproducing re-check of the key is ignored."""
     events: list[LedgerEvent] = []
     check_id = None
     status: str = verdict.verdict if verdict.verdict in ("fail", "flaky") else "unconfirmed"
+    earlier = run_hits.get(key) if run_hits is not None else None
+    if status in ("fail", "flaky") and earlier is not None:
+        sigs = {h.signature for h in verdict.hits}
+        merged = tuple(verdict.hits) + tuple(h for h in earlier.hits if h.signature not in sigs)
+        worst = "fail" if "fail" in (verdict.verdict, earlier.verdict) else "flaky"
+        verdict = CheckVerdict(worst, max(verdict.attempts, earlier.attempts), merged)  # type: ignore[arg-type]
+    if status in ("fail", "flaky") and run_hits is not None:
+        run_hits[key] = verdict
     if status in ("fail", "flaky"):
         check_id = ledger.insert_check(
             CheckRecord(
@@ -331,7 +345,7 @@ def record(
             )
         )
         events, _ = ledger.record_check_result(run_id, check_id, "agentic", key, commit, verdict)
-    elif candidate.get("recheck") and verdict.verdict == "pass":
+    elif candidate.get("recheck") and verdict.verdict == "pass" and earlier is None:
         # A stored finding that no longer reproduces: record a passing check so its bugs become fixed. An
         # inconclusive re-check (steps could not be replayed) leaves its bugs exactly as they were.
         check_id = ledger.insert_check(

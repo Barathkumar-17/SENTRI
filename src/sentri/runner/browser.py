@@ -22,7 +22,12 @@ class BrowserManager:
 
     async def start(self) -> None:
         self._pw = await async_playwright().start()
-        self._browser = await self._pw.chromium.launch(headless=self.headless)
+        # Chromium's Local Network Access checks block an app's own websocket on 127.0.0.1 (found by the Juice
+        # Shop proof run: socket.io failed with ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS even without the fence).
+        # Real users of the app do not hit this; the sandboxed app is always local, so the check is switched off.
+        self._browser = await self._pw.chromium.launch(
+            headless=self.headless, args=["--disable-features=LocalNetworkAccessChecks"]
+        )
 
     async def new_context(self, fence_origin: str | None = None, **kwargs: Any) -> BrowserContext:
         assert self._browser is not None, "BrowserManager.start() not called"
