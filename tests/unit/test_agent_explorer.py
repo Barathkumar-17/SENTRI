@@ -354,3 +354,39 @@ async def test_refused_actions_count_toward_the_failure_limit():
         Refusing(), [d("navigate", path=f"https://e{i}.test") for i in range(5)], ExploreBudget(max_steps=5)
     )
     assert result.stopped.startswith("3 unusable or refused actions in a row") and result.steps == 3
+
+
+async def test_earlier_lines_of_attack_are_marked_as_setup():
+    """Replay re-runs them for state but judges only the candidate's own steps (found by the Juice Shop proof
+    run: an early 500 made every later candidate 'fail' for the wrong reason)."""
+
+    class LeaksTwice(FakeSession):
+        def agent_evidence_since(self, mark, count_probes=(), health_probes=()):
+            path = {2: "/tasks/1", 4: "/admin"}.get(len(self.executed))
+            responses = (ResponseRecord("anon", "GET", path, 200, "<h1>x</h1>"),) if path else ()
+            return AgentEvidence(base=Evidence(), responses=responses, protected_paths=("/tasks/:id", "/admin"))
+
+    decisions = [
+        d("navigate", path="/a"),
+        d("navigate", path="/tasks/1"),  # break 1
+        d("navigate", path="/b"),
+        d("navigate", path="/admin"),  # break 2
+        d("finish"),
+    ]
+    explorer = Explorer(
+        LeaksTwice(),
+        BudgetedProvider(ScriptedModel(decisions), 1, 5),
+        STRATEGY,
+        AppMap(base_url="http://127.0.0.1"),
+        ExploreBudget(max_steps=6),
+        lambda s: None,
+    )
+    first, second = (await explorer.run()).candidates
+    assert [r.setup for r in first.repro] == [True, False, False]  # leading switch_user is setup
+    assert [r.setup for r in second.repro] == [True, True, True, False, False]
+    assert second.to_dict()["repro"][3] == {
+        "action": {"kind": "navigate", "path": "/b"},
+        "match": None,
+        "expect_ok": True,
+        "setup": False,
+    }

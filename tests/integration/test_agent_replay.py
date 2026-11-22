@@ -156,3 +156,18 @@ async def test_no_list_page_makes_the_duplicate_probe_inconclusive(env: ReplayEn
     env.app_map = env.app_map.model_copy(update={"pages": [PageEntry(path="/tasks/new", requires_login=True)]})
     _verdict, _key, notes = await confirm(env, DUP)
     assert any("replay_duplicate inconclusive" in n and "no list page" in n for n in notes), notes
+
+
+async def test_a_break_in_the_setup_does_not_decide_a_later_finding(env: ReplayEnv):
+    env.attempts = 1
+    steps = [
+        {"action": {"kind": "navigate", "path": "/signup"}, "setup": True},
+        {"action": {"kind": "type", "selector": "input[name=email]", "text": ""}, "setup": True},
+        {"action": {"kind": "click", "selector": "#signup-btn"}, "setup": True},  # the planted 500
+        {"action": {"kind": "navigate", "path": "/comments"}},
+    ]
+    verdict, _key, notes = await confirm(env, steps)
+    assert verdict.verdict == "pass", (verdict, notes)
+    judged = [{**s, "setup": False} for s in steps]
+    verdict, key, _notes = await confirm(env, judged)
+    assert verdict.verdict == "fail" and key.startswith("http_500 POST /api/signup")
