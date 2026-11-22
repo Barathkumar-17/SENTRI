@@ -542,8 +542,12 @@ class Explorer:
                 path_start, parent = step + 1, None
                 line_index = len(prefix)
             if isinstance(action, Finish):
-                result.stopped = f"model finished: {action.reason}"
-                break
+                untried = len(self.strategy.hypotheses) - self._focus_i - 1
+                if untried <= 0:
+                    result.stopped = f"model finished: {action.reason}"
+                    break
+                # Budget left and hypotheses never focused on: finishing early would waste the run.
+                self._rotate(f"finish asked with {untried} hypotheses not tried yet")
             if failures >= 3:
                 result.stopped = f"3 unusable or refused actions in a row: {outcome.error}"
                 break
