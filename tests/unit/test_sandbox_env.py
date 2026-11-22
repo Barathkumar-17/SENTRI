@@ -16,3 +16,14 @@ def test_command_sandbox_tells_the_app_its_port(tmp_path: Path):
 def test_docker_sandbox_uses_the_container_port(tmp_path: Path):
     app = AppConfig.model_validate({"docker": {"context": ".", "container_port": 8000}, "port": 5077})
     assert DockerSandbox(app, tmp_path).env["PORT"] == "8000"
+
+
+def test_fingerprint_changes_with_the_inherited_environment(tmp_path: Path):
+    from sentri.runner.fingerprint import app_fingerprint
+
+    (tmp_path / "app.py").write_text("print(1)")
+    base = {"PATH": "/bin", "PWD": "/x"}
+    same = app_fingerprint(tmp_path, env={**base, "PWD": "/elsewhere"})  # volatile variable ignored
+    assert app_fingerprint(tmp_path, env=base) == same
+    assert app_fingerprint(tmp_path, env={**base, "FIX_SIGNUP_EMPTY": "1"}) != same
+    assert "FIX" not in app_fingerprint(tmp_path, env={**base, "FIX_SIGNUP_EMPTY": "1"})  # values never stored

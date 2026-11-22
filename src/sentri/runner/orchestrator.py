@@ -134,7 +134,9 @@ class RunOrchestrator:
     async def run(self) -> RunResult:
         c = self.contract
         app_root = self.workdir / (c.app.docker.context if c.app.docker else c.app.cwd)
-        fingerprint = app_fingerprint(app_root, self.options.exclude_paths)
+        # Command mode inherits Sentri's environment, so a changed variable must count as a change.
+        inherited = dict(os.environ) if c.app.run is not None else {}
+        fingerprint = app_fingerprint(app_root, self.options.exclude_paths, inherited)
         chash = contract_hash(c)
         run_id = self.ledger.create_run(self.options.commit, self.options.branch, fingerprint, chash)
         self.run_id = run_id
