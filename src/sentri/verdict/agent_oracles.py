@@ -55,6 +55,20 @@ def auth_bypass(ev: AgentEvidence, cfg: OracleConfig) -> OracleResult:
 
 
 def cross_user_exposure(ev: AgentEvidence, cfg: OracleConfig) -> OracleResult:
+    # Direct-by-id check, run by code on every record a or b created: the owner sees it, a logged-out visitor
+    # does not, yet the other user does. Privacy is proven by behaviour, so no recon or model input is needed.
+    for p in ev.idor_probes:
+        other_ok = p.other_status is not None and 200 <= p.other_status < 300
+        if p.owner_sees and not p.anon_sees and other_ok and p.other_sees:
+            route = normalize_route("GET", p.path)
+            return OracleResult(
+                "cross_user_exposure",
+                True,
+                f"user {p.other} opened user {p.owner}'s record {p.path} by id ({p.other_status}; logged out: "
+                f"{p.anon_status})",
+                route,
+                "other_user_record",
+            )
     for r in ev.responses:
         if r.identity not in ("a", "b"):
             continue

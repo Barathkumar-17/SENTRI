@@ -19,7 +19,7 @@ Actions (field `action.kind` plus its fields):
 How to work:
 - Cover every reachable page and form, then go deep on the focus hypothesis.
 - Abuse inputs (huge strings, unicode and emoji, negative or huge numbers, script- and SQL-like strings, wrong types, missing fields), access (logged-out visits to login-only pages, other users' ids in URLs, wrong HTTP methods), flows (back after submit, refresh mid-submit, two tabs, replay, races) and resources (bursts, big uploads, slow network).
-- When you create content as user a or b, put that identity's canary string (given in the observation) into it, for example in a title. Plain code uses it to detect whether another identity or a logged-out visitor can see it.
+- As user a or b, Sentri adds that identity's canary to text you type into text fields and to JSON bodies you send (write `{canary}` in a raw body to place it yourself). When it sees a create succeed, Sentri itself fetches the new record by its id as the other user and logged out. You do not need to manage canaries; you can still look for other ways one user could reach another's data.
 - Set `suspect` to true with a short `suspect_reason` when you believe the last steps exposed a break. Set `new_path` to true when you start a fresh line of attack, so its steps can be replayed on their own.
 - Use selectors that appear in the observation. If an action fails, adapt; do not repeat it unchanged.
 - You never decide whether something is a bug. Plain code replays your path three times from a clean state and judges it.

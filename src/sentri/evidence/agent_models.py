@@ -41,6 +41,22 @@ class HealthProbe:
 
 
 @dataclass(frozen=True)
+class IdorProbe:
+    """A record identity `owner` created, fetched directly by its URL as the owner, logged out and as `other`.
+    Run by plain code after every create it sees; no model involved."""
+
+    owner: str
+    other: str
+    path: str
+    owner_status: int | None
+    owner_sees: bool  # the owner's canary is in the response: this URL really is the record
+    anon_status: int | None
+    anon_sees: bool
+    other_status: int | None
+    other_sees: bool
+
+
+@dataclass(frozen=True)
 class AgentEvidence:
     base: Evidence
     responses: tuple[ResponseRecord, ...] = ()
@@ -48,3 +64,4 @@ class AgentEvidence:
     private_markers: dict[str, tuple[str, ...]] = field(default_factory=dict)  # identity -> its private values
     count_probes: tuple[CountProbe, ...] = ()
     health_probes: tuple[HealthProbe, ...] = ()
+    idor_probes: tuple[IdorProbe, ...] = ()

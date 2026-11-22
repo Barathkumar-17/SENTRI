@@ -31,6 +31,7 @@ LOCK = threading.Lock()
 USERS: list[dict] = []  # no built-in accounts: tests sign up a fresh random user
 TASKS: list[dict] = []
 COMMENTS: list[dict] = [{"id": 1, "text": "Welcome to the board"}]
+NOTES: list[dict] = []
 USED_NONCES: set[str] = set()
 TASK_REQUESTS: dict[int, list[float]] = {}
 
@@ -38,7 +39,7 @@ BASE = """<!doctype html><html><head><meta charset="utf-8"><title>{{ title }}</t
 <style>body{font-family:system-ui;max-width:680px;margin:32px auto;padding:0 16px}
 input,textarea,button{display:block;margin:8px 0;padding:6px}nav a{margin-right:12px}</style></head>
 <body><nav><a href="/">Home</a><a href="/signup">Sign up</a><a href="/users">Users</a><a href="/login">Log in</a>
-<a href="/tasks">Tasks</a><a href="/comments">Comments</a><a href="/profile">Profile</a></nav>
+<a href="/tasks">Tasks</a><a href="/notes">Notes</a><a href="/comments">Comments</a><a href="/profile">Profile</a></nav>
 {% for m in messages %}<p class="flash">{{ m }}</p>{% endfor %}
 {{ body|safe }}</body></html>"""
 
@@ -259,6 +260,53 @@ def api_comments():
     with LOCK:
         COMMENTS.append({"id": len(COMMENTS) + 1, "text": text})
     return jsonify(ok=True)
+
+
+# ---- notes: a JSON API with ids (agentic demo of a direct-by-id leak) --------------------------------------
+NOTES_PAGE = """<h1>Private notes</h1>
+<form id="nf" onsubmit="return false"><label>Note <input name="title"></label>
+<button type="submit" id="note-btn">Save note</button></form><p id="nmsg"></p>
+<script>
+document.getElementById('note-btn').addEventListener('click', async () => {
+  const r = await fetch('/api/notes', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({title: document.getElementById('nf').title.value})});
+  const d = await r.json();
+  document.getElementById('nmsg').textContent = r.ok ? 'Saved note #' + d.id : 'Not saved';
+});
+</script>"""
+
+
+@app.get("/notes")
+def notes_page():
+    if current_user() is None:
+        return redirect(url_for("login"))
+    return page("Notes", NOTES_PAGE)
+
+
+@app.post("/api/notes")
+def api_create_note():
+    user = current_user()
+    if user is None:
+        return jsonify(error="login required"), 401
+    title = ((request.get_json(force=True) or {}).get("title") or "").strip()
+    if not title:
+        return jsonify(error="title required"), 400
+    with LOCK:
+        note = {"id": len(NOTES) + 1, "title": title[:200], "owner": user["id"]}
+        NOTES.append(note)
+    return jsonify(id=note["id"], title=note["title"]), 201
+
+
+@app.get("/api/notes/<int:note_id>")
+def api_get_note(note_id: int):
+    user = current_user()
+    if user is None:
+        return jsonify(error="login required"), 401
+    note = next((n for n in NOTES if n["id"] == note_id), None)
+    # BUG: any signed-in user can read any note by id (no owner check)
+    if note is None or (fixed("NOTES_IDOR") and note["owner"] != user["id"]):
+        return jsonify(error="not found"), 404
+    return jsonify(note)
 
 
 # ---- profile: the clean flow --------------------------------------------------------------------------

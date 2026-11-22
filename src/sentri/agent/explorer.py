@@ -297,6 +297,7 @@ class Explorer:
             identity = self.s.current
             mark = self.s.mark()
             outcome = await self.s.execute(action)
+            action = outcome.action or action  # what really ran, e.g. with Sentri's canary added
             evidence = self.s.agent_evidence_since(mark)
             signals = [
                 {"oracle_id": r.oracle_id, "detail": r.detail, "route": r.route}

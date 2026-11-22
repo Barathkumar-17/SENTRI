@@ -10,12 +10,15 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
+import json
+import re
 import secrets
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import urljoin, urlsplit
 
 from playwright.async_api import BrowserContext, Page
 from playwright.async_api import Error as PlaywrightError
@@ -43,7 +46,7 @@ from sentri.agent.actions import (
     resolve_same_origin,
 )
 from sentri.attacks.types import NO_THROTTLE, SLOW_3G, BadFile
-from sentri.evidence.agent_models import AgentEvidence, CountProbe, HealthProbe, ResponseRecord
+from sentri.evidence.agent_models import AgentEvidence, CountProbe, HealthProbe, IdorProbe, ResponseRecord
 from sentri.evidence.models import ConsoleRecord, Evidence, HttpRecord
 from sentri.redact import redact
 from sentri.runner.browser import BrowserManager
@@ -73,6 +76,7 @@ class ObservedRequest:
     failed: bool = False
     failure: str | None = None
     via: str = "browser"  # browser | request | replay
+    location: str | None = None  # Location header of a redirect or 201 response
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -92,6 +96,18 @@ class ActionResult:
     error: str | None = None
     url: str | None = None
     new_requests: list[int] = field(default_factory=list)
+    action: Action | None = None  # what actually ran (with Sentri's canary added), for exact replay
+
+
+@dataclass
+class CreatedRecord:
+    """Something an identity created, seen by plain code: the create request and where the record lives."""
+
+    identity: str
+    method: str
+    endpoint: str  # normalized path of the create request
+    record_id: str
+    urls: list[str]  # same-origin paths that should show this record (probed for IDOR)
 
 
 @dataclass
@@ -99,6 +115,7 @@ class Mark:
     requests: int
     console: int
     log_cursor: int
+    idor: int = 0
 
 
 class AgentSession:
@@ -138,6 +155,12 @@ class AgentSession:
         self.protected: set[str] = set()
         self.identity_headers: dict[str, dict[str, str]] = {}  # token auth: sent on every request of an identity
         self._submitted: dict[str, dict[str, bool]] = {"a": {}, "b": {}}  # who -> canary -> sent publicly?
+        # Code-owned cross-user checks: records a/b created (found from their requests) and the direct-by-id
+        # fetches run against them as owner, logged out and other user.
+        self.created: list[CreatedRecord] = []
+        self.idor_probes: list[IdorProbe] = []
+        self._probed_urls: set[str] = set()
+        self.auto_canary = True
 
     # ---- lifecycle ----------------------------------------------------------------------------------
     async def start(self) -> None:
@@ -207,6 +230,7 @@ class AgentSession:
                 return
             rec.status = resp.status
             rec.response_type = (resp.headers or {}).get("content-type")
+            rec.location = (resp.headers or {}).get("location")
             if self.same_origin(rec.url) and any(t in (rec.response_type or "") for t in TEXT_TYPES):
                 task = asyncio.ensure_future(self._read_body(resp, rec))
                 self._bodies.add(task)
@@ -276,6 +300,7 @@ class AgentSession:
             private_markers=self.private_markers(),
             count_probes=count_probes,
             health_probes=health_probes,
+            idor_probes=tuple(self.idor_probes[mark.idor :]),
         )
 
     async def _read_body(self, resp: Any, rec: ObservedRequest) -> None:
@@ -301,7 +326,7 @@ class AgentSession:
             await asyncio.wait(list(self._bodies), timeout=3)
 
     def mark(self) -> Mark:
-        return Mark(len(self.requests), len(self.console), self.sandbox.log_cursor())
+        return Mark(len(self.requests), len(self.console), self.sandbox.log_cursor(), len(self.idor_probes))
 
     def evidence_since(self, mark: Mark) -> Evidence:
         """Step evidence in the format the existing oracles read."""
@@ -351,6 +376,7 @@ class AgentSession:
             )
             rec.status = resp.status
             rec.response_type = resp.headers.get("content-type")
+            rec.location = resp.headers.get("location")
             if any(t in (rec.response_type or "") for t in TEXT_TYPES):
                 rec.response_text = redact((await resp.text())[:MAX_BODY])
         except PlaywrightError as exc:
@@ -367,18 +393,95 @@ class AgentSession:
     async def execute(self, action: Action) -> ActionResult:
         before = len(self.requests)
         try:
+            action = await self._with_canary(action)
             await self._execute(action)
         except ActionRefused as exc:
-            return ActionResult(False, f"refused: {exc}", self._url(), [])
+            return ActionResult(False, f"refused: {exc}", self._url(), [], action)
         except PlaywrightError as exc:
-            return ActionResult(
-                False, exc.message.splitlines()[0][:300], self._url(), [r.id for r in self.requests[before:]]
-            )
+            new = [r.id for r in self.requests[before:]]
+            await self.after_requests(before)
+            return ActionResult(False, exc.message.splitlines()[0][:300], self._url(), new, action)
         await self.settle()
+        await self.after_requests(before)
         left = await self._return_if_off_origin()
         if left is not None:
-            return ActionResult(False, left, self._url(), [r.id for r in self.requests[before:]])
-        return ActionResult(True, None, self._url(), [r.id for r in self.requests[before:]])
+            return ActionResult(False, left, self._url(), [r.id for r in self.requests[before:]], action)
+        return ActionResult(True, None, self._url(), [r.id for r in self.requests[before:]], action)
+
+    # ---- code-owned canaries and cross-user checks ---------------------------------------------------
+    async def _with_canary(self, action: Action) -> Action:
+        """As a or b, content the agent writes carries that identity's canary, whether or not the model put it
+        there: appended to free text typed into a text field, added to a JSON body sent as a raw request.
+        Empty, huge or typed (email, number, password...) inputs are left alone so input abuse stays exact."""
+        canary = self.canaries.get(self.current)
+        if canary is None or not self.auto_canary:
+            return action
+        if isinstance(action, TypeText):
+            if canary in action.text or not action.text.strip() or action.repeat != 1 or len(action.text) > 2000:
+                return action
+            kind = ""
+            with contextlib.suppress(PlaywrightError):
+                kind = await self.page.locator(action.selector).first.evaluate(_FIELD_KIND_JS, timeout=2000)
+            if kind in ("textarea", "editable", "text", "search"):
+                return action.model_copy(update={"text": f"{action.text} {canary}"})
+            return action
+        if isinstance(action, SendRequest) and action.method in ("POST", "PUT", "PATCH") and action.body:
+            body = action.body.replace("{canary}", canary)
+            if canary not in body:
+                body = with_canary_in_json(body, canary) or body
+            return action.model_copy(update={"body": body}) if body != action.body else action
+        return action
+
+    async def after_requests(self, before: int) -> None:
+        """Find records the requests since `before` created, then fetch each one directly as the other user."""
+        if self._bodies:
+            await asyncio.wait(list(self._bodies), timeout=3)
+        for rec in self.requests[before:]:
+            found = created_record(rec, self.canaries.get(rec.identity), self.base_url)
+            if found is not None and all(c.urls != found.urls for c in self.created):
+                self.created.append(found)
+                await self._idor_probe(found)
+
+    async def _probe_get(self, who: str, path: str) -> tuple[int | None, str]:
+        try:
+            ctx = await self._context(who)
+            resp = await ctx.request.get(
+                self.base_url + path,
+                headers=self.identity_headers.get(who, {}),
+                max_redirects=0,
+                timeout=self.timeout_ms,
+            )
+            return resp.status, redact((await resp.text())[:MAX_BODY])
+        except (PlaywrightError, ActionRefused):
+            return None, ""
+
+    async def _idor_probe(self, rec: CreatedRecord) -> None:
+        canary = self.canaries.get(rec.identity)
+        if self.login_fn is None or canary is None:
+            return
+        other = "b" if rec.identity == "a" else "a"
+        for path in rec.urls[:3]:
+            if path in self._probed_urls:
+                continue
+            self._probed_urls.add(path)
+            owner_status, owner_text = await self._probe_get(rec.identity, path)
+            if canary not in owner_text:
+                continue  # not the record's page; nothing to compare
+            anon_status, anon_text = await self._probe_get("anon", path)
+            other_status, other_text = await self._probe_get(other, path)
+            self.idor_probes.append(
+                IdorProbe(
+                    rec.identity,
+                    other,
+                    path,
+                    owner_status,
+                    True,
+                    anon_status,
+                    canary in anon_text,
+                    other_status,
+                    canary in other_text,
+                )
+            )
 
     async def _return_if_off_origin(self) -> str | None:
         """A redirect (not seen by request routing) can land the tab on another origin. Nothing of the app's goes
@@ -513,4 +616,98 @@ class AgentSession:
             "console_errors": [c.text[:200] for c in self.console[-5:]],
             "blocked_offsite": [f"{b['how']} {b['method']} {b['url'][:120]}" for b in self._blocked()],
             "canary_for_this_identity": self.canaries.get(self.current),
+            "created_records": [
+                f"{c.identity}: {c.method} {c.endpoint} -> id {c.record_id}" for c in self.created[-5:]
+            ],
         }
+
+
+# ---- plain-code helpers (no browser) ---------------------------------------------------------------------
+_FIELD_KIND_JS = (
+    "el => el.tagName === 'TEXTAREA' ? 'textarea' : (el.isContentEditable ? 'editable' :"
+    " (el.tagName === 'INPUT' ? (el.getAttribute('type') || 'text').toLowerCase() : ''))"
+)
+_CONTENT_KEYS = ("title", "name", "text", "content", "description", "comment", "note", "body", "message", "subject")
+_ID_KEYS = ("id", "_id", "uuid", "key", "slug")
+_ID_VALUE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+_ID_SEGMENT = re.compile(r"^(\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{24})$", re.I)
+
+
+def with_canary_in_json(body: str, canary: str) -> str | None:
+    """Append the canary to the first content-like string field of a JSON object body."""
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    for key in _CONTENT_KEYS:
+        for k, v in data.items():
+            if k.lower() == key and isinstance(v, str) and v.strip():
+                data[k] = f"{v} {canary}"
+                return json.dumps(data)
+    return None
+
+
+def _find_id(data: Any, canary: str, depth: int = 0) -> str | None:
+    """The id of the object holding the canary (or of the top-level / `data` object of a create response)."""
+    if depth > 4:
+        return None
+    if isinstance(data, dict):
+        ident = next((str(data[k]) for k in _ID_KEYS if isinstance(data.get(k), (int, str)) and str(data[k])), None)
+        if ident is not None and _ID_VALUE.match(ident) and (depth == 0 or canary in json.dumps(data)):
+            return ident
+        for v in data.values():
+            if isinstance(v, (dict, list)) and canary in json.dumps(v):
+                found = _find_id(v, canary, depth + 1)
+                if found:
+                    return found
+        inner = data.get("data")
+        if isinstance(inner, dict):
+            return _find_id(inner, canary, depth + 1)
+    if isinstance(data, list):
+        for item in data:
+            if canary in json.dumps(item):
+                return _find_id(item, canary, depth + 1)
+    return None
+
+
+def _path_only(url: str, base_url: str) -> str | None:
+    full = urljoin(base_url + "/", url)
+    if origin_of(full) != origin_of(base_url):
+        return None
+    return urlsplit(full).path or "/"
+
+
+def created_record(rec: ObservedRequest, canary: str | None, base_url: str) -> CreatedRecord | None:
+    """A successful POST/PUT whose body carried the identity's canary is a create. Find the record's id and the
+    URLs that should show it: the Location it points to, `<collection>/<id>`, and `/x/<id>` for `/x/new`-style
+    form actions."""
+    if canary is None or rec.method not in ("POST", "PUT") or rec.status is None or rec.status >= 400:
+        return None
+    if canary not in (rec.body or ""):
+        return None
+    path = _path_only(rec.url, base_url)
+    if path is None:
+        return None
+    record_id = None
+    urls: list[str] = []
+    if rec.location:
+        loc = _path_only(rec.location, base_url)
+        last = (loc or "").rstrip("/").rsplit("/", 1)[-1]
+        if loc and _ID_SEGMENT.match(last):
+            record_id = last
+            urls.append(loc)
+    if record_id is None and rec.response_text and "json" in (rec.response_type or ""):
+        with contextlib.suppress(ValueError):
+            record_id = _find_id(json.loads(rec.response_text), canary)
+    if record_id is None:
+        return None
+    collection = path.rstrip("/")
+    for suffix in ("/new", "/create", "/add"):
+        if collection.endswith(suffix):
+            collection = collection[: -len(suffix)]
+    for candidate in (f"{collection}/{record_id}", f"{path.rstrip('/')}/{record_id}"):
+        if candidate not in urls:
+            urls.append(candidate)
+    return CreatedRecord(rec.identity, rec.method, normalize_path(path), record_id, urls)
