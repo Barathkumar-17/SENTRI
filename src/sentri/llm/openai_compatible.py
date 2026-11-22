@@ -22,8 +22,28 @@ log = logging.getLogger(__name__)
 
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 _TRY_AGAIN = re.compile(r"try again in (?:(\d+)m)?([\d.]+)(ms|s)", re.IGNORECASE)
+_TRY_AGAIN_LONG = re.compile(r"try again in (?:(\d+)h)?(?:(\d+)m)?([\d.]+)(ms|s)", re.IGNORECASE)
 MAX_RATE_WAITS = 4  # rate-limit retries per call
 MAX_RATE_WAIT_S = 30.0  # longest single wait; the per-call timeout still bounds the total
+
+
+QUOTA_ERROR = "rate limit beyond the wait cap (provider quota)"
+
+
+def server_wait(resp: httpx.Response) -> float:
+    """What the server asks for: the Retry-After header, or "try again in 1h2m7.5s" in the message (Groq, OpenAI).
+    2 s when it gives no hint."""
+    header = resp.headers.get("retry-after", "")
+    try:
+        return float(header)
+    except ValueError:
+        pass
+    m = _TRY_AGAIN_LONG.search(resp.text)
+    if m is None:
+        return 2.0
+    hours, minutes, value, unit = m.group(1), m.group(2), float(m.group(3)), m.group(4).lower()
+    seconds = value / 1000 if unit == "ms" else value
+    return (int(hours) * 3600 if hours else 0) + (int(minutes) * 60 if minutes else 0) + seconds
 
 
 def rate_limit_wait(resp: httpx.Response) -> float:
@@ -93,6 +113,14 @@ class OpenAICompatibleProvider:
                 body["response_format"] = {"type": "json_object"}
             try:
                 resp = await self._post(body)
+                if resp.status_code == 429 and server_wait(resp) > MAX_RATE_WAIT_S:
+                    # A daily or long quota: waiting cannot help within this run. Stop instead of burning time.
+                    return LLMResult(
+                        ok=False,
+                        model=model,
+                        error=f"{QUOTA_ERROR}: retry in {server_wait(resp):.0f}s; {resp.text[:160]}",
+                        retries=rate_waits,
+                    )
                 if resp.status_code == 429 and rate_waits < MAX_RATE_WAITS:
                     rate_waits += 1  # a rate limit is temporary: wait as asked, then the same attempt again
                     await asyncio.sleep(rate_limit_wait(resp))

@@ -84,6 +84,8 @@ def action_sig(action: dict[str, Any]) -> str:
         return base if not values else f"{base} {_hash(values)}"
     if kind in ("click", "burst", "upload"):
         return f"{kind} {action.get('selector')}" + (f" {action.get('shape')}" if kind == "upload" else "")
+    if kind == "switch_user":
+        return f"switch_user {action.get('user')}"
     if kind == "type":
         return f"type {action.get('selector')} {_hash([action.get('text'), action.get('repeat')])}"
     return f"{kind} " + _hash({k: v for k, v in action.items() if k != "kind"})

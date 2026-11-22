@@ -156,9 +156,12 @@ class BudgetedProvider:
         self.unpriced_calls = 0
         self.refused = 0
         self.stop_reason: str | None = None
+        self.quota_exhausted = False
         self.roles: dict[str, RoleUsage] = {}
 
     def _limit_reason(self, reserve_tokens: int = 0) -> str | None:
+        if self.quota_exhausted:
+            return "provider quota exhausted (rate limit beyond the wait cap)"
         if self.spent_usd >= self.budget_usd:
             return f"llm budget ${self.budget_usd:.2f} exhausted"
         if self.max_calls and self.calls >= self.max_calls:
@@ -223,6 +226,9 @@ class BudgetedProvider:
         else:
             self.failures += 1
             usage.failed += 1
+            if "provider quota" in (result.error or ""):
+                self.quota_exhausted = True  # no further calls this run: they would only be refused again
+                self.stop_reason = self.stop_reason or "provider quota exhausted (rate limit beyond the wait cap)"
         return result
 
     def usage(self) -> dict[str, object]:

@@ -298,7 +298,7 @@ class Explorer:
                 "url": obs.get("url"),
                 "title": obs.get("title"),
             }
-            data["options"] = self.map.options_view(node)
+            data["options"] = self.map.options_view(node) + self._identity_options(node)
             data["frontier"] = [f for f in self.map.frontier() if f["state"] != node.sid]
         if self._changes:
             data["last_step_effect"] = self._changes
@@ -320,6 +320,18 @@ class Explorer:
         data["already_flagged"] = self.flagged[-8:]  # move on: these are queued for replay already
         self._detail = None
         return data
+
+    def _identity_options(self, node: StateNode) -> list[dict[str, str]]:
+        """Acting as another identity is an option like any link (e.g. a login wall seen as anon)."""
+        if not self.app_map.has_login_flow:
+            return []
+        out = []
+        labels = {"anon": "never logged in", "a": "logged-in account a", "b": "logged-in account b"}
+        for i, who in enumerate(w for w in ("anon", "a", "b") if w != node.identity):
+            tried = node.tried.get(f"switch_user {who}")
+            status = "untried" if tried is None else f"tried {tried.count}x -> {', '.join(tried.to_states) or '?'}"
+            out.append({"id": f"U{i + 1}", "do": f"switch_user {who} ({labels[who]})", "status": status})
+        return out
 
     def _observe_state(self, step: int) -> None:
         self._node, self._is_new, self._text_changed = self.map.visit(self._observation, step)
@@ -420,7 +432,9 @@ class Explorer:
         for attempt in range(2):
             if not self.provider.available:
                 return None, error or "model unavailable or budget used"
-            answer = await self.provider.complete_json("explorer", load_prompt("explorer"), prompt, Decision, 2000)
+            # A decision is small (measured: ~165 output tokens on average); 900 leaves room for reasoning models
+            # without reserving 2 000 tokens per call against token limits.
+            answer = await self.provider.complete_json("explorer", load_prompt("explorer"), prompt, Decision, 900)
             if answer.ok and answer.value is not None:
                 return answer.value, ""
             error = answer.error or "no usable reply"
