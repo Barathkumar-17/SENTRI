@@ -108,7 +108,7 @@ class ClaudeCodeProvider:
         cost = float(data.get("total_cost_usd") or 0.0)  # notional on a subscription; recorded for visibility
         if data.get("is_error") or data.get("subtype") != "success":
             msg = str(data.get("result") or data.get("subtype") or "error")[:200]
-            if "login" in msg.lower() or "auth" in msg.lower():
+            if any(w in msg.lower() for w in ("login", "logged in", "log in", "sign in", "auth")):
                 msg += " (sign in to Claude Code first: run `claude` once and log in)"
             return LLMResult(False, None, tokens_in, tokens_out, cost, model, f"Claude Code: {msg}")
         raw = data.get("structured_output")

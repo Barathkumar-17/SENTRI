@@ -6,6 +6,7 @@ The user always brings the model. No preset carries a key; keys come from the us
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import AsyncIterator
 from typing import Any, Literal
 
@@ -21,7 +22,7 @@ LMSTUDIO_URL = "http://localhost:1234"
 class ProviderPreset(BaseModel):
     id: str
     label: str
-    kind: Literal["none", "anthropic", "claude_code", "openai_compatible"]
+    kind: Literal["none", "anthropic", "claude_code", "codex", "gemini_cli", "openai_compatible"]
     base_url: str | None = None
     needs_key: bool
     local: bool = False
@@ -61,6 +62,22 @@ PRESETS: list[ProviderPreset] = [
         needs_key=False,
         local=True,
         note="Uses the Claude Code installed and signed in on this computer.",
+    ),
+    ProviderPreset(
+        id="codex",
+        label="OpenAI Codex CLI (your login, no API key)",
+        kind="codex",
+        needs_key=False,
+        local=True,
+        note="Uses the Codex CLI installed and signed in on this computer.",
+    ),
+    ProviderPreset(
+        id="gemini_cli",
+        label="Gemini CLI (your login, no API key)",
+        kind="gemini_cli",
+        needs_key=False,
+        local=True,
+        note="Uses the Gemini CLI installed and signed in on this computer.",
     ),
     ProviderPreset(
         id="anthropic", label="Anthropic Claude", kind="anthropic", needs_key=True, key_env="ANTHROPIC_API_KEY"
@@ -127,7 +144,9 @@ class ModelSelection(BaseModel):
         if preset is None:
             raise ValueError(f"unknown provider preset {self.preset!r}")
         settings.llm_provider = preset.kind
-        settings.api_key = self.api_key or settings.api_key
+        # The user picked this provider, so its standard key variable may be used if no key was typed in.
+        env_key = os.environ.get(preset.key_env) if preset.key_env else None
+        settings.api_key = self.api_key or settings.api_key or env_key or None
         if preset.kind == "openai_compatible":
             settings.llm_base_url = self.base_url or preset.base_url
             if not settings.llm_base_url:
@@ -269,13 +288,16 @@ async def test_selection(selection: ModelSelection) -> dict[str, Any]:
         return {"ok": False, "detail": f"unknown provider {selection.preset!r}", "models": []}
     if preset.kind == "none":
         return {"ok": True, "detail": "no model: basic tests with built-in payloads", "models": []}
-    if preset.kind == "claude_code":
+    if preset.kind in ("claude_code", "codex", "gemini_cli"):
+        from sentri.llm.agent_clis import find_codex, find_gemini
         from sentri.llm.claude_code import find_claude
 
-        binary = find_claude()
+        finder = {"claude_code": find_claude, "codex": find_codex, "gemini_cli": find_gemini}[preset.kind]
+        binary = finder()
         if binary is None:
-            return {"ok": False, "detail": "Claude Code CLI not found on this computer", "models": []}
-        return {"ok": True, "detail": f"found Claude Code at {binary}", "models": ["claude-sonnet-5-5"]}
+            return {"ok": False, "detail": f"{preset.label.split(' (')[0]} not found on this computer", "models": []}
+        models = ["claude-sonnet-5-5"] if preset.kind == "claude_code" else []
+        return {"ok": True, "detail": f"found at {binary}", "models": models}
     if preset.kind == "anthropic":
         ok, detail, ids = await check_anthropic(selection.api_key)
     else:

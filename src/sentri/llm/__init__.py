@@ -16,7 +16,7 @@ from sentri.llm.provider import (
     SlotValue,
 )
 
-PROVIDERS = ("anthropic", "claude_code", "openai_compatible", "none")
+PROVIDERS = ("auto", "anthropic", "claude_code", "codex", "gemini_cli", "openai_compatible", "none")
 
 
 class LLMConfigError(ValueError):
@@ -25,6 +25,8 @@ class LLMConfigError(ValueError):
 
 def make_provider(settings: Settings, enabled: bool = True) -> BudgetedProvider:
     """Build the configured provider. Missing configuration means NullProvider (static fallbacks)."""
+    if enabled and settings.llm_provider == "auto":
+        resolve_auto(settings)
     if settings.llm_provider not in PROVIDERS:
         raise LLMConfigError(f"SENTRI_LLM_PROVIDER must be one of {PROVIDERS}, got {settings.llm_provider!r}")
     models = {
@@ -57,6 +59,16 @@ def make_provider(settings: Settings, enabled: bool = True) -> BudgetedProvider:
                 "or set SENTRI_CLAUDE_BIN to the claude executable"
             )
         inner = ClaudeCodeProvider([binary], models, max(settings.llm_timeout_s, 180))
+    elif enabled and settings.llm_provider in ("codex", "gemini_cli"):
+        from sentri.llm.agent_clis import CodexProvider, GeminiCliProvider, find_codex, find_gemini
+
+        is_codex = settings.llm_provider == "codex"
+        binary = find_codex() if is_codex else find_gemini()
+        if binary is None:
+            tool = "Codex CLI (`codex`)" if is_codex else "Gemini CLI (`gemini`)"
+            raise LLMConfigError(f"{tool} not found on PATH; install it and sign in, or choose another provider")
+        cls = CodexProvider if is_codex else GeminiCliProvider
+        inner = cls([binary], models, max(settings.llm_timeout_s, 300))
     elif enabled and settings.llm_provider == "openai_compatible":
         if not settings.llm_base_url:
             raise LLMConfigError("openai_compatible needs SENTRI_LLM_BASE_URL (e.g. http://localhost:11434/v1)")
@@ -68,12 +80,34 @@ def make_provider(settings: Settings, enabled: bool = True) -> BudgetedProvider:
     return BudgetedProvider(inner, settings.llm_budget_usd, settings.llm_timeout_s)
 
 
+def resolve_auto(settings: Settings) -> None:
+    """`auto`: the first model source found on this machine (signed-in agent CLIs, then local servers).
+    API keys are never picked automatically. Nothing found means no model (basic tests)."""
+    from sentri.control.discovery import resolve_auto_sync
+
+    choice = resolve_auto_sync()
+    if choice is None:
+        settings.llm_provider = "none"
+        return
+    preset = choice["preset"]
+    if preset in ("ollama", "lmstudio"):
+        settings.llm_provider = "openai_compatible"
+        settings.llm_base_url = choice["base_url"]
+        settings.model_fast = settings.model_smart = choice["model"]
+        settings.llm_timeout_s = max(settings.llm_timeout_s, 300)
+    else:
+        settings.llm_provider = preset
+
+
 def describe_provider(settings: Settings, provider: BudgetedProvider) -> str:
     if provider.inner.name == "none":
         return "none (static payloads)"
     where = f" @ {settings.llm_base_url}" if settings.llm_provider == "openai_compatible" else ""
     if settings.llm_provider == "claude_code":
         where = " (your Claude Code login, no API key)"
+    if settings.llm_provider in ("codex", "gemini_cli"):
+        model = settings.model_fast if not settings.model_fast.startswith("claude-") else "its default model"
+        return f"{provider.inner.name} (your CLI login, no API key): {model}"
     return f"{provider.inner.name}{where}: {settings.model_fast} (payloads, planner), {settings.model_smart} (fixer)"
 
 
