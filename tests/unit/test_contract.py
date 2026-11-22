@@ -140,3 +140,17 @@ def test_clean_files_stay_inside_the_app(tmp_path: Path):
     escape = CommandSandbox(AppConfig.model_validate({"run": "x", "port": 1, "clean": ["../outside.db"]}), tmp_path)
     with pytest.raises(SandboxError):
         escape._clean()
+
+
+def test_an_agent_only_contract_may_have_just_its_login_flow(minimal_contract):
+    """Found while setting up the live flow-shop validation: a login helper alone was rejected, so an agent-only
+    contract with a browser login was impossible (API-auth contracts could already have zero flows)."""
+    from sentri.contract import ContractError
+
+    minimal_contract["flows"][0].update(id="login", attack=False)
+    minimal_contract["auth"] = {"login_flow": "login"}
+    contract = parse_contract(minimal_contract)
+    assert contract.attacked_flows() == []
+    del minimal_contract["auth"]
+    with pytest.raises(ContractError, match="attack: true"):
+        parse_contract(minimal_contract)  # helper flows with no login role are still a mistake
