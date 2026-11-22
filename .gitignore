@@ -33,3 +33,9 @@ examples/proof/*/app/
 # Local secrets (API keys); never committed
 .env
 .env.*
+
+# AI design references (impeccable): internal, not committed
+PRODUCT.md
+DESIGN.md
+DESIGN.json
+.impeccable/
