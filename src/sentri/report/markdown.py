@@ -59,6 +59,15 @@ def build_report(ledger: Ledger, run_id: int, base_branch: str | None = "main", 
         delta = f" (no {base_branch} run yet)"
     lines.append(f"## Sentri readiness: {score if score is not None else 'n/a'}{delta}")
     lines += ["", f"`{breakdown.get('formula', '')}`", ""]
+    if breakdown.get("agentic_findings"):
+        counts = breakdown.get("agentic_counts") or {}
+        what = ", ".join(f"{n} {sev.replace('_', ' ')}" for sev, n in counts.items())
+        baseline = breakdown.get("baseline")
+        lines += [
+            f"Baseline suite: **{baseline if baseline is not None else 'n/a'}** · "
+            f"Agentic impact: **-{breakdown.get('agentic_impact', 0)}** ({what}; confirmed by replay)",
+            "",
+        ]
 
     rows = ledger.checks_for_run(run_id, include_probes=False)
     # Newly failing: cells failing now that passed (or did not exist) in the base run.

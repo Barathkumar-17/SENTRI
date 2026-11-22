@@ -25,7 +25,7 @@ from sentri.runner.browser import BrowserManager
 from sentri.runner.check_runner import CheckOutcome, CheckRunner
 from sentri.runner.fingerprint import app_fingerprint
 from sentri.sandbox import SandboxError, make_sandbox
-from sentri.verdict.scorer import ScoreBreakdown, compute
+from sentri.verdict.scorer import AgenticFinding, ScoreBreakdown, compute, parse_hits
 
 log = logging.getLogger(__name__)
 
@@ -191,6 +191,7 @@ class RunOrchestrator:
                     return self._abort(run_id, bus, started, "contract preflight failed: " + "; ".join(problems))
 
             regressions = 0
+            agentic_ran = False
             if self.options.mode == "agentic":
                 if self.provider.available:
                     from sentri.agent.explorer import ExploreBudget
@@ -214,6 +215,7 @@ class RunOrchestrator:
                         on_page=self._set_page,
                     )
                     self.llm_used = True
+                    agentic_ran = True
                     regressions += agentic.regressions
                     runner.sandbox_fresh = False
                     bus.emit(
@@ -245,7 +247,7 @@ class RunOrchestrator:
                     resets=len(runner.reset_seconds),
                     reset_seconds=round(total, 2),
                 )
-            breakdown = self._score(run_id, regressions)
+            breakdown = self._score(run_id, regressions, agentic_ran)
             self._finish(run_id, "finished", breakdown, started)
             bus.emit(
                 "run_finished",
@@ -292,9 +294,8 @@ class RunOrchestrator:
             breakdown.__dict__ if breakdown else None,
         )
 
-    def _score(self, run_id: int, regressions: int) -> ScoreBreakdown:
-        rows = self.ledger.checks_for_run(run_id, include_probes=False)
-        return compute([r["score_verdict"] for r in rows], regressions, self.settings.regression_penalty)
+    def _score(self, run_id: int, regressions: int, agentic_ran: bool = False) -> ScoreBreakdown:
+        return score_run(self.ledger, run_id, regressions, self.settings.regression_penalty, agentic_ran)
 
     async def _run_cell(
         self,
@@ -526,6 +527,20 @@ class RunOrchestrator:
         )
         probe_cell = Cell(cell.flow, attack_id, True)
         return await self._execute(run_id, probe_cell, attack_id, choice, runner, bus, is_probe=True)
+
+
+def score_run(
+    ledger: Ledger, run_id: int, regressions: int, penalty: int = 5, agentic_ran: bool = False
+) -> ScoreBreakdown:
+    """Baseline checks (probes excluded) plus every agentic finding replay confirmed in this run."""
+    rows = ledger.checks_for_run(run_id)
+    baseline = [r["score_verdict"] for r in rows if not r["is_probe"]]
+    agentic = [
+        AgenticFinding(r["attack_id"], parse_hits(r["oracle_hits"]), r["attempts"] or 0, r["score_verdict"])
+        for r in rows
+        if r["flow_id"] == "agentic"
+    ]
+    return compute(baseline, regressions, penalty, agentic, agentic_ran=agentic_ran or bool(agentic))
 
 
 def _display_payload(payload: dict[str, str]) -> dict[str, str]:

@@ -6,6 +6,7 @@ nested under the step it followed. The model's reasoning is shown as reasoning, 
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from sentri.ledger.ledger import Ledger
@@ -77,16 +78,23 @@ def agentic_markdown(ledger: Ledger, run_id: int, max_steps: int = 80) -> str:
 
     findings = data["findings"]
     if findings:
+        run = ledger.run(run_id)
+        breakdown = json.loads(run["breakdown"] or "{}") if run is not None else {}
+        points = {i["key"]: i for i in breakdown.get("agentic_findings") or []}
         lines += [
             "#### Findings (replayed 3x from a clean state, judged by plain code)",
-            "| Verdict | Finding | Oracles | Steps |",
-            "|---|---|---|---|",
+            "| Verdict | Finding | Oracles | Steps | Score impact |",
+            "|---|---|---|---|---|",
         ]
         icon = {"fail": "❌ confirmed", "flaky": "⚠️ flaky", "unconfirmed": "· unconfirmed", "pass": "✅ fixed"}
         for f in findings:
             span = f"{f['from_step']}-{f['to_step']}" if f.get("from_step") else "re-check"
+            check = ledger.check(f["check_id"]) if f.get("check_id") else None
+            hit = points.get(check["attack_id"]) if check is not None else None
+            impact = f"-{hit['points']:g} ({str(hit['severity']).replace('_', ' ')})" if hit else "-"
             lines.append(
-                f"| {icon.get(f['verdict'], f['verdict'])} | {f['title'] or ''} | {f['oracle_ids'] or '-'} | {span} |"
+                f"| {icon.get(f['verdict'], f['verdict'])} | {f['title'] or ''} | {f['oracle_ids'] or '-'} | {span}"
+                f" | {impact} |"
             )
         lines.append("")
 

@@ -517,6 +517,11 @@ def run_cmd(
     b = result.breakdown
     assert b is not None
     console.print(f"[bold]readiness: {b.score if b.score is not None else 'n/a'}[/bold]   {b.formula}")
+    if b.agentic_findings:
+        baseline = b.baseline if b.baseline is not None else "n/a"
+        console.print(
+            f"  baseline suite {baseline}, agentic impact -{b.agentic_impact} ({len(b.agentic_findings)} findings)"
+        )
     if fail_under is not None and (b.score or 0) < fail_under:
         raise typer.Exit(EXIT_GATE)
     if fail_on_regression and result.regressions:
