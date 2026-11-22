@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from sentri.agent.actions import ActionRefused, resolve_same_origin
 from sentri.agent.session import AgentSession
 from sentri.contract.placeholders import DataGenerator
-from sentri.planner.crawler import EXTRACT_JS
+from sentri.runner.extract import EXTRACT_JS
 from sentri.verdict.signature import normalize_path
 
 SKIP_WORDS = ("logout", "log-out", "signout", "sign-out", "delete", "remove", "destroy", "unsubscribe")

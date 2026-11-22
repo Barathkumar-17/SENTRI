@@ -413,7 +413,7 @@ class AgentSession:
         text = ""
         with contextlib.suppress(PlaywrightError):
             text = await page.locator("body").inner_text(timeout=2000)
-        from sentri.planner.crawler import EXTRACT_JS
+        from sentri.runner.extract import EXTRACT_JS
 
         structure: dict[str, Any] = {}
         with contextlib.suppress(PlaywrightError):
