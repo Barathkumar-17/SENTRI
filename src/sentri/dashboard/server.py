@@ -122,6 +122,11 @@ def create_app(
     if (STATIC_DIR / "assets").is_dir():
         app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
+    @app.get("/favicon.svg", include_in_schema=False)
+    def favicon() -> Response:
+        icon = STATIC_DIR / "favicon.svg"
+        return FileResponse(icon) if icon.exists() else Response(status_code=404)
+
     @app.get("/api/findings")
     def findings(verdict: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
         lg = ledger()
