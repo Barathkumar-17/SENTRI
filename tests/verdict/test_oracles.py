@@ -148,3 +148,14 @@ def test_console_errors_from_the_origin_fence_are_not_app_bugs():
     assert not console_error(fenced, cfg).fired
     real = Evidence(console=(ConsoleRecord("console_error", "TypeError: x is undefined"),))
     assert console_error(real, cfg).fired
+
+
+def test_browser_local_network_policy_errors_are_not_app_bugs():
+    from sentri.evidence.models import ConsoleRecord, Evidence
+    from sentri.verdict.oracles import OracleConfig, console_error
+
+    text = (
+        "WebSocket connection to 'ws://127.0.0.1:3123/socket.io/' failed: Error in connection establishment: "
+        "net::ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS"
+    )
+    assert not console_error(Evidence(console=(ConsoleRecord("console_error", text),)), OracleConfig("f", "a")).fired

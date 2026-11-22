@@ -149,3 +149,30 @@ def test_score_and_report_include_confirmed_agentic_findings(tmp_path):
     assert "## Sentri readiness: 60" in md
     assert "Baseline suite: **75** · Agentic impact: **-15** (1 data exposure" in md
     assert "| -15 (data exposure) |" in md
+
+
+def test_findings_sharing_a_key_in_one_run_never_fake_a_regression(tmp_path):
+    """Found by the Juice Shop proof run: two findings with the same key but different signatures made the
+    first one's bug 'fixed' and then 'regress' inside a single run."""
+    from sentri.agent.replay import record
+    from sentri.verdict.engine import CheckVerdict, OracleHit
+
+    lg = Ledger(tmp_path / "k.db")
+    run = lg.create_run("c1", "main", "fp", "ch")
+    key = "http_500 POST /rest/admin/application-configuration"
+    first = CheckVerdict(
+        "fail", 3, (OracleHit("http_500", 3, "sig-500", "500"), OracleHit("exception", 3, "sig-a", "a"))
+    )
+    second = CheckVerdict(
+        "fail", 3, (OracleHit("http_500", 3, "sig-500", "500"), OracleHit("exception", 3, "sig-b", "b"))
+    )
+    run_hits: dict = {}
+    events = []
+    for v in (first, second):
+        _c, ev = record(lg, run, "c1", {"title": "t", "repro": []}, v, key, run_hits)
+        events += ev
+    assert not any(e.kind in ("regression", "bug_fixed") for e in events)
+    assert sorted(b["status"] for b in lg.bugs()) == ["open", "open", "open"]
+    # a later, non-reproducing re-check of the same key in the same run does not close them either
+    _c, ev = record(lg, run, "c1", {"title": "t", "repro": [], "recheck": True}, CheckVerdict("pass", 3), key, run_hits)
+    assert ev == [] and all(b["status"] == "open" for b in lg.bugs())
