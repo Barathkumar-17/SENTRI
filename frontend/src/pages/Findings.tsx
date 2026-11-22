@@ -84,14 +84,51 @@ function FindingPanel({ id }: { id: number }) {
 
 function FindingView({ f, onChanged }: { f: FindingDetail; onChanged: () => void }) {
   const [tone, label] = VERDICT[f.verdict] ?? ['', f.verdict]
-  const hits = f.attempts.filter((a) => (a.oracles?.length ?? 0) > 0).length
+  const [stepsOpen, setStepsOpen] = useState(false)
+  const recorded = f.attempts.filter((a) => !a.missing)
+  const hits = recorded.filter((a) => (a.oracles?.length ?? 0) > 0).length
+  const broke = whatBroke(f.attempts)
+  const StepsIcon = stepsOpen ? ChevronDown : ChevronRight
   return (
     <div className="stack" aria-label="Finding detail">
       <Panel>
-        <div className="stack">
-          <div className="row"><Badge tone={tone}>{label}</Badge><span className="faint small">run <a href={`#/runs/${f.run_id}`}>{f.run_id}</a> · <span className="mono">{short(f.commit_sha)}</span> · {when(f.created_at)}</span></div>
-          <h2 className="wrap-anywhere">{f.title || 'Untitled finding'}</h2>
-          {f.key && <p className="mono xs muted wrap-anywhere">{f.key}</p>}
+        <div className="finding-head">
+          <div className="row">
+            <Badge tone={tone}>{label}</Badge>
+            <span className="muted small">
+              run <a href={`#/runs/${f.run_id}`}>{f.run_id}</a> · <span className="mono">{short(f.commit_sha)}</span> · {when(f.created_at)}
+            </span>
+          </div>
+          <h2 className="finding-title wrap-anywhere">{f.title || 'Untitled finding'}</h2>
+          <dl className="summary">
+            <dt>What broke</dt>
+            <dd>
+              {broke.length ? (
+                <ul className="plain">
+                  {broke.map((b) => (
+                    <li key={b.oracle + b.detail}>
+                      <span className="mono">{b.oracle}</span> {b.detail}
+                      {b.seen !== hits && <span className="muted"> · in {b.seen} of {recorded.length} replays</span>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="muted">No check fired in the recorded replays{f.oracle_ids ? `; the candidate was flagged for ${f.oracle_ids}` : ''}.</span>
+              )}
+            </dd>
+            <dt>Replay outcome</dt>
+            <dd>
+              {recorded.length
+                ? `Break seen in ${hits} of ${recorded.length} replays, ${f.replay_state === 'none' ? 'all on the live state (no reset)' : 'each from a restarted app'}.`
+                : 'No replay evidence stored for this finding.'}
+            </dd>
+            {f.key && (
+              <>
+                <dt>Check</dt>
+                <dd className="mono wrap-anywhere">{f.key}</dd>
+              </>
+            )}
+          </dl>
         </div>
       </Panel>
 
@@ -99,37 +136,21 @@ function FindingView({ f, onChanged }: { f: FindingDetail; onChanged: () => void
         <div>
           <span className="label">Discovered by</span>
           <span className="big">{ORIGIN[f.origin ?? ''] ?? f.origin ?? 'not recorded'}</span>
-          <span className="faint xs">{f.from_step ? `exploration steps ${f.from_step}–${f.to_step}` : 're-check of an earlier finding'}</span>
+          <span className="muted xs">{f.from_step ? `exploration steps ${f.from_step}–${f.to_step}` : 're-check of an earlier finding'}</span>
         </div>
         <div>
           <span className="label">Replays</span>
           <AttemptDots attempts={f.attempts} total={f.attempts.length || 3} />
-          <span className="faint xs">{f.replay_state === 'none' ? 'on the live state (no reset)' : 'each from a restarted app'}</span>
+          <span className="muted xs">{f.replay_state === 'none' ? 'on the live state (no reset)' : 'each from a restarted app'}</span>
         </div>
         <div>
-          <span className="label">Confirmation</span>
-          <span className="big">{label}</span>
-          <span className="faint xs">{f.attempts.length ? `a break was seen in ${hits} of ${f.attempts.length} attempts` : 'no replay evidence stored'}</span>
+          <span className="label">Steps</span>
+          <span className="big">{f.repro.length}</span>
+          <span className="muted xs">{f.repro.filter((s) => s.setup).length ? `${f.repro.filter((s) => s.setup).length} of them setup from earlier lines of attack` : 'replayed in order each attempt'}</span>
         </div>
       </div>
 
       <Limitations f={f} />
-
-      <Panel title="Steps replayed" hint={`${f.repro.length} steps; greyed = setup from earlier lines of attack`}>
-        {!f.repro.length ? <Empty title="No steps stored" /> : (
-          <ol className="steps">
-            {f.repro.map((s, i) => (
-              <li key={i} className={s.setup ? 'setup' : undefined}>
-                <span className="n">{i + 1}</span>
-                <div>
-                  <div className="act">{describe(s.action)}</div>
-                  {s.match && <div className="faint xs mono">re-matched: {s.match.method} {s.match.path}</div>}
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-      </Panel>
 
       <Panel title="Replay evidence" hint="per attempt, as recorded">
         {!f.attempts.length ? <Empty title="No replay evidence">Findings recorded before evidence linking have none.</Empty> : (
@@ -143,9 +164,60 @@ function FindingView({ f, onChanged }: { f: FindingDetail; onChanged: () => void
         )}
       </Panel>
 
+      <Panel
+        title="Steps replayed"
+        hint={`${f.repro.length} steps; greyed = setup from earlier lines of attack`}
+        action={
+          f.repro.length > 0 && (
+            <button className="btn ghost small" aria-expanded={stepsOpen} aria-controls="finding-steps" onClick={() => setStepsOpen(!stepsOpen)}>
+              <StepsIcon size={14} aria-hidden="true" /> {stepsOpen ? 'Hide steps' : 'Show steps'}
+            </button>
+          )
+        }
+      >
+        {!f.repro.length ? <Empty title="No steps stored" /> : stepsOpen ? (
+          <ol className="steps" id="finding-steps">
+            {f.repro.map((s, i) => (
+              <li key={i} className={s.setup ? 'setup' : undefined}>
+                <span className="n">{i + 1}</span>
+                <div>
+                  <div className="act">{describe(s.action)}</div>
+                  {s.match && <div className="muted xs mono">re-matched: {s.match.method} {s.match.path}</div>}
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="outline mono" id="finding-steps">{f.repro.map((s) => outline(s.action)).join('  →  ')}</p>
+        )}
+      </Panel>
+
       <BugsPanel bugs={f.bugs} onChanged={onChanged} />
     </div>
   )
+}
+
+/** The distinct checks that fired across the recorded replays, with how many attempts each was seen in. */
+function whatBroke(attempts: Attempt[]): { oracle: string; detail: string; seen: number }[] {
+  const out = new Map<string, { oracle: string; detail: string; seen: number }>()
+  for (const a of attempts) {
+    const seenHere = new Set<string>()
+    for (const o of a.oracles ?? []) {
+      const key = `${o.oracle_id}\u0000${o.detail}`
+      if (seenHere.has(key)) continue
+      seenHere.add(key)
+      const row = out.get(key) ?? { oracle: o.oracle_id, detail: o.detail, seen: 0 }
+      row.seen += 1
+      out.set(key, row)
+    }
+  }
+  return [...out.values()]
+}
+
+/** One step as a short phrase for the folded outline: the action and its main target. */
+function outline(action: Record<string, unknown>): string {
+  const target = action.path ?? action.user ?? action.url ?? action.selector ?? ''
+  return `${action.kind}${target ? ` ${String(target)}` : ''}`
 }
 
 function AttemptDots({ attempts, total }: { attempts: Attempt[]; total: number }) {
