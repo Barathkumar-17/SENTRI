@@ -21,7 +21,9 @@ pytest -m integration            # browser and demo-app tests, including the ful
 pytest -m live_llm               # calls a real model; needs a key
 ```
 
-`tests/test_trust_boundary.py` fails if verdict, ledger or report code imports model-related code.
+`tests/test_trust_boundary.py` fails if verdict, ledger or report code imports model-related code, or if the
+confirmation path (`agent/replay.py`, `agent/session.py`, the agentic oracles) reaches it through any chain of
+imports.
 
 ## The demo app
 
