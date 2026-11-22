@@ -1,4 +1,6 @@
 # Copy to .github/workflows/sentri.yml in the app's repo.
+#
+# The model is always YOURS: pick one of the options below (or none). Sentri ships no API key.
 # Report only by default: the PR gets the score comment and evidence; nothing fails.
 # Opt in to gating with `fail-under: "80"` or `fail-on-regression: "true"`.
 name: Sentri
@@ -20,5 +22,21 @@ jobs:
       - uses: Barathkumar-17/SENTRI@main
         with:
           contract: contract.yaml
-        env:
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }} # optional; without it Sentri uses static payloads
+
+          # Option A: no model. Every check still runs with Sentri's built-in payloads.
+          # (leave all llm-* inputs empty)
+
+          # Option B: your Anthropic key, stored in Settings > Secrets and variables > Actions.
+          # llm-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # Option C: any OpenAI-compatible API with your key (OpenAI, Gemini, OpenRouter, Groq, ...).
+          # llm-base-url: https://api.openai.com/v1
+          # llm-api-key: ${{ secrets.OPENAI_API_KEY }}
+          # model: <your model id>
+
+          # Option D: a local open model, pulled onto the runner with Ollama. No key, no data leaves the runner.
+          # ollama-model: qwen2.5:7b
+
+          # Option E: your own model server (self-hosted runner next to Ollama/vLLM, or a private endpoint).
+          # llm-base-url: http://my-gpu-box:11434/v1
+          # model: llama3.3

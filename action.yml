@@ -4,6 +4,10 @@ branding:
   icon: shield
   color: red
 
+# Every model setting comes from the repository that uses this action: its own API key (from its own
+# secrets), its own endpoint, or a local model pulled onto its own runner. Sentri ships no key. With no model
+# configured, Sentri still runs every check using its built-in payloads.
+
 inputs:
   contract:
     description: Path to the approved contract file.
@@ -18,13 +22,32 @@ inputs:
     description: Fail the check when a fixed bug comes back ("true" or "false").
     default: "false"
   llm-provider:
-    description: anthropic, openai_compatible or none.
-    default: anthropic
+    description: >-
+      anthropic, openai_compatible or none. Empty = automatic: ollama-model -> local model on the runner,
+      llm-base-url -> openai_compatible, llm-api-key -> anthropic, nothing -> none (built-in payloads).
+    default: ""
+  llm-api-key:
+    description: Your own API key, passed from your repository secrets, e.g. ${{ secrets.LLM_API_KEY }}.
+    default: ""
   llm-base-url:
-    description: Base URL for openai_compatible providers.
+    description: Base URL of an OpenAI-compatible API (OpenAI, Gemini, OpenRouter, Groq, a self-hosted server...).
     default: ""
   model:
-    description: Model for payloads and probes (empty = provider default).
+    description: Model for payloads, probes and the planner (empty = provider default).
+    default: ""
+  model-smart:
+    description: Model for the fixer (empty = same as model, or the provider default).
+    default: ""
+  ollama-model:
+    description: >-
+      Run a local model on the runner with Ollama instead of an API, e.g. "qwen2.5:7b". No API key needed.
+      Linux and macOS runners only. Small models are faster; any invalid answer falls back to built-in payloads.
+    default: ""
+  extra-args:
+    description: Extra arguments for `sentri run`, e.g. "--only signup --fresh".
+    default: ""
+  sentri-source:
+    description: Where to install Sentri from (pip requirement or path). Empty = this action's repository at its ref.
     default: ""
   python-version:
     description: Python used to run Sentri.
@@ -34,6 +57,9 @@ outputs:
   report:
     description: Path of the generated report.md.
     value: ${{ steps.run.outputs.report }}
+  exit-code:
+    description: Exit code of `sentri run` (0 = finished; 1 = gate failed; 2 = contract/config; 3 = app did not start).
+    value: ${{ steps.run.outputs.exit_code }}
 
 runs:
   using: composite
@@ -41,10 +67,31 @@ runs:
     - uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
-    - shell: bash
+
+    - name: Install Sentri
+      shell: bash
+      env:
+        SOURCE: ${{ inputs.sentri-source }}
+        REF: ${{ github.action_ref || 'main' }}
       run: |
-        pip install "sentri @ git+https://github.com/Barathkumar-17/SENTRI.git@${{ github.action_ref || 'main' }}"
-        sentri setup --with-deps
+        if [ -n "$SOURCE" ]; then pip install "$SOURCE"; else pip install "sentri @ git+https://github.com/Barathkumar-17/SENTRI.git@$REF"; fi
+        if [ "$RUNNER_OS" = "Linux" ]; then sentri setup --with-deps; else sentri setup; fi
+
+    - name: Start a local model with Ollama
+      if: inputs.ollama-model != ''
+      shell: bash
+      env:
+        MODEL: ${{ inputs.ollama-model }}
+      run: |
+        case "$RUNNER_OS" in
+          Linux) curl -fsSL https://ollama.com/install.sh | sh ;;
+          macOS) brew install ollama ;;
+          *) echo "::error::ollama-model is supported on Linux and macOS runners only"; exit 2 ;;
+        esac
+        (ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &)
+        for i in $(seq 1 60); do curl -sf http://127.0.0.1:11434/api/version > /dev/null && break; sleep 1; done
+        ollama pull "$MODEL"
+
     - name: Restore ledger
       uses: actions/cache/restore@v4
       with:
@@ -52,43 +99,74 @@ runs:
         key: sentri-ledger-${{ inputs.base-branch }}-${{ github.run_id }}
         restore-keys: |
           sentri-ledger-${{ inputs.base-branch }}-
+
     - id: run
       shell: bash
       env:
-        SENTRI_LLM_PROVIDER: ${{ inputs.llm-provider }}
-        SENTRI_LLM_BASE_URL: ${{ inputs.llm-base-url }}
+        PROVIDER: ${{ inputs.llm-provider }}
+        SENTRI_LLM_API_KEY: ${{ inputs.llm-api-key }}
+        BASE_URL: ${{ inputs.llm-base-url }}
+        MODEL: ${{ inputs.model }}
+        MODEL_SMART: ${{ inputs.model-smart }}
+        OLLAMA_MODEL: ${{ inputs.ollama-model }}
+        EXTRA_ARGS: ${{ inputs.extra-args }}
+        CONTRACT: ${{ inputs.contract }}
+        BASE_BRANCH: ${{ inputs.base-branch }}
+        FAIL_UNDER: ${{ inputs.fail-under }}
+        FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
+        BRANCH: ${{ github.head_ref || github.ref_name }}
+        SHA: ${{ github.sha }}
         SENTRI_EVIDENCE_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: |
-        args=(--contract "${{ inputs.contract }}" --commit "${{ github.sha }}"
-              --branch "${{ github.head_ref || github.ref_name }}" --base-branch "${{ inputs.base-branch }}"
-              --out report.md)
-        [ -n "${{ inputs.model }}" ] && args+=(--model "${{ inputs.model }}")
-        [ -n "${{ inputs.fail-under }}" ] && args+=(--fail-under "${{ inputs.fail-under }}")
-        [ "${{ inputs.fail-on-regression }}" = "true" ] && args+=(--fail-on-regression)
+        # Resolve the model setup from this repository's inputs only.
+        if [ -n "$OLLAMA_MODEL" ]; then
+          PROVIDER=${PROVIDER:-openai_compatible}
+          BASE_URL=${BASE_URL:-http://127.0.0.1:11434/v1}
+          MODEL=${MODEL:-$OLLAMA_MODEL}
+          export SENTRI_LLM_TIMEOUT_S=${SENTRI_LLM_TIMEOUT_S:-300}  # CPU inference is slow
+        elif [ -z "$PROVIDER" ]; then
+          if [ -n "$BASE_URL" ]; then PROVIDER=openai_compatible
+          elif [ -n "$SENTRI_LLM_API_KEY" ]; then PROVIDER=anthropic
+          else PROVIDER=none; fi
+        fi
+        export SENTRI_LLM_PROVIDER="$PROVIDER"
+        if [ -n "$BASE_URL" ]; then export SENTRI_LLM_BASE_URL="$BASE_URL"; fi
+        args=(--contract "$CONTRACT" --commit "$SHA" --branch "$BRANCH" --base-branch "$BASE_BRANCH" --out report.md)
+        if [ -n "$MODEL" ]; then args+=(--model "$MODEL"); fi
+        if [ -n "$MODEL_SMART" ]; then args+=(--model-smart "$MODEL_SMART"); fi
+        if [ -n "$FAIL_UNDER" ]; then args+=(--fail-under "$FAIL_UNDER"); fi
+        if [ "$FAIL_ON_REGRESSION" = "true" ]; then args+=(--fail-on-regression); fi
+        read -r -a extra <<< "$EXTRA_ARGS"
+        echo "LLM provider: $PROVIDER${BASE_URL:+ @ $BASE_URL}${MODEL:+, model $MODEL}"
         set +e
-        sentri run "${args[@]}"
+        sentri run "${args[@]}" "${extra[@]}"
         code=$?
+        set -e
         echo "report=report.md" >> "$GITHUB_OUTPUT"
         echo "exit_code=$code" >> "$GITHUB_OUTPUT"
-        exit 0
+        if [ -f report.md ]; then cat report.md >> "$GITHUB_STEP_SUMMARY"; fi
+
     - name: Save ledger (base branch pushes only)
       if: github.event_name == 'push' && github.ref_name == inputs.base-branch
       uses: actions/cache/save@v4
       with:
         path: .sentri/ledger.db
         key: sentri-ledger-${{ inputs.base-branch }}-${{ github.run_id }}
+
     - name: Comment on the pull request
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && hashFiles('report.md') != ''
       uses: marocchino/sticky-pull-request-comment@v2
       with:
         header: sentri
         path: report.md
+
     - uses: actions/upload-artifact@v4
       if: always()
       with:
         name: sentri-evidence
         path: evidence/
         if-no-files-found: ignore
+
     - name: Apply gate
       shell: bash
       run: exit ${{ steps.run.outputs.exit_code }}

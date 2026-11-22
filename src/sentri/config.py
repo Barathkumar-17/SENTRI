@@ -45,5 +45,18 @@ class Settings:
     headless: bool = field(default_factory=lambda: os.environ.get("SENTRI_HEADLESS", "1") != "0")
     bad_file_mb: int = field(default_factory=lambda: _env_int("SENTRI_BAD_FILE_MB", 50))
     evidence_url: str | None = field(default_factory=lambda: os.environ.get("SENTRI_EVIDENCE_URL"))
+    ollama_model: str | None = field(default_factory=lambda: os.environ.get("SENTRI_OLLAMA_MODEL") or None)
     attempts: int = 3
     live_view: bool = False
+
+    def __post_init__(self) -> None:
+        if self.ollama_model:
+            self.use_ollama(self.ollama_model)
+
+    def use_ollama(self, model: str) -> None:
+        """Shortcut for a local Ollama model: no API key, no data leaves the machine."""
+        self.ollama_model = model
+        self.llm_provider = "openai_compatible"
+        self.llm_base_url = self.llm_base_url or "http://localhost:11434/v1"
+        self.model_fast = self.model_smart = model
+        self.llm_timeout_s = max(self.llm_timeout_s, 300)  # CPU inference can be slow

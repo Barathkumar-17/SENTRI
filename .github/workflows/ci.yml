@@ -78,3 +78,33 @@ jobs:
           sentri run --contract examples/buggy-app/contract.docker.yaml --no-llm
           --only signup:empty_input --only create_task:bad_file --out report.md
       - run: cat report.md
+
+  action-local-model:
+    name: action with a local model (Ollama, no API key)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - id: sentri
+        uses: ./
+        with:
+          sentri-source: "."
+          contract: examples/buggy-app/contract.yaml
+          ollama-model: qwen2.5:0.5b
+          extra-args: --only signup:empty_input --only create_task:bad_file
+      - name: the run finished and actually called the local model
+        shell: bash
+        run: |
+          test "${{ steps.sentri.outputs.exit-code }}" = "0"
+          python - <<'PY'
+          import sqlite3
+          db = sqlite3.connect(".sentri/ledger.db")
+          run = db.execute("SELECT id, status, llm_mode FROM runs ORDER BY id DESC LIMIT 1").fetchone()
+          print("run:", run)
+          assert run[1] == "finished", run
+          errors = [r[0] for r in db.execute("SELECT data FROM events WHERE kind='llm_fallback'")]
+          print("fallbacks:", errors)
+          # The model was reached if any payload came from it, or if it answered but was rejected by validation.
+          reached = run[2] in ("llm", "mixed") or any("connection error" not in e and "unavailable" not in e for e in errors)
+          assert reached, "the local model was never called"
+          PY

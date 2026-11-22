@@ -122,3 +122,12 @@ def test_make_provider_configs():
 def test_prices():
     assert cost_usd("claude-opus-5-5", 1_000_000, 0) == 4.0
     assert cost_usd("some-local-model", 10, 10) == 0.0
+
+
+def test_ollama_shortcut():
+    s = Settings()
+    s.llm_base_url = None
+    s.use_ollama("qwen2.5:7b")
+    p = make_provider(s)
+    assert p.inner.name == "openai_compatible"
+    assert s.llm_base_url == "http://localhost:11434/v1" and s.model_fast == s.model_smart == "qwen2.5:7b"

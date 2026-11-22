@@ -74,8 +74,11 @@ def _settings(
     base_url: str | None = None,
     model_fast: str | None = None,
     model_smart: str | None = None,
+    ollama: str | None = None,
 ) -> Settings:
     s = Settings()
+    if ollama:
+        s.use_ollama(ollama)
     if db is not None:
         s.db_path = db
     if provider:
@@ -122,6 +125,12 @@ FastOpt = Annotated[
     str | None, typer.Option("--model", "--model-fast", help="Model for payloads, probes and the planner.")
 ]
 SmartOpt = Annotated[str | None, typer.Option("--model-smart", help="Model for the fixer.")]
+OllamaOpt = Annotated[
+    str | None,
+    typer.Option(
+        "--ollama", help="Use a local Ollama model (e.g. qwen2.5:7b). No API key; nothing leaves the machine."
+    ),
+]
 
 
 def _provider(settings: Settings, enabled: bool = True):  # type: ignore[no-untyped-def]
@@ -208,15 +217,37 @@ def _check_reverse_dns(limit_s: float = 3.0) -> tuple[bool | None, str]:
     )
 
 
+def _check_endpoint(base_url: str, api_key: str | None) -> tuple[bool, str]:
+    """GET {base}/models on an OpenAI-compatible server, so a missing local model server shows up here."""
+    import httpx
+
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    try:
+        resp = httpx.get(base_url.rstrip("/") + "/models", headers=headers, timeout=5)
+    except httpx.HTTPError as exc:
+        hint = " (is `ollama serve` running?)" if "11434" in base_url else ""
+        return False, f"not reachable: {type(exc).__name__}{hint}"
+    if resp.status_code in (401, 403):
+        return False, f"reachable but rejected the key (HTTP {resp.status_code})"
+    if resp.status_code >= 400:
+        return True, f"reachable (HTTP {resp.status_code} on /models)"
+    try:
+        ids = [m.get("id") for m in resp.json().get("data", [])]
+    except ValueError:
+        ids = []
+    return True, f"reachable, {len(ids)} models listed" if ids else "reachable"
+
+
 @app.command()
 def doctor(
     llm_provider: ProviderOpt = None,
     llm_base_url: BaseUrlOpt = None,
     model: FastOpt = None,
     model_smart: SmartOpt = None,
+    ollama: OllamaOpt = None,
 ) -> None:
     """Check this machine: Python, browser, Docker, git, LLM configuration."""
-    s = _settings(None, llm_provider, llm_base_url, model, model_smart)
+    s = _settings(None, llm_provider, llm_base_url, model, model_smart, ollama)
     table = Table("Check", "Status", "Detail")
     py_ok = sys.version_info >= (3, 12)
     rows: list[tuple[str, bool | None, str]] = [
@@ -238,7 +269,14 @@ def doctor(
     try:
         p = make_provider(s)
         llm_ok: bool | None = True if p.inner.name != "none" else None
-        rows.append(("LLM", llm_ok, describe_provider(s, p) + ("" if llm_ok else "; set an API key to enable")))
+        detail = describe_provider(s, p)
+        if llm_ok is None:
+            detail += "; optional: set an API key, --llm-base-url, or --ollama MODEL"
+        elif s.llm_provider == "openai_compatible" and s.llm_base_url:
+            reachable, why = _check_endpoint(s.llm_base_url, s.api_key)
+            llm_ok = reachable
+            detail += f"; {why}"
+        rows.append(("LLM", llm_ok, detail))
     except LLMConfigError as exc:
         rows.append(("LLM", False, str(exc)))
     for name, ok, detail in rows:
@@ -293,6 +331,7 @@ def plan(
     llm_base_url: BaseUrlOpt = None,
     model: FastOpt = None,
     model_smart: SmartOpt = None,
+    ollama: OllamaOpt = None,
 ) -> None:
     """Start the app, crawl it and propose a draft contract for a human to review."""
     from sentri.contract.models import AppConfig
@@ -301,7 +340,7 @@ def plan(
     from sentri.runner.browser import BrowserManager
     from sentri.sandbox import SandboxError, make_sandbox
 
-    s = _settings(None, llm_provider, llm_base_url, model, model_smart)
+    s = _settings(None, llm_provider, llm_base_url, model, model_smart, ollama)
     provider = _provider(s, not no_llm)
     if (run is None) == (dockerfile is None):
         err.print("[red]give exactly one of --run or --dockerfile[/red]")
@@ -368,6 +407,7 @@ def run_cmd(
     llm_base_url: BaseUrlOpt = None,
     model: FastOpt = None,
     model_smart: SmartOpt = None,
+    ollama: OllamaOpt = None,
 ) -> None:
     """Run the attack grid against the app and record verdicts in the ledger."""
     from sentri.report import build_report
@@ -377,7 +417,7 @@ def run_cmd(
     if not c.approved and not allow_unapproved:
         err.print("[red]contract is not approved[/red]; run `sentri contract approve` (or pass --allow-unapproved)")
         raise typer.Exit(EXIT_CONTRACT)
-    s = _settings(db, llm_provider, llm_base_url, model, model_smart)
+    s = _settings(db, llm_provider, llm_base_url, model, model_smart, ollama)
     s.attempts = max(1, attempts)
     s.live_view = serve
     provider = _provider(s, not no_llm)
@@ -552,12 +592,13 @@ def fix(
     llm_base_url: BaseUrlOpt = None,
     model: FastOpt = None,
     model_smart: SmartOpt = None,
+    ollama: OllamaOpt = None,
 ) -> None:
     """Optional Fixer: propose a patch, run the gate, open a DRAFT pull request if it passes."""
     from sentri.fixer import Fixer, FixerError
 
     c = _load(contract)
-    s = _settings(db, llm_provider, llm_base_url, model, model_smart)
+    s = _settings(db, llm_provider, llm_base_url, model, model_smart, ollama)
     provider = _provider(s)
     ledger = Ledger(s.db_path)
     fixer = Fixer(c, contract.resolve().parent, s, ledger, provider)

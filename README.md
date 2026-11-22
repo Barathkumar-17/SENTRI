@@ -48,16 +48,22 @@ sentri run --contract contract.yaml --out report.md
 
 ## Choosing a model
 
-The model only picks payloads, proposes flows and drafts fixes. Without one, Sentri still runs every check using built-in payloads.
+**You bring the model.** Sentri ships no API key and never uses anyone else's. The model only picks attack
+payloads, proposes flows and drafts fixes; plain code decides every verdict. With no model configured,
+Sentri still runs every check using its built-in payloads.
 
-| Provider | Settings |
+| Option | How |
 |---|---|
-| Anthropic Claude (default) | `LLM_API_KEY` or `ANTHROPIC_API_KEY`. Defaults: `claude-sonnet-5-5` for payloads, probes and the planner (`SENTRI_MODEL_FAST`), `claude-opus-5-5` for the fixer (`SENTRI_MODEL_SMART`) |
-| Any OpenAI-compatible API (OpenAI, Gemini, OpenRouter, Groq, Together, Mistral, DeepSeek...) | `SENTRI_LLM_PROVIDER=openai_compatible`, `SENTRI_LLM_BASE_URL`, `SENTRI_LLM_API_KEY`, `SENTRI_MODEL_FAST`, `SENTRI_MODEL_SMART` |
-| Local models (Ollama, LM Studio, vLLM) | as above, for example `SENTRI_LLM_BASE_URL=http://localhost:11434/v1 SENTRI_MODEL_FAST=qwen3` |
-| None | `--no-llm` or `SENTRI_LLM_PROVIDER=none` |
+| No model | Nothing to set (or `--no-llm`). |
+| Local model with Ollama (no key, nothing leaves your machine) | `ollama pull qwen2.5:7b`, then `sentri run --ollama qwen2.5:7b` (or `SENTRI_OLLAMA_MODEL=qwen2.5:7b`) |
+| Other local servers (LM Studio, vLLM, llama.cpp) | `--llm-provider openai_compatible --llm-base-url http://localhost:1234/v1 --model <id>` |
+| Anthropic Claude with your key | `ANTHROPIC_API_KEY=...` (or `LLM_API_KEY`). Defaults: `claude-sonnet-5-5` for payloads, probes and the planner; `claude-opus-5-5` for the fixer |
+| Any OpenAI-compatible API with your key (OpenAI, Gemini, OpenRouter, Groq, Together, Mistral, DeepSeek...) | `--llm-provider openai_compatible --llm-base-url <url> --model <id>` and `SENTRI_LLM_API_KEY=...` |
 
-Every command also accepts `--llm-provider`, `--llm-base-url`, `--model` and `--model-smart`. Spending is capped per run by `SENTRI_LLM_BUDGET_USD` (default 1.00).
+Each flag has an environment variable: `SENTRI_LLM_PROVIDER`, `SENTRI_LLM_BASE_URL`, `SENTRI_LLM_API_KEY`,
+`SENTRI_MODEL_FAST` (`--model`), `SENTRI_MODEL_SMART` (`--model-smart`, used by the fixer).
+`sentri doctor` shows which model will be used and whether its server is reachable.
+Paid APIs are capped per run by `SENTRI_LLM_BUDGET_USD` (default 1.00).
 
 ## The contract
 
@@ -123,9 +129,32 @@ python scripts/smoke_test.py   # end-to-end check of the CLI on this machine
 pytest -m integration          # full attack grid against the planted-bug app
 ```
 
-## CI
+## CI (GitHub Actions)
 
-`examples/ci/sentri.yml` is a GitHub Actions workflow that runs Sentri on every pull request, comments the score and its change against `main`, and uploads the evidence.
+Sentri runs as an action in **your** repository, on **your** runner, with **your** model settings. Copy
+[`examples/ci/sentri.yml`](examples/ci/sentri.yml) to `.github/workflows/sentri.yml` and pick one option:
+
+```yaml
+- uses: Barathkumar-17/SENTRI@main
+  with:
+    contract: contract.yaml
+    # no model:            leave the llm inputs out (built-in payloads)
+    # your Anthropic key:  llm-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    # any OpenAI-compatible API:
+    #   llm-base-url: https://...   llm-api-key: ${{ secrets.MY_KEY }}   model: <id>
+    # a local model pulled onto the runner (no key):
+    #   ollama-model: qwen2.5:7b
+    # your own model server (e.g. a self-hosted runner next to Ollama):
+    #   llm-base-url: http://my-gpu-box:11434/v1   model: <id>
+```
+
+Keys go in your repository's *Settings > Secrets and variables > Actions*; GitHub masks them in logs and
+Sentri scrubs them from evidence and reports. A GitHub-hosted runner cannot reach a model on your laptop: use
+`ollama-model` (runs the model on the runner) or a self-hosted runner.
+
+Each pull request gets a comment with the readiness score and its change against `main`, newly failing checks,
+regressions, and a link to the evidence. It is report-only by default; add `fail-under: "80"` or
+`fail-on-regression: "true"` to gate merges.
 
 ## Troubleshooting
 
