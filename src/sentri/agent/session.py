@@ -181,6 +181,8 @@ class AgentSession:
         self.csrf_probes: list[CsrfProbe] = []
         self._csrf_routes: set[str] = set()
         self.side_probes = True  # off while replay counts records (a CSRF re-send would add one)
+        self.public_marker_routes: set[str] = set()
+        self._public_checked: set[str] = set()
 
     # ---- lifecycle ----------------------------------------------------------------------------------
     async def start(self) -> None:
@@ -331,6 +333,7 @@ class AgentSession:
             idor_probes=tuple(self.idor_probes[mark.idor :]),
             csrf_probes=tuple(self.csrf_probes[mark.csrf :]),
             xss_markers=(self.xss_marker,),
+            public_marker_routes=tuple(sorted(self.public_marker_routes)),
             login_path=self.login_path,
         )
 
@@ -490,6 +493,26 @@ class AgentSession:
                 await self._idor_probe(found)
             if self.side_probes and rec.via == "browser":
                 await self._csrf_probe(rec)
+            await self._public_check(rec)
+
+    async def _public_check(self, rec: ObservedRequest) -> None:
+        """a or b got the other user's canary on a page: is it on that page for a logged-out visitor too? Then it
+        is published content (the cross-user oracle skips it). Once per owner and path."""
+        if rec.identity not in ("a", "b") or rec.method != "GET" or not rec.response_text:
+            return
+        owner = "b" if rec.identity == "a" else "a"
+        canary = self.canaries[owner]
+        path = _path_only(rec.url, self.base_url)
+        if path is None or canary not in rec.response_text:
+            return
+        key = f"{owner} {normalize_path(path)}"
+        if key in self._public_checked:
+            return
+        self._public_checked.add(key)
+        query = urlsplit(rec.url).query
+        _status, text = await self._probe_get("anon", path + (f"?{query}" if query else ""))
+        if canary in text:
+            self.public_marker_routes.add(key)
 
     async def _csrf_probe(self, rec: ObservedRequest) -> None:
         """Once per route: re-send a successful state-changing form request without its CSRF token."""

@@ -86,4 +86,5 @@ class AgentEvidence:
     idor_probes: tuple[IdorProbe, ...] = ()
     csrf_probes: tuple[CsrfProbe, ...] = ()
     xss_markers: tuple[str, ...] = ()  # Sentri's unique script-ish markers for this session
+    public_marker_routes: tuple[str, ...] = ()  # "owner path": a logged-out visitor sees owner's canary there too
     login_path: str | None = None

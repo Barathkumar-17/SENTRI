@@ -67,7 +67,9 @@ def auth_bypass(ev: AgentEvidence, cfg: OracleConfig) -> OracleResult:
             continue
         owner = _leak(ev, r, ("a", "b"))
         route = normalize_route(r.method, r.path)
-        if owner is not None:
+        # Private data counts only where login was proven: content an app publishes to everyone (a blog's front
+        # page) is not a bypass just because its author wrote it on a login-only page.
+        if owner is not None and normalize_path(r.path) in protected:
             return OracleResult(
                 "auth_bypass", True, f"logged-out {route} returned user {owner}'s private data", route, "private_data"
             )
@@ -104,10 +106,13 @@ def cross_user_exposure(ev: AgentEvidence, cfg: OracleConfig) -> OracleResult:
                 route,
                 "other_user_record",
             )
+    public = set(ev.public_marker_routes)
     for r in ev.responses:
         if r.identity not in ("a", "b"):
             continue
         other = "b" if r.identity == "a" else "a"
+        if f"{other} {normalize_path(r.path)}" in public:
+            continue  # a logged-out visitor sees it there as well: published content, not exposure to one user
         if _leak(ev, r, (other,)) is not None:
             route = normalize_route(r.method, r.path)
             return OracleResult(

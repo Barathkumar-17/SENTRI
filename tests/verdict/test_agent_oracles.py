@@ -36,8 +36,21 @@ def test_auth_bypass_ignores_correct_behaviour():
 
 
 def test_auth_bypass_private_data_leak():
-    hit = ao.auth_bypass(ev(responses=(resp("anon", "/api/export", text=f"rows: {A_SECRET}"),)), CFG)
-    assert hit.fired and hit.error_key == "private_data"
+    shell = "<!doctype html><app-root></app-root>"
+    hit = ao.auth_bypass(
+        ev(responses=(resp("anon", "/tasks/3", text=f"{shell} {A_SECRET}"),), anon_shells=(shell,)), CFG
+    )
+    assert hit.fired and hit.error_key == "private_data"  # proven login-only path, even if it looks like the shell
+
+
+def test_published_content_is_not_a_bypass_or_a_leak():
+    """Found by the flaskr proof run: a blog shows every post on its public front page by design. The author
+    wrote it on a login-only page, but a logged-out visitor sees it on `/` as well, so it is published."""
+    public_page = (resp("anon", "/", text=f"<article>{A_SECRET}</article>"),)
+    assert not ao.auth_bypass(ev(responses=public_page), CFG).fired
+    seen_by_b = (resp("b", "/", text=f"<article>{A_SECRET}</article>"),)
+    assert ao.cross_user_exposure(ev(responses=seen_by_b), CFG).fired  # without the logged-out comparison...
+    assert not ao.cross_user_exposure(ev(responses=seen_by_b, public_marker_routes=("a /",)), CFG).fired
 
 
 def test_cross_user_exposure_only_for_private_markers():
