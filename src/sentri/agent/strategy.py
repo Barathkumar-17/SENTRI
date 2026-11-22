@@ -6,7 +6,6 @@ actually found; anything generic or invented is dropped before exploration start
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Literal
 
@@ -14,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from sentri.agent.recon import AppMap
 from sentri.llm import BudgetedProvider, load_prompt
+from sentri.llm.untrusted import build_user_prompt
 from sentri.verdict.signature import normalize_path
 
 Category = Literal["input", "access", "flow", "resource", "other"]
@@ -84,10 +84,9 @@ def validate(strategy: Strategy, app_map: AppMap, limit: int = 12) -> tuple[Stra
 async def plan_strategy(app_map: AppMap, provider: BudgetedProvider, readme: str = "") -> PlannedStrategy:
     if not provider.available:
         return PlannedStrategy(strategy=Strategy(), source="none", error="no model: agentic mode needs one")
-    request = {"app_map": app_map.summary(), "readme": readme[:8000]}
-    result = await provider.complete_json(
-        "strategist", load_prompt("strategist"), json.dumps(request, indent=1), Strategy, max_tokens=8000
-    )
+    task = {"identities": ["anon", "a", "b"] if app_map.has_login_flow else ["anon"], "hypotheses_wanted": "5-12"}
+    request = build_user_prompt(task, {"app_map": app_map.summary(), "readme": readme[:8000]})
+    result = await provider.complete_json("strategist", load_prompt("strategist"), request, Strategy, max_tokens=8000)
     if not result.ok or result.value is None:
         return PlannedStrategy(strategy=Strategy(), source="llm", error=result.error or "no strategy")
     strategy, dropped = validate(result.value, app_map)

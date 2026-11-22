@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -10,6 +9,7 @@ from typing import Any
 from sentri.attacks.base import Attack, Payload
 from sentri.contract.models import Flow
 from sentri.llm import BudgetedProvider, PayloadSet, ProbeRequest, load_prompt
+from sentri.llm.untrusted import build_user_prompt
 
 log = logging.getLogger(__name__)
 
@@ -53,14 +53,14 @@ class Attacker:
         if not self.provider.available:
             return self._static(attack, flow, rotation, "static payload (model unavailable)")
 
-        request = {
+        task = {
             "attack": {"id": attack.id, "what_is_done": attack.description},
             "flow": _flow_view(flow),
             "slots": _slot_view(attack, flow),
-            "recent_history": history,
         }
+        prompt = build_user_prompt(task, {"recent_history": history})  # oracle details quote app output
         result = await self.provider.complete_json(
-            "attacker", load_prompt("attacker"), json.dumps(request, indent=1), PayloadSet, max_tokens=2000
+            "attacker", load_prompt("attacker"), prompt, PayloadSet, max_tokens=2000
         )
         if not result.ok or result.value is None:
             choice = self._static(attack, flow, rotation, f"static payload (model: {result.error})")
@@ -103,9 +103,10 @@ class Prober:
         options = {aid: _slot_view(attacks[aid], flow) for aid in applicable if attacks[aid].payload_slots(flow)}
         if not options:
             return None
-        request = {"flow": _flow_view(flow), "evidence_summary": summary, "applicable_attacks": options}
+        task = {"flow": _flow_view(flow), "applicable_attacks": options}
+        prompt = build_user_prompt(task, {"evidence_summary": summary})
         result = await self.provider.complete_json(
-            "prober", load_prompt("prober"), json.dumps(request, indent=1), ProbeRequest, max_tokens=2000
+            "prober", load_prompt("prober"), prompt, ProbeRequest, max_tokens=2000
         )
         if not result.ok or result.value is None or result.value.skip:
             return None

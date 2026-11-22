@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import tempfile
@@ -18,7 +17,9 @@ from sentri.agent.session import AgentSession
 from sentri.contract.loader import ContractError, parse_contract
 from sentri.contract.placeholders import DataGenerator, seed_for
 from sentri.llm import BudgetedProvider, ContractDraft, load_prompt
+from sentri.llm.untrusted import build_user_prompt
 from sentri.planner.crawler import PageInfo, crawl
+from sentri.redact import redact
 from sentri.runner.browser import BrowserManager
 from sentri.sandbox.base import Sandbox
 
@@ -194,8 +195,9 @@ async def plan(
         request: dict[str, Any] = {"readme": readme[:20000], "pages": [p.to_dict() for p in pages]}
         if app_map is not None:
             request["app_map"] = app_map.summary()  # includes endpoints seen behind forms and auth boundaries
+        prompt = build_user_prompt({"base_url": base_url}, request)
         result = await provider.complete_json(
-            "planner", load_prompt("planner"), json.dumps(request, indent=1), ContractDraft, max_tokens=16000
+            "planner", load_prompt("planner"), prompt, ContractDraft, max_tokens=16000
         )
         if result.ok and result.value is not None and result.value.flows:
             flows = _draft_to_flows(result.value)
@@ -240,4 +242,4 @@ async def plan(
 def read_readme(path: Path | None) -> str:
     if path is None or not path.exists():
         return ""
-    return path.read_text(encoding="utf-8", errors="replace")
+    return redact(path.read_text(encoding="utf-8", errors="replace"))

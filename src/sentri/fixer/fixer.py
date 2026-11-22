@@ -18,6 +18,7 @@ from sentri.contract.models import Contract
 from sentri.fixer.gate import GateCheck, run_gate
 from sentri.ledger.ledger import Ledger
 from sentri.llm import BudgetedProvider, PatchProposal, load_prompt
+from sentri.llm.untrusted import build_user_prompt
 from sentri.redact import redact
 
 log = logging.getLogger(__name__)
@@ -124,16 +125,12 @@ class Fixer:
             size += len(text)
         if not self.provider.available:
             raise FixerError("the Fixer needs a model (set LLM_API_KEY)")
-        request = {
-            "bug": dict(bug),
-            "failing_check": context["check"],
-            "evidence": context["evidence"],
-            "files": sources,
-        }
+        task = {"bug": dict(bug), "failing_check": context["check"], "files": sources}
+        prompt = build_user_prompt(task, {"evidence": context["evidence"]})  # logs and traces come from the app
         result = await self.provider.complete_json(
             "fixer",
             load_prompt("fixer"),
-            redact(json.dumps(request, indent=1, default=str)),
+            redact(prompt),
             PatchProposal,
             max_tokens=16000,
         )

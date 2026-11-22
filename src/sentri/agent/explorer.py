@@ -7,7 +7,6 @@ suspects something) become candidates with exact reproduction steps, confirmed l
 
 from __future__ import annotations
 
-import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -20,6 +19,7 @@ from sentri.agent.recon import AppMap
 from sentri.agent.session import AgentSession
 from sentri.agent.strategy import Hypothesis, Strategy
 from sentri.llm import BudgetedProvider, load_prompt
+from sentri.llm.untrusted import build_user_prompt
 from sentri.verdict.agent_oracles import evaluate_agent
 from sentri.verdict.oracles import OracleConfig
 from sentri.verdict.signature import normalize_path
@@ -192,24 +192,28 @@ class Explorer:
         return hyps[min((step - 1) // max(1, self.budget.steps_per_hypothesis), len(hyps) - 1)]
 
     def _request(self, step: int, focus: Hypothesis | None, seconds_left: float) -> str:
-        return json.dumps(
-            {
-                "app_kind": self.strategy.app_kind,
-                "hypotheses": [
-                    h.model_dump(include={"id", "title", "category", "targets", "first_moves"})
-                    for h in self.strategy.hypotheses
-                ],
-                "focus_hypothesis": focus.id if focus else None,
-                "steps_left": self.budget.max_steps - step + 1,
-                "seconds_left": round(seconds_left),
-                "identities": ["anon", "a", "b"] if self.app_map.has_login_flow else ["anon"],
-                "recent_steps": self.history[-10:],
-                "already_flagged": self.flagged[-12:],  # move on: these are queued for replay already
-                "observation": self._observation,
-            },
-            indent=1,
-            default=str,
-        )
+        """Sentri's task state, then everything the app produced (page, requests, step outcomes) as APP DATA."""
+        observation = dict(self._observation)
+        canary = observation.pop("canary_for_this_identity", None)
+        task = {
+            "app_kind": self.strategy.app_kind,
+            "hypotheses": [
+                h.model_dump(include={"id", "title", "category", "targets", "first_moves"})
+                for h in self.strategy.hypotheses
+            ],
+            "focus_hypothesis": focus.id if focus else None,
+            "steps_left": self.budget.max_steps - step + 1,
+            "seconds_left": round(seconds_left),
+            "identities": ["anon", "a", "b"] if self.app_map.has_login_flow else ["anon"],
+            "current_identity": observation.get("identity"),
+            "canary_for_this_identity": canary,
+        }
+        data = {
+            "observation": observation,
+            "recent_steps": self.history[-10:],
+            "already_flagged": self.flagged[-12:],  # move on: these are queued for replay already
+        }
+        return build_user_prompt(task, data)
 
     # ---- repro bookkeeping ------------------------------------------------------------------------------
     def _repro_step(self, action: Action) -> ReproStep:
