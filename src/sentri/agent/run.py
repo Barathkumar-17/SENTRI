@@ -21,7 +21,6 @@ from sentri.ledger.ledger import Ledger
 from sentri.llm import BudgetedProvider
 from sentri.runner.browser import BrowserManager
 from sentri.sandbox.base import Sandbox
-from sentri.verdict.signature import normalize_path
 
 
 @dataclass
@@ -76,7 +75,7 @@ async def run_agentic(
         await session.close()
     ledger.save_app_map(run_id, app_map.model_dump())
     out.pages, out.endpoints = len(app_map.pages), len(app_map.endpoints)
-    protected = sorted(p.path for p in app_map.pages if p.requires_login)
+    protected = sorted(app_map.protected_paths())
     bus.emit(
         "recon",
         f"recon: {out.pages} pages, {out.endpoints} endpoints, {len(protected)} login-only pages",
@@ -127,7 +126,7 @@ async def run_agentic(
     bus.emit("phase", f"exploration: up to {budget.max_steps} steps, {budget.max_seconds / 60:g} minutes")
     await sandbox.reset()
     session = AgentSession(browser, sandbox, contract.app.url, login, tmp)
-    session.protected = {normalize_path(p) for p in protected}
+    session.protected = set(protected)
 
     def record_step(step: dict[str, Any]) -> None:
         ledger.add_step(run_id, step)

@@ -9,6 +9,8 @@ destructive (logout, delete, ...) are not followed during recon.
 from __future__ import annotations
 
 import contextlib
+import json
+import re
 from collections import deque
 from typing import Any
 from urllib.parse import urlsplit
@@ -21,6 +23,37 @@ from sentri.agent.session import AgentSession
 from sentri.contract.placeholders import DataGenerator
 from sentri.runner.extract import EXTRACT_JS
 from sentri.verdict.signature import normalize_path
+
+SPEC_PATHS = (
+    "/openapi.json",
+    "/swagger.json",
+    "/v3/api-docs",
+    "/api-docs",
+    "/api/openapi.json",
+    "/api/swagger.json",
+    "/swagger/v1/swagger.json",
+)
+HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
+
+
+def _body_fields(op: dict[str, Any], schemas: dict[str, Any]) -> dict[str, str]:
+    """name -> 'type (constraints)' for a JSON request body, one level deep, $ref resolved."""
+    body = (op.get("requestBody") or {}).get("content", {}).get("application/json", {}).get("schema") or {}
+    if "$ref" in body:
+        body = schemas.get(body["$ref"].rsplit("/", 1)[-1], {})
+    out = {}
+    for name, prop in (body.get("properties") or {}).items():
+        if "$ref" in prop:
+            prop = schemas.get(prop["$ref"].rsplit("/", 1)[-1], {})
+        kind = prop.get("type") or "/".join(str(x.get("type", "?")) for x in prop.get("anyOf", [])) or "any"
+        limits = [
+            f"{k}={prop[k]}"
+            for k in ("format", "minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum", "pattern")
+            if k in prop
+        ]
+        out[name] = kind + (f" ({', '.join(limits)})" if limits else "")
+    return out
+
 
 SKIP_WORDS = ("logout", "log-out", "signout", "sign-out", "delete", "remove", "destroy", "unsubscribe")
 
@@ -45,6 +78,10 @@ class EndpointEntry(BaseModel):
     content_type: str | None = None
     state_changing: bool = False
     request_ids: list[int] = Field(default_factory=list)
+    requires_login: bool = False
+    body_fields: dict[str, str] = Field(default_factory=dict)  # from the API spec: name -> type/constraints
+    query_params: list[str] = Field(default_factory=list)
+    from_spec: bool = False
 
 
 class AppMap(BaseModel):
@@ -53,7 +90,13 @@ class AppMap(BaseModel):
     endpoints: list[EndpointEntry] = Field(default_factory=list)
     login_path: str | None = None
     has_login_flow: bool = False
+    api_spec: str | None = None  # where an OpenAPI/Swagger spec was found
     notes: list[str] = Field(default_factory=list)
+
+    def protected_paths(self) -> set[str]:
+        """Normalized paths recon proved (or the spec declares) need login: pages and endpoints."""
+        out = {normalize_path(p.path) for p in self.pages if p.requires_login}
+        return out | {e.path for e in self.endpoints if e.requires_login}
 
     def page(self, path: str) -> PageEntry | None:
         return next((p for p in self.pages if p.path == path), None)
@@ -95,13 +138,18 @@ class AppMap(BaseModel):
                 {
                     "method": e.method,
                     "path": e.path,
+                    "example": e.examples[0] if e.examples else e.path,
                     "statuses": e.statuses,
                     "as": e.seen_as,
+                    "requires_login": e.requires_login,
                     "state_changing": e.state_changing,
+                    "body_fields": e.body_fields,
+                    "query": e.query_params,
                     "observed_request_ids": e.request_ids[:3],
                 }
-                for e in self.endpoints
+                for e in self.endpoints[:80]
             ],
+            "api_spec": self.api_spec,
             "login_path": self.login_path,
             "identities": ["anon", "a", "b"] if self.has_login_flow else ["anon"],
         }
@@ -123,6 +171,7 @@ class Recon:
         self.max_pages = max_pages
         self.max_depth = max_depth
         self.map = AppMap(base_url=session.base_url, has_login_flow=session.login_fn is not None)
+        self._spec_endpoints: dict[tuple[str, str], EndpointEntry] = {}
 
     async def _visit(self, path: str) -> dict[str, Any] | None:
         page = self.s.page
@@ -222,8 +271,69 @@ class Recon:
             else:
                 entry.anon_outcome = str(data.get("status") or 200)
 
+    async def from_spec(self) -> None:
+        """Read an OpenAPI/Swagger spec if the app publishes one: every endpoint, its body and auth."""
+        spec = None
+        for path in SPEC_PATHS:
+            status, text = await self._get(path, "anon")
+            if status == 200 and text.lstrip().startswith("{"):
+                with contextlib.suppress(ValueError):
+                    data = json.loads(text)
+                    if isinstance(data, dict) and isinstance(data.get("paths"), dict):
+                        spec, self.map.api_spec = data, path
+                        break
+        if spec is None:
+            return
+        schemas = (spec.get("components") or {}).get("schemas") or spec.get("definitions") or {}
+        global_security = spec.get("security")
+        for raw_path, ops in spec["paths"].items():
+            if not isinstance(ops, dict):
+                continue
+            for method, op in ops.items():
+                if method.upper() not in HTTP_METHODS or not isinstance(op, dict):
+                    continue
+                example = re.sub(r"\{[^}]+\}", "1", raw_path)
+                security = op.get("security", global_security)
+                self._spec_endpoints[(method.upper(), normalize_path(example))] = EndpointEntry(
+                    method=method.upper(),
+                    path=normalize_path(example),
+                    examples=[example],
+                    requires_login=any(bool(s) for s in (security or [])),
+                    state_changing=method.upper() in ("POST", "PUT", "PATCH", "DELETE"),
+                    body_fields=_body_fields(op, schemas),
+                    query_params=[q.get("name", "") for q in op.get("parameters", []) if q.get("in") == "query"],
+                    from_spec=True,
+                )
+
+    async def _get(self, path: str, who: str) -> tuple[int | None, str]:
+        """Unrecorded GET as `who` (with its token, if any)."""
+        try:
+            ctx = self.s.contexts[who]
+            headers = self.s.identity_headers.get(who, {})
+            resp = await ctx.request.get(
+                self.s.base_url + path, headers=headers, max_redirects=0, timeout=self.s.timeout_ms
+            )
+            return resp.status, await resp.text()
+        except (PlaywrightError, KeyError):
+            return None, ""
+
+    async def probe_endpoints(self) -> None:
+        """Call parameter-free GET endpoints logged out and logged in: the auth boundary, by behaviour."""
+        for ep in self._spec_endpoints.values():
+            if ep.method != "GET" or ":id" in ep.path or ep.query_params and "month" in ep.query_params:
+                continue
+            anon, _ = await self._get(ep.path, "anon")
+            user, _ = await self._get(ep.path, "a") if "a" in self.s.contexts else (None, "")
+            for st in (anon, user):
+                if st is not None and st not in ep.statuses:
+                    ep.statuses.append(st)
+            if anon in (401, 403) and user is not None and 200 <= user < 300:
+                ep.requires_login = True
+            elif anon is not None and 200 <= anon < 300:
+                ep.requires_login = False  # behaviour wins over the spec
+
     def collect_endpoints(self) -> None:
-        by_key: dict[tuple[str, str], EndpointEntry] = {}
+        by_key: dict[tuple[str, str], EndpointEntry] = dict(self._spec_endpoints)
         for r in self.s.requests:
             if not self.s.same_origin(r.url) or r.resource_type not in ("fetch", "xhr", "document"):
                 continue
@@ -244,6 +354,7 @@ class Recon:
         self.map.endpoints = sorted(by_key.values(), key=lambda e: (e.path, e.method))
 
     async def run(self) -> AppMap:
+        await self.from_spec()
         await self.crawl("anon", ["/"])
         if self.map.has_login_flow:
             await self.crawl("a", ["/", *[p.path for p in self.map.pages]])
@@ -251,6 +362,7 @@ class Recon:
             await self.auth_boundary()
         else:
             await self.probe_forms("anon")
+        await self.probe_endpoints()
         self.collect_endpoints()
         if not self.map.pages:
             self.map.notes.append("no pages could be loaded")

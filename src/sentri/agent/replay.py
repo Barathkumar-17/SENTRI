@@ -49,7 +49,7 @@ class ReplayEnv:
 
     @property
     def protected(self) -> set[str]:
-        return {normalize_path(p.path) for p in self.app_map.pages if p.requires_login}
+        return self.app_map.protected_paths()
 
     def health_pages(self, repro: list[dict[str, Any]]) -> list[tuple[str, str]]:
         """A few pages that should keep working: list pages and the pages the steps touched."""
@@ -57,15 +57,18 @@ class ReplayEnv:
         for p in self.app_map.pages:
             if p.list_selectors and p.path not in paths:
                 paths.append(p.path)
+        for e in self.app_map.endpoints:  # API apps: parameter-free GET endpoints are the "list pages"
+            if e.method == "GET" and ":id" not in e.path and not e.query_params and e.path not in paths:
+                paths.append(e.path)
         for step in repro:
             path = step["action"].get("path")
             if isinstance(path, str) and path.startswith("/") and "?" not in path and path not in paths:
                 paths.append(path)
         login = self.app_map.has_login_flow
         out = []
-        for path in paths[:5]:
-            entry = self.app_map.page(path)
-            out.append(("a" if (entry is not None and entry.requires_login and login) else "anon", path))
+        protected = self.app_map.protected_paths()
+        for path in paths[:6]:
+            out.append(("a" if (normalize_path(path) in protected and login) else "anon", path))
         return out
 
 
