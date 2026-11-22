@@ -2,7 +2,7 @@
 
 Each attempt resets the app, starts fresh identities, measures health and list counts before, replays the
 steps (re-matching referenced requests by method and path, since ids differ in a fresh session), measures
-again, and runs all nine oracles. The verdict engine turns 3 attempts into fail / flaky / pass. Confirmed
+again, and runs all eleven oracles. The verdict engine turns 3 attempts into fail / flaky / pass. Confirmed
 findings enter the bug ledger like any other check, so regressions and fixes are tracked across runs.
 """
 
@@ -114,12 +114,14 @@ async def _fetch_text(session: AgentSession, who: str, path: str) -> tuple[int |
 
 
 _CANARY = re.compile(r"sentri-canary-(a|b)-[0-9a-f]{6}")
+_XSS = re.compile(r"sentri-xss-[0-9a-f]{6}")
 
 
 def _with_current_canaries(session: AgentSession, raw: dict[str, Any]) -> dict[str, Any]:
     """Canaries are random per session; swap recorded ones for this attempt's, keeping the identity."""
     text = json.dumps(raw)
     text = _CANARY.sub(lambda m: session.canaries[m.group(1)], text)
+    text = _XSS.sub(session.xss_marker[3:-1], text)  # the marker's id part, keeping whatever quoting surrounds it
     data: dict[str, Any] = json.loads(text)
     return data
 
@@ -161,6 +163,7 @@ async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int)
     session.protected = env.protected
     session.proven_protected = env.app_map.proven_protected_paths()
     session.anon_shells = tuple(env.app_map.anon_shells)
+    session.login_path = env.app_map.login_path
     notes: list[str] = []
     try:
         await session.start()
@@ -208,7 +211,9 @@ async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int)
                 for path in list_pages:
                     _st, text, ctype = await _fetch(session, probe[0], path)
                     pages_before[path] = (text, ctype)
+            session.side_probes = probe is None  # a CSRF re-send inside a counted step would add a record
             outcome = await session.execute(action)
+            session.side_probes = True
             if not outcome.ok and step.get("expect_ok", True):
                 notes.append(f"attempt {attempt} failed at step {index}/{len(repro)}: {outcome.error}")
                 completed = False

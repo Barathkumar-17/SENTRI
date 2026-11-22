@@ -15,6 +15,7 @@ import uuid
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, redirect, render_template_string, request, session, url_for
+from markupsafe import escape
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)  # random per start; nothing hard-coded
@@ -39,7 +40,8 @@ BASE = """<!doctype html><html><head><meta charset="utf-8"><title>{{ title }}</t
 <style>body{font-family:system-ui;max-width:680px;margin:32px auto;padding:0 16px}
 input,textarea,button{display:block;margin:8px 0;padding:6px}nav a{margin-right:12px}</style></head>
 <body><nav><a href="/">Home</a><a href="/signup">Sign up</a><a href="/users">Users</a><a href="/login">Log in</a>
-<a href="/tasks">Tasks</a><a href="/notes">Notes</a><a href="/comments">Comments</a><a href="/profile">Profile</a></nav>
+<a href="/tasks">Tasks</a><a href="/notes">Notes</a><a href="/comments">Comments</a><a href="/profile">Profile</a>
+<a href="/search">Search</a><a href="/settings">Settings</a></nav>
 {% for m in messages %}<p class="flash">{{ m }}</p>{% endfor %}
 {{ body|safe }}</body></html>"""
 
@@ -307,6 +309,36 @@ def api_get_note(note_id: int):
     if note is None or (fixed("NOTES_IDOR") and note["owner"] != user["id"]):
         return jsonify(error="not found"), 404
     return jsonify(note)
+
+
+# ---- search: reflects the query (agentic demo of unescaped output) ----------------------------------------
+@app.get("/search")
+def search_page():
+    q = request.args.get("q", "")
+    shown = escape(q) if fixed("SEARCH_XSS") else q  # BUG: the query is written into the page unescaped
+    hits = "".join(f"<li>{escape(c['text'])}</li>" for c in COMMENTS if q and q.lower() in c["text"].lower())
+    form = '<form method="get" action="/search"><input name="q"><button type="submit">Search</button></form>'
+    return page("Search", form + f"<p>Results for {shown}</p><ul>{hits}</ul>")
+
+
+# ---- settings: a form with a CSRF token the server never checks (agentic demo) -------------------------
+@app.route("/settings", methods=["GET", "POST"])
+def settings_page():
+    user = current_user()
+    if user is None:
+        return redirect(url_for("login"))
+    if request.method == "POST":
+        if fixed("SETTINGS_CSRF") and request.form.get("csrf_token") != session.get("csrf_token"):
+            abort(400)  # BUG (when not fixed): the token is issued but never verified
+        user["theme"] = (request.form.get("theme") or "light")[:20]
+        flash("Settings saved")
+        return redirect(url_for("settings_page"))
+    session["csrf_token"] = session.get("csrf_token") or secrets.token_hex(16)
+    form = """<h1>Settings</h1><form method="post" action="/settings">
+<input type="hidden" name="csrf_token" value="{{ token }}">
+<label>Theme <input name="theme" value="{{ theme }}"></label>
+<button type="submit" id="settings-btn">Save settings</button></form>"""
+    return page("Settings", form, token=session["csrf_token"], theme=user.get("theme", "light"))
 
 
 # ---- profile: the clean flow --------------------------------------------------------------------------

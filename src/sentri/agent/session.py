@@ -18,7 +18,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit
 
 from playwright.async_api import BrowserContext, Page
 from playwright.async_api import Error as PlaywrightError
@@ -46,7 +46,14 @@ from sentri.agent.actions import (
     resolve_same_origin,
 )
 from sentri.attacks.types import NO_THROTTLE, SLOW_3G, BadFile
-from sentri.evidence.agent_models import AgentEvidence, CountProbe, HealthProbe, IdorProbe, ResponseRecord
+from sentri.evidence.agent_models import (
+    AgentEvidence,
+    CountProbe,
+    CsrfProbe,
+    HealthProbe,
+    IdorProbe,
+    ResponseRecord,
+)
 from sentri.evidence.models import ConsoleRecord, Evidence, HttpRecord
 from sentri.redact import redact
 from sentri.runner.browser import BrowserManager
@@ -77,6 +84,7 @@ class ObservedRequest:
     failure: str | None = None
     via: str = "browser"  # browser | request | replay
     location: str | None = None  # Location header of a redirect or 201 response
+    csrf_header: str | None = None  # name of a CSRF header the page sent (x-csrf-token, ...)
     raw: bytes | None = field(default=None, repr=False)  # exact request body, in memory only (replays send this)
 
     def summary(self) -> dict[str, Any]:
@@ -117,6 +125,7 @@ class Mark:
     console: int
     log_cursor: int
     idor: int = 0
+    csrf: int = 0
 
 
 class AgentSession:
@@ -151,6 +160,9 @@ class AgentSession:
         # in another identity's responses is plain-code proof of cross-user exposure.
         run_salt = secrets.token_hex(3)
         self.canaries = {who: f"sentri-canary-{who}-{run_salt}" for who in ("a", "b")}
+        # Inert script-ish marker: a quote then a made-up tag. Echoed raw in HTML = input written unescaped.
+        self.xss_marker = f'"><sentri-xss-{run_salt}>'
+        self.login_path: str | None = None
         # Recon tells the session which paths need login. A canary is private only if its owner submitted it
         # from or to protected paths and never anywhere public.
         self.protected: set[str] = set()
@@ -166,6 +178,9 @@ class AgentSession:
         self.idor_probes: list[IdorProbe] = []
         self._probed_urls: set[str] = set()
         self.auto_canary = True
+        self.csrf_probes: list[CsrfProbe] = []
+        self._csrf_routes: set[str] = set()
+        self.side_probes = True  # off while replay counts records (a CSRF re-send would add one)
 
     # ---- lifecycle ----------------------------------------------------------------------------------
     async def start(self) -> None:
@@ -226,6 +241,7 @@ class AgentSession:
                 body=redact(body) if body else None,
                 started_ms=self._now(),
                 raw=bytes(buf) if buf else None,
+                csrf_header=next((h for h in (req.headers or {}) if CSRF_NAME.search(h)), None),
             )
             self.requests.append(rec)
             self._pending[req] = rec
@@ -291,7 +307,11 @@ class AgentSession:
             if not self.same_origin(r.url) or r.status is None:
                 continue
             path = "/" + r.url.split("://", 1)[-1].split("/", 1)[-1] if "/" in r.url.split("://", 1)[-1] else "/"
-            out.append(ResponseRecord(r.identity, r.method, path.split("?")[0], r.status, r.response_text or ""))
+            out.append(
+                ResponseRecord(
+                    r.identity, r.method, path.split("?")[0], r.status, r.response_text or "", None, r.response_type
+                )
+            )
         return tuple(out)
 
     def agent_evidence_since(
@@ -309,6 +329,9 @@ class AgentSession:
             count_probes=count_probes,
             health_probes=health_probes,
             idor_probes=tuple(self.idor_probes[mark.idor :]),
+            csrf_probes=tuple(self.csrf_probes[mark.csrf :]),
+            xss_markers=(self.xss_marker,),
+            login_path=self.login_path,
         )
 
     async def _read_body(self, resp: Any, rec: ObservedRequest) -> None:
@@ -334,7 +357,13 @@ class AgentSession:
             await asyncio.wait(list(self._bodies), timeout=3)
 
     def mark(self) -> Mark:
-        return Mark(len(self.requests), len(self.console), self.sandbox.log_cursor(), len(self.idor_probes))
+        return Mark(
+            len(self.requests),
+            len(self.console),
+            self.sandbox.log_cursor(),
+            len(self.idor_probes),
+            len(self.csrf_probes),
+        )
 
     def evidence_since(self, mark: Mark) -> Evidence:
         """Step evidence in the format the existing oracles read."""
@@ -454,11 +483,54 @@ class AgentSession:
         """Find records the requests since `before` created, then fetch each one directly as the other user."""
         if self._bodies:
             await asyncio.wait(list(self._bodies), timeout=3)
-        for rec in self.requests[before:]:
+        for rec in list(self.requests[before:]):
             found = created_record(rec, self.canaries.get(rec.identity), self.base_url)
             if found is not None and all(c.urls != found.urls for c in self.created):
                 self.created.append(found)
                 await self._idor_probe(found)
+            if self.side_probes and rec.via == "browser":
+                await self._csrf_probe(rec)
+
+    async def _csrf_probe(self, rec: ObservedRequest) -> None:
+        """Once per route: re-send a successful state-changing form request without its CSRF token."""
+        if rec.method not in ("POST", "PUT", "PATCH", "DELETE") or rec.status is None or rec.status >= 400:
+            return
+        if not self.same_origin(rec.url):
+            return
+        stripped = strip_csrf(rec.raw, rec.content_type)
+        token = stripped[1] if stripped else rec.csrf_header
+        if token is None:
+            return
+        route = f"{rec.method} {normalize_path(rec.url)}"
+        if route in self._csrf_routes:
+            return
+        self._csrf_routes.add(route)
+        body = stripped[0] if stripped else rec.raw
+        headers = {**self.identity_headers.get(rec.identity, {})}
+        if rec.content_type:
+            headers["content-type"] = rec.content_type
+        try:
+            ctx = await self._context(rec.identity)
+            resp = await ctx.request.fetch(
+                rec.url, method=rec.method, data=body, headers=headers, max_redirects=0, timeout=self.timeout_ms
+            )
+            status, location, text = resp.status, resp.headers.get("location"), (await resp.text())[:5000]
+        except (PlaywrightError, ActionRefused):
+            return
+        self.csrf_probes.append(
+            CsrfProbe(
+                rec.identity,
+                rec.method,
+                _path_only(rec.url, self.base_url) or "/",
+                token,
+                rec.status,
+                rec.location,
+                redact((rec.response_text or "")[:5000]),
+                status,
+                location,
+                redact(text),
+            )
+        )
 
     async def _probe_get(self, who: str, path: str) -> tuple[int | None, str]:
         try:
@@ -638,6 +710,7 @@ class AgentSession:
             "console_errors": [c.text[:200] for c in self.console[-5:]],
             "blocked_offsite": [f"{b['how']} {b['method']} {b['url'][:120]}" for b in self._blocked()],
             "canary_for_this_identity": self.canaries.get(self.current),
+            "xss_marker": self.xss_marker,
             "created_records": [
                 f"{c.identity}: {c.method} {c.endpoint} -> id {c.record_id}" for c in self.created[-5:]
             ],
@@ -733,3 +806,41 @@ def created_record(rec: ObservedRequest, canary: str | None, base_url: str) -> C
         if candidate not in urls:
             urls.append(candidate)
     return CreatedRecord(rec.identity, rec.method, normalize_path(path), record_id, urls)
+
+
+CSRF_NAME = re.compile(r"csrf|xsrf|authenticity_token|requestverificationtoken|^_token$", re.I)
+
+
+def strip_csrf(raw: bytes | None, content_type: str | None) -> tuple[bytes, str] | None:
+    """The request body without its CSRF field (urlencoded, JSON or multipart), and the field's name."""
+    if not raw:
+        return None
+    ctype = (content_type or "").lower()
+    if "multipart/form-data" in ctype and "boundary=" in ctype:
+        raw_boundary = (content_type or "").split("boundary=", 1)[1].split(";")[0].strip().strip('"')
+        boundary = ("--" + raw_boundary).encode()
+        parts = raw.split(boundary)
+        for i, part in enumerate(parts):
+            head = part.split(b"\r\n\r\n", 1)[0].decode("latin-1")
+            m = re.search(r'name="([^"]+)"', head)
+            if m and CSRF_NAME.search(m.group(1)):
+                return boundary.join(parts[:i] + parts[i + 1 :]), m.group(1)
+        return None
+    text = raw.decode("utf-8", errors="replace")
+    if "json" in ctype:
+        try:
+            data = json.loads(text)
+        except ValueError:
+            return None
+        if isinstance(data, dict):
+            name = next((k for k in data if CSRF_NAME.search(k)), None)
+            if name is not None:
+                data.pop(name)
+                return json.dumps(data).encode(), name
+        return None
+    if "x-www-form-urlencoded" in ctype or (ctype == "" and "=" in text):
+        pairs = parse_qsl(text, keep_blank_values=True)
+        name = next((k for k, _v in pairs if CSRF_NAME.search(k)), None)
+        if name is not None:
+            return urlencode([(k, v) for k, v in pairs if k != name]).encode(), name
+    return None

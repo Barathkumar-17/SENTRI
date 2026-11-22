@@ -13,6 +13,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
+from urllib.parse import parse_qsl, urlencode
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -211,6 +212,7 @@ class Explorer:
         self._same: list[tuple[str, bool]] = []
         self._focus_note = ""
         self.stalls = 0
+        self._code_steps: list[Decision] = []
 
     # ---- prompt ---------------------------------------------------------------------------------------
     def _request(self, step: int, focus: Hypothesis | None, seconds_left: float) -> str:
@@ -229,6 +231,7 @@ class Explorer:
             "identities": ["anon", "a", "b"] if self.app_map.has_login_flow else ["anon"],
             "current_identity": observation.get("identity"),
             "canary_for_this_identity": canary,
+            "xss_marker": observation.pop("xss_marker", None),
         }
         if self._focus_note:
             task["note"] = self._focus_note + "; try something different"
@@ -268,6 +271,44 @@ class Explorer:
             return False
         self._suspect_reasons.add(reason)
         return True
+
+    # ---- code-owned probes ------------------------------------------------------------------------------
+    def _reflection_probes(self, limit: int = 4) -> list[Decision]:
+        """Steps code runs first, whatever the model does: every GET form and every page seen with a query
+        string, loaded with Sentri's inert XSS marker in each text parameter (xss_reflection judges it)."""
+        marker = getattr(self.s, "xss_marker", None)
+        if not marker:
+            return []
+        urls: list[str] = []
+        for page in self.app_map.pages:
+            base, _, query = page.path.partition("?")
+            if query:
+                params = [(k, marker) for k, _v in parse_qsl(query, keep_blank_values=True)]
+                if params:
+                    urls.append(f"{base}?{urlencode(params)}")
+            for form in page.forms:
+                if (form.get("method") or "get").lower() != "get":
+                    continue
+                names = [
+                    f.get("name")
+                    for f in form.get("fields", [])
+                    if f.get("name")
+                    and (f.get("type") or "text").lower() in ("text", "search", "")
+                    or f.get("tag") == "textarea"
+                ]
+                action = form.get("action") or base
+                if names and not action.startswith(("http:", "https:", "//")):
+                    urls.append(f"{action.split('?')[0] or base}?{urlencode([(n, marker) for n in names if n])}")
+        out = []
+        for url in dict.fromkeys(urls):
+            out.append(
+                Decision(
+                    thought="code probe: does this page write input back without escaping? (xss_reflection)",
+                    hypothesis_id="reflected_input",
+                    action=ActionSpec(kind="navigate", path=url),
+                )
+            )
+        return out[:limit]
 
     # ---- deterministic fallback -------------------------------------------------------------------------
     def _fallback(self, observation: dict[str, Any], focus: Hypothesis | None, error: str) -> Decision:
@@ -355,6 +396,7 @@ class Explorer:
         prefix: list[ReproStep] = [ReproStep(SwitchUser(user=self.s.current).model_dump())]  # type: ignore[arg-type]
         path_start, parent, failures = 1, None, 0
         current_hyp = ""
+        self._code_steps = self._reflection_probes()
         self._observation = await self.s.observe()
         for step in range(1, self.budget.max_steps + 1):
             seconds_left = self.budget.max_seconds - (time.monotonic() - started)
@@ -365,9 +407,13 @@ class Explorer:
                 result.stopped = "model unavailable or budget used"
                 break
             focus = self._current_focus()
-            decision, error = await self._decide(step, focus, seconds_left)
+            decision: Decision | None
+            if self._code_steps:
+                decision, error, by_code = self._code_steps.pop(0), "", True
+            else:
+                decision, error = await self._decide(step, focus, seconds_left)
+                by_code = decision is None
             self._focus_note = ""
-            by_code = decision is None
             if decision is None:
                 failures += 1
                 self.emit("llm_fallback", f"explorer step {step}: model gave no usable action ({error})", error=error)

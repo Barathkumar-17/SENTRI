@@ -133,6 +133,7 @@ async def run_agentic(
     session.protected = set(protected)
     session.proven_protected = app_map.proven_protected_paths()
     session.anon_shells = tuple(app_map.anon_shells)
+    session.login_path = app_map.login_path
 
     def record_step(step: dict[str, Any]) -> None:
         ledger.add_step(run_id, step)

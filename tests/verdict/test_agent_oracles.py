@@ -70,4 +70,4 @@ def test_evaluate_agent_feeds_the_same_verdict_engine():
     attempts = [ao.evaluate_agent(leak, CFG) for _ in range(3)]
     verdict = decide("agentic", "h1", attempts)
     assert verdict.verdict == "fail" and [h.oracle_id for h in verdict.hits] == ["auth_bypass"]
-    assert len(attempts[0]) == 9  # five universal oracles + four agentic ones
+    assert len(attempts[0]) == 11  # five universal oracles + six agentic ones

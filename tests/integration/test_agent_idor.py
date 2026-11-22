@@ -92,3 +92,33 @@ async def test_an_owner_check_makes_the_probe_pass(tmp_path: Path):
         _typed, ev = await _create_note_as_a(session)
         (probe,) = ev.idor_probes
         assert probe.other_status == 404 and not cross_user_exposure(ev, CFG).fired
+
+
+async def test_reflected_input_is_flagged_and_escaping_clears_it(tmp_path: Path):
+    from sentri.verdict.agent_oracles import xss_reflection
+
+    for fix, expected in (("0", True), ("1", False)):
+        async with demo_session(tmp_path, FIX_SEARCH_XSS=fix) as session:
+            mark = session.mark()
+            marker = session.xss_marker
+            await session.execute(act(kind="navigate", path="/search?q=" + marker.replace('"', "%22")))
+            hit = xss_reflection(session.agent_evidence_since(mark), CFG)
+            assert hit.fired is expected, (fix, hit)
+            if expected:
+                assert hit.route == "GET /search"
+
+
+async def test_a_form_accepted_without_its_csrf_token_is_flagged(tmp_path: Path):
+    from sentri.verdict.agent_oracles import csrf_missing
+
+    for fix, expected in (("0", True), ("1", False)):
+        async with demo_session(tmp_path, FIX_SETTINGS_CSRF=fix) as session:
+            await session.execute(act(kind="switch_user", user="a"))
+            await session.execute(act(kind="navigate", path="/settings"))
+            mark = session.mark()
+            await session.execute(act(kind="type", selector="input[name=theme]", text="dark"))
+            await session.execute(act(kind="click", selector="#settings-btn"))
+            ev = session.agent_evidence_since(mark)
+            (probe,) = ev.csrf_probes
+            assert probe.token == "csrf_token" and probe.path == "/settings"
+            assert csrf_missing(ev, CFG).fired is expected, (fix, probe)

@@ -15,6 +15,7 @@ class ResponseRecord:
     status: int | None
     text: str = ""  # same-origin response body (redacted, truncated)
     redirected_to: str | None = None
+    content_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,22 @@ class IdorProbe:
 
 
 @dataclass(frozen=True)
+class CsrfProbe:
+    """A state-changing browser request that carried a CSRF token, re-sent once by code without the token."""
+
+    identity: str
+    method: str
+    path: str
+    token: str  # the field or header that was removed
+    with_status: int | None
+    with_location: str | None
+    with_text: str
+    without_status: int | None
+    without_location: str | None
+    without_text: str
+
+
+@dataclass(frozen=True)
 class AgentEvidence:
     base: Evidence
     responses: tuple[ResponseRecord, ...] = ()
@@ -67,3 +84,6 @@ class AgentEvidence:
     count_probes: tuple[CountProbe, ...] = ()
     health_probes: tuple[HealthProbe, ...] = ()
     idor_probes: tuple[IdorProbe, ...] = ()
+    csrf_probes: tuple[CsrfProbe, ...] = ()
+    xss_markers: tuple[str, ...] = ()  # Sentri's unique script-ish markers for this session
+    login_path: str | None = None

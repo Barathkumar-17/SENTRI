@@ -15,7 +15,14 @@ from sentri.verdict.oracles import ORACLES as BASE_ORACLES
 from sentri.verdict.oracles import OracleConfig, OracleResult
 from sentri.verdict.signature import normalize_error, normalize_path, normalize_route
 
-AGENT_ORACLE_IDS = ("auth_bypass", "cross_user_exposure", "replay_duplicate", "state_corruption")
+AGENT_ORACLE_IDS = (
+    "auth_bypass",
+    "cross_user_exposure",
+    "xss_reflection",
+    "csrf_missing",
+    "replay_duplicate",
+    "state_corruption",
+)
 _LOGIN_FORM = ('type="password"', "type='password'", "type=password")
 
 
@@ -140,14 +147,65 @@ def state_corruption(ev: AgentEvidence, cfg: OracleConfig) -> OracleResult:
     return OracleResult("state_corruption", False)
 
 
+def xss_reflection(ev: AgentEvidence, cfg: OracleConfig) -> OracleResult:
+    """Sentri's marker (a quote, then a made-up tag) came back unescaped in an HTML response: the app writes input
+    into its pages without encoding it. Detection only: the marker is inert, nothing is executed."""
+    for r in ev.responses:
+        if "html" not in (r.content_type or "").lower():
+            continue
+        for marker in ev.xss_markers:
+            if marker and marker in r.text:
+                route = normalize_route(r.method, r.path)
+                return OracleResult(
+                    "xss_reflection", True, f"{route} reflected {marker} without escaping", route, "unescaped_input"
+                )
+    return OracleResult("xss_reflection", False)
+
+
+def _accepted(status: int | None, location: str | None, login_path: str | None) -> bool:
+    if status is None or status >= 400:
+        return False
+    if 300 <= status < 400:
+        return not (login_path and location and login_path in location)  # bounced to login = refused
+    return True
+
+
+def csrf_missing(ev: AgentEvidence, cfg: OracleConfig) -> OracleResult:
+    """A state-changing request accepted without the CSRF token the app's own form sent: same success as with
+    it (same redirect target, or a 2xx page that is essentially the same page), never a 4xx or a login bounce."""
+    for p in ev.csrf_probes:
+        if not (
+            _accepted(p.with_status, p.with_location, ev.login_path)
+            and _accepted(p.without_status, p.without_location, ev.login_path)
+        ):
+            continue
+        if 300 <= (p.with_status or 0) < 400 or 300 <= (p.without_status or 0) < 400:
+            same = (p.with_location or "").split("?")[0] == (p.without_location or "").split("?")[0]
+        else:
+            a, b = _words(p.with_text), _words(p.without_text)
+            same = not (a or b) or (bool(a | b) and len(a & b) / len(a | b) >= 0.9)
+        if same:
+            route = normalize_route(p.method, p.path)
+            return OracleResult(
+                "csrf_missing",
+                True,
+                f"{route} accepted a request without its CSRF token '{p.token}' ({p.without_status})",
+                route,
+                "no_csrf_check",
+            )
+    return OracleResult("csrf_missing", False)
+
+
 AGENT_ORACLES: tuple[Callable[[AgentEvidence, OracleConfig], OracleResult], ...] = (
     auth_bypass,
     cross_user_exposure,
+    xss_reflection,
+    csrf_missing,
     replay_duplicate,
     state_corruption,
 )
 
 
 def evaluate_agent(ev: AgentEvidence, cfg: OracleConfig) -> list[OracleResult]:
-    """The five universal oracles on the base evidence, plus the four agentic ones."""
+    """The five universal oracles on the base evidence, plus the six agentic ones."""
     return [oracle(ev.base, cfg) for oracle in BASE_ORACLES] + [oracle(ev, cfg) for oracle in AGENT_ORACLES]
