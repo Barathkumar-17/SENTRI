@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 from sentri.evidence.models import Evidence, HttpRecord
 from sentri.verdict.signature import normalize_error, normalize_path, normalize_route
@@ -22,6 +23,8 @@ EXCEPTION_PATTERNS = (
 )
 _FRAME = re.compile(r"^\s*(File \"|at |\^|~)")
 _RESOURCE_4XX = re.compile(r"Failed to load resource: .*status of 4\d\d")
+_RESOURCE_ERROR = re.compile(r"blocked by CORS policy|Failed to load resource|net::ERR_|Failed to fetch", re.I)
+_URL = re.compile(r"https?://[^\s'\"<>()]+")
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,7 @@ class OracleConfig:
     ignore_console: tuple[str, ...] = ()
     extra_log_patterns: tuple[str, ...] = ()
     expected_creates: int | None = None
+    app_origin: str | None = None  # e.g. "http://127.0.0.1:8765"; lets oracles ignore third-party noise
 
 
 @dataclass(frozen=True)
@@ -80,6 +84,27 @@ def exception(ev: Evidence, cfg: OracleConfig) -> OracleResult:
     return _not_fired("exception")
 
 
+def _origin(url: str) -> str:
+    parts = urlsplit(url)
+    host = (parts.hostname or "").lower()
+    if host in ("localhost", "::1"):
+        host = "127.0.0.1"
+    return f"{parts.scheme}://{host}:{parts.port or (443 if parts.scheme == 'https' else 80)}"
+
+
+def _third_party_resource_error(text: str, app_origin: str | None) -> bool:
+    """A resource or CORS failure that only involves other origins (a CDN, a font host): not the app's bug,
+    the same way http_500 ignores third-party servers."""
+    if app_origin is None or not _RESOURCE_ERROR.search(text):
+        return False
+    urls = _URL.findall(text)
+    if not urls:
+        return False
+    mine = _origin(app_origin)
+    resources = [u for u in urls if not text.split(u, 1)[0].rstrip(" '\"").endswith("from origin")]
+    return bool(resources) and all(_origin(u) != mine for u in resources)
+
+
 def console_error(ev: Evidence, cfg: OracleConfig) -> OracleResult:
     ignore = [re.compile(p) for p in cfg.ignore_console]
     for rec in ev.console:
@@ -87,6 +112,8 @@ def console_error(ev: Evidence, cfg: OracleConfig) -> OracleResult:
         if any(p.search(haystack) for p in ignore):
             continue
         if rec.kind == "console_error" and _RESOURCE_4XX.search(rec.text):
+            continue
+        if rec.kind == "console_error" and _third_party_resource_error(rec.text, cfg.app_origin):
             continue
         first = rec.text.splitlines()[0] if rec.text else ""
         key = normalize_error(first)

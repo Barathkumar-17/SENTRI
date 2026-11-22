@@ -14,6 +14,7 @@ from sentri.llm import BudgetedProvider, LLMResult
 @dataclass
 class FakeSession:
     current: str = "anon"
+    base_url: str = "http://127.0.0.1"
     requests: list = field(default_factory=list)
     executed: list = field(default_factory=list)
     leak_on: int = 2  # the step whose evidence shows a logged-out view of a login-only page

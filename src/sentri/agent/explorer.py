@@ -179,7 +179,7 @@ class Explorer:
         self.record_step = record_step
         self.emit = emit or (lambda *a, **k: None)
         self.history: list[dict[str, Any]] = []
-        self.cfg = OracleConfig(flow_id="agentic", attack_id="explore")
+        self.cfg = OracleConfig(flow_id="agentic", attack_id="explore", app_origin=session.base_url)
         self.flagged: list[str] = []
         self._signal_keys: set[str] = set()
         self._suspect_reasons: set[str] = set()

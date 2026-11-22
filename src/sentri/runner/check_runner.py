@@ -307,6 +307,7 @@ class CheckRunner:
             ignore_console=tuple(self.contract.app.ignore_console),
             extra_log_patterns=tuple(self.contract.app.log_patterns_extra),
             expected_creates=flow.expected_creates,
+            app_origin=self.contract.app.url,
         )
         started = time.monotonic()
         outcome = CheckOutcome(verdict=None)

@@ -178,7 +178,7 @@ def primary_key(results: list[list[OracleResult]]) -> str:
 async def confirm(
     env: ReplayEnv, repro: list[dict[str, Any]], key: str | None = None
 ) -> tuple[CheckVerdict, str, list[str]]:
-    cfg = OracleConfig(flow_id="agentic", attack_id="explore")
+    cfg = OracleConfig(flow_id="agentic", attack_id="explore", app_origin=env.contract.app.url)
     results: list[list[OracleResult]] = []
     notes: list[str] = []
     for attempt in range(1, env.attempts + 1):

@@ -113,3 +113,27 @@ def test_duplicates_needs_a_create_hint():
     two = (http(started=0), http(started=80))
     r = oracles.duplicates(Evidence(http=two), cfg("double_submit"))
     assert not r.fired and "not checked" in r.detail
+
+
+def test_console_ignores_third_party_resource_failures_only():
+    app = OracleConfig(flow_id="f", attack_id="a", app_origin="http://127.0.0.1:8765")
+    cdn = ConsoleRecord(
+        "console_error",
+        "Access to script at 'https://www.gstatic.com/flutter-canvaskit/x/canvaskit.js'"
+        " from origin 'http://127.0.0.1:8765' has been blocked by CORS policy",
+    )
+    font = ConsoleRecord(
+        "console_error",
+        "Access to fetch at 'https://fonts.gstatic.com/s/roboto.woff2' from origin "
+        "'http://localhost:8765' has been blocked by CORS policy",
+    )
+    own = ConsoleRecord(
+        "console_error",
+        "Access to fetch at 'http://127.0.0.1:8765/api/x' from origin "
+        "'http://127.0.0.1:8765' has been blocked by CORS policy",
+    )
+    script = ConsoleRecord("page_error", "TypeError: cannot read properties of undefined")
+    assert not oracles.console_error(Evidence(console=(cdn, font)), app).fired
+    assert oracles.console_error(Evidence(console=(own,)), app).fired  # the app's own resource still counts
+    assert oracles.console_error(Evidence(console=(script,)), app).fired  # script errors always count
+    assert oracles.console_error(Evidence(console=(cdn,)), cfg()).fired  # without an origin nothing is filtered
