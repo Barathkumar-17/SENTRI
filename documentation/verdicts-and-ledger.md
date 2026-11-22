@@ -21,7 +21,8 @@ page text, counts and timing. Same evidence, same answer.
 
 "Login-only" and "private" come from recon and code, never from the model: a path needs login when a logged-out
 request was redirected or refused while a signed-in one succeeded; a value is private when its owner entered it
-only on login-only pages; a record is private when a logged-out visitor cannot open it.
+only on login-only pages, and is not shown to logged-out visitors on that same page (so posts a blog publishes
+on its front page are not flagged); a record is private when a logged-out visitor cannot open it.
 
 ## Fail, flaky, pass
 
