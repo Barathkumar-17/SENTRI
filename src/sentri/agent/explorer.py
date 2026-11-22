@@ -7,6 +7,8 @@ suspects something) become candidates with exact reproduction steps, confirmed l
 
 from __future__ import annotations
 
+import hashlib
+import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -14,8 +16,19 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from sentri.agent.actions import ACTION_ADAPTER, Action, Finish, Replay, SendRequest, SwitchUser, describe
-from sentri.agent.recon import AppMap
+from sentri.agent.actions import (
+    ACTION_ADAPTER,
+    Action,
+    Burst,
+    Click,
+    Finish,
+    Navigate,
+    Replay,
+    SendRequest,
+    SwitchUser,
+    describe,
+)
+from sentri.agent.recon import SKIP_WORDS, AppMap
 from sentri.agent.session import AgentSession
 from sentri.agent.strategy import Hypothesis, Strategy
 from sentri.llm import BudgetedProvider, load_prompt
@@ -150,7 +163,8 @@ class ExploreBudget:
     max_steps: int = 60
     max_seconds: float = 600
     max_candidates: int = 8
-    steps_per_hypothesis: int = 10
+    steps_per_hypothesis: int = 10  # base allotment per focus hypothesis
+    max_steps_per_hypothesis: int = 20  # ceiling while it keeps making progress (mid-flow)
 
 
 @dataclass
@@ -158,6 +172,9 @@ class ExploreResult:
     steps: int = 0
     candidates: list[Candidate] = field(default_factory=list)
     stopped: str = ""
+    fallbacks: int = 0  # steps chosen by code because the model gave no usable answer
+    invalid: int = 0  # steps lost to invalid actions
+    stalls: int = 0  # times the same action repeated with no change forced a focus rotation
 
 
 class Explorer:
@@ -184,14 +201,18 @@ class Explorer:
         self.flagged: list[str] = []
         self._signal_keys: set[str] = set()
         self._suspect_reasons: set[str] = set()
+        self._observation: dict[str, Any] = {}
+        self._visited: set[str] = set()
+        self._clicked: set[str] = set()
+        self._focus_i = 0
+        self._focus_steps = 0
+        self._focus_seen: set[str] = set()
+        self._recent_progress: list[bool] = []
+        self._same: list[tuple[str, bool]] = []
+        self._focus_note = ""
+        self.stalls = 0
 
     # ---- prompt ---------------------------------------------------------------------------------------
-    def _focus(self, step: int) -> Hypothesis | None:
-        hyps = self.strategy.hypotheses
-        if not hyps:
-            return None
-        return hyps[min((step - 1) // max(1, self.budget.steps_per_hypothesis), len(hyps) - 1)]
-
     def _request(self, step: int, focus: Hypothesis | None, seconds_left: float) -> str:
         """Sentri's task state, then everything the app produced (page, requests, step outcomes) as APP DATA."""
         observation = dict(self._observation)
@@ -209,6 +230,8 @@ class Explorer:
             "current_identity": observation.get("identity"),
             "canary_for_this_identity": canary,
         }
+        if self._focus_note:
+            task["note"] = self._focus_note + "; try something different"
         data = {
             "observation": observation,
             "recent_steps": self.history[-10:],
@@ -246,16 +269,93 @@ class Explorer:
         self._suspect_reasons.add(reason)
         return True
 
+    # ---- deterministic fallback -------------------------------------------------------------------------
+    def _fallback(self, observation: dict[str, Any], focus: Hypothesis | None, error: str) -> Decision:
+        """When the model gives no usable answer even after a retry: the next unexplored element, chosen by code
+        (an unvisited link, then a button not clicked yet, then the start page). Destructive-looking targets are
+        skipped, as in recon."""
+        reason = f"fallback (model reply unusable: {error[:120]})"
+        hyp = focus.id if focus else ""
+        for link in observation.get("links") or []:
+            path = str(link).split("#")[0]
+            if path and path not in self._visited and not any(w in path.lower() for w in SKIP_WORDS):
+                return Decision(thought=reason, hypothesis_id=hyp, action=ActionSpec(kind="navigate", path=path))
+        buttons = [*(observation.get("buttons") or [])]
+        for form in observation.get("forms") or []:
+            buttons += form.get("buttons") or []
+        for b in buttons:
+            sel = b.get("selector") if isinstance(b, dict) else None
+            text = f"{sel} {b.get('text', '')}".lower() if sel else ""
+            if sel and sel not in self._clicked and not any(w in text for w in SKIP_WORDS):
+                return Decision(thought=reason, hypothesis_id=hyp, action=ActionSpec(kind="click", selector=sel))
+        return Decision(thought=reason, hypothesis_id=hyp, action=ActionSpec(kind="navigate", path="/"))
+
+    async def _decide(self, step: int, focus: Hypothesis | None, seconds_left: float) -> tuple[Decision | None, str]:
+        """Ask the model; on an unusable reply, ask once more with the problem shown, then give up for this step."""
+        prompt = self._request(step, focus, seconds_left)
+        error = ""
+        for attempt in range(2):
+            if not self.provider.available:
+                return None, error or "model unavailable or budget used"
+            answer = await self.provider.complete_json("explorer", load_prompt("explorer"), prompt, Decision, 2000)
+            if answer.ok and answer.value is not None:
+                return answer.value, ""
+            error = answer.error or "no usable reply"
+            if attempt == 0:
+                prompt += (
+                    f"\n\nSENTRI: your previous reply could not be used ({error}). Reply again with exactly one "
+                    "JSON object matching the schema, and nothing else."
+                )
+        return None, error
+
+    # ---- focus rotation ---------------------------------------------------------------------------------
+    def _current_focus(self) -> Hypothesis | None:
+        hyps = self.strategy.hypotheses
+        return hyps[self._focus_i % len(hyps)] if hyps else None
+
+    def _rotate(self, why: str) -> None:
+        hyps = self.strategy.hypotheses
+        old = self._current_focus()
+        self._focus_i += 1
+        self._focus_steps, self._focus_seen, self._recent_progress = 0, set(), []
+        new = self._current_focus()
+        if hyps and old is not None and new is not None:
+            self._focus_note = f"focus moved from {old.id} to {new.id}: {why}"
+            self.emit("focus", self._focus_note, hypothesis_id=new.id)
+
+    def _after_step(self, signature: str, fp_before: str, fp_after: str, signals: list[dict[str, Any]]) -> None:
+        """Rotate by progress, not by a flat step count. Progress: a page state not seen under this focus, or a
+        signal. A hypothesis gets `steps_per_hypothesis` steps, more while it keeps progressing (mid-flow), up to
+        `max_steps_per_hypothesis`. The same action on the same target three times with no change is a stall."""
+        self._focus_steps += 1
+        progressed = bool(signals) or fp_after not in self._focus_seen
+        self._focus_seen.add(fp_after)
+        self._recent_progress = [*self._recent_progress[-2:], progressed]
+        self._same = [*self._same[-2:], (signature, fp_before == fp_after and not signals)]
+        if len(self._same) == 3 and len({sig for sig, _ in self._same}) == 1 and all(still for _, still in self._same):
+            self._same = []
+            self.stalls += 1
+            self._rotate(f"stalled: the same {signature.split(' ', 1)[0]} action three times with no change")
+            return
+        if self._focus_steps >= self.budget.max_steps_per_hypothesis:
+            self._rotate(f"{self._focus_steps}-step ceiling reached")
+        elif self._focus_steps >= self.budget.steps_per_hypothesis and not any(self._recent_progress):
+            self._rotate("no progress in the last 3 steps")
+
     # ---- loop -------------------------------------------------------------------------------------------
     async def run(self) -> ExploreResult:
         """The app is never reset during exploration, so any step can depend on everything before it. A candidate's
         repro is therefore the whole session prefix that led to it, replayed from a clean state. `path_start` and
-        `parent` only shape the attack tree (lines of attack), never what gets replayed."""
+        `parent` only shape the attack tree (lines of attack), never what gets replayed.
+
+        Failures: an unusable model reply (after one retry), an invalid action or a refused action each count
+        toward the limit of 3 in a row and use up a visible step; a usable reply that runs resets the count."""
         result = ExploreResult()
         started = time.monotonic()
         prefix: list[ReproStep] = [ReproStep(SwitchUser(user=self.s.current).model_dump())]  # type: ignore[arg-type]
         path_start, parent, failures = 1, None, 0
         current_hyp = ""
+        self._observation = await self.s.observe()
         for step in range(1, self.budget.max_steps + 1):
             seconds_left = self.budget.max_seconds - (time.monotonic() - started)
             if seconds_left <= 0:
@@ -264,30 +364,45 @@ class Explorer:
             if not self.provider.available:
                 result.stopped = "model unavailable or budget used"
                 break
-            focus = self._focus(step)
-            self._observation = await self.s.observe()
-            answer = await self.provider.complete_json(
-                "explorer", load_prompt("explorer"), self._request(step, focus, seconds_left), Decision, 2000
-            )
-            if not answer.ok or answer.value is None:
+            focus = self._current_focus()
+            decision, error = await self._decide(step, focus, seconds_left)
+            self._focus_note = ""
+            by_code = decision is None
+            if decision is None:
                 failures += 1
-                self.emit("llm_fallback", f"explorer step {step}: model gave no usable action", error=answer.error)
+                self.emit("llm_fallback", f"explorer step {step}: model gave no usable action ({error})", error=error)
                 if failures >= 3:
-                    result.stopped = f"model failed 3 times: {answer.error}"
+                    result.stopped = f"model failed 3 times in a row: {error}"
                     break
-                continue
-            failures = 0
-            decision = answer.value
+                decision = self._fallback(self._observation, focus, error)
+                result.fallbacks += 1
             try:
                 action = to_action(decision.action)
             except ValidationError as exc:
-                self.history.append(
+                failures += 1
+                problem = f"invalid action: {exc.error_count()} problems ({exc.errors()[0]['msg'][:120]})"
+                bad = decision.action.model_dump(exclude_none=True)
+                self.record_step(
                     {
                         "step": step,
-                        "invalid_action": decision.action.model_dump(exclude_none=True),
-                        "error": f"invalid action: {exc.error_count()} problems",
+                        "parent_step": parent,
+                        "hypothesis_id": decision.hypothesis_id or (focus.id if focus else ""),
+                        "identity": self.s.current,
+                        "thought": decision.thought,
+                        "action": bad,
+                        "action_text": f"invalid {bad.get('kind', '?')} action",
+                        "ok": False,
+                        "error": problem,
+                        "url_after": self._observation.get("url"),
+                        "signals": [],
                     }
                 )
+                self.emit("explore_step", f"step {step} invalid action -> {problem}", step=step)
+                self.history.append({"step": step, "invalid_action": bad, "error": problem})
+                result.steps, result.invalid = step, result.invalid + 1
+                if failures >= 3:
+                    result.stopped = f"3 unusable or invalid actions in a row: {problem}"
+                    break
                 continue
             hyp = decision.hypothesis_id or (focus.id if focus else "")
             if decision.new_path or (hyp != current_hyp and current_hyp):
@@ -295,6 +410,7 @@ class Explorer:
             current_hyp = hyp
 
             identity = self.s.current
+            fp_before = _fingerprint(self._observation)
             mark = self.s.mark()
             outcome = await self.s.execute(action)
             action = outcome.action or action  # what really ran, e.g. with Sentri's canary added
@@ -304,10 +420,21 @@ class Explorer:
                 for r in evaluate_agent(evidence, self.cfg)
                 if r.fired
             ]
+            refused = (outcome.error or "").startswith("refused")
+            if by_code:
+                pass  # code chose this step; the model's failure count stands
+            elif refused:
+                failures += 1
+            else:
+                failures = 0
             if outcome.ok or outcome.new_requests:  # a step that did nothing is not part of the state
                 rs = self._repro_step(action)
                 rs.expect_ok = outcome.ok
                 prefix.append(rs)
+            if isinstance(action, Navigate):
+                self._visited.add(action.path)
+            if isinstance(action, (Click, Burst)):
+                self._clicked.add(action.selector)
             text = describe(action)
             record = {
                 "step": step,
@@ -358,6 +485,23 @@ class Explorer:
             if isinstance(action, Finish):
                 result.stopped = f"model finished: {action.reason}"
                 break
+            if failures >= 3:
+                result.stopped = f"3 unusable or refused actions in a row: {outcome.error}"
+                break
+            self._observation = await self.s.observe()
+            self._after_step(_signature(action), fp_before, _fingerprint(self._observation), signals)
         else:
             result.stopped = "step budget used"
+        result.stalls = self.stalls
         return result
+
+
+def _fingerprint(observation: dict[str, Any]) -> str:
+    """What the page shows (not the request log): used to tell real progress from repeating the same thing."""
+    seen = {k: observation.get(k) for k in ("identity", "url", "title", "text", "forms", "links")}
+    return hashlib.sha256(json.dumps(seen, sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
+def _signature(action: Action) -> str:
+    """The action and everything it targets (kind, selector/path/request, values)."""
+    return f"{action.kind} " + json.dumps(action.model_dump(exclude={"kind"}), sort_keys=True, default=str)[:300]

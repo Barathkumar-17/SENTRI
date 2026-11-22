@@ -157,7 +157,12 @@ async def run_agentic(
     bus.emit(
         "phase",
         f"exploration finished after {explored.steps} steps ({explored.stopped}); "
-        f"{out.candidates} candidates to confirm",
+        f"{out.candidates} candidates to confirm"
+        + (
+            f" [{explored.fallbacks} fallback, {explored.invalid} invalid, {explored.stalls} stalls]"
+            if explored.fallbacks or explored.invalid or explored.stalls
+            else ""
+        ),
     )
 
     # 5. Confirm each candidate by replaying it 3x from a clean state
