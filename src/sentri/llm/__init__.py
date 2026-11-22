@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from importlib import resources
 
 from sentri.config import Settings
@@ -15,7 +16,7 @@ from sentri.llm.provider import (
     SlotValue,
 )
 
-PROVIDERS = ("anthropic", "openai_compatible", "none")
+PROVIDERS = ("anthropic", "claude_code", "openai_compatible", "none")
 
 
 class LLMConfigError(ValueError):
@@ -34,7 +35,11 @@ def make_provider(settings: Settings, enabled: bool = True) -> BudgetedProvider:
         "fixer": settings.model_smart,
     }
     inner: LLMProvider = NullProvider()
-    if enabled and settings.llm_provider == "anthropic" and settings.api_key:
+    if enabled and settings.llm_provider == "anthropic":
+        # The user chose Anthropic, so its standard variable may be used.
+        settings.api_key = settings.api_key or os.environ.get("ANTHROPIC_API_KEY") or None
+        if not settings.api_key:
+            raise LLMConfigError("anthropic needs an API key: set SENTRI_LLM_API_KEY or ANTHROPIC_API_KEY")
         from sentri.llm.anthropic_provider import AnthropicProvider
 
         inner = AnthropicProvider(
@@ -42,6 +47,16 @@ def make_provider(settings: Settings, enabled: bool = True) -> BudgetedProvider:
             models=models,
             efforts={"attacker": "low", "prober": "low", "planner": "high", "fixer": "high"},
         )
+    elif enabled and settings.llm_provider == "claude_code":
+        from sentri.llm.claude_code import ClaudeCodeProvider, find_claude
+
+        binary = find_claude()
+        if binary is None:
+            raise LLMConfigError(
+                "Claude Code CLI not found. Install Claude Code (or its VS Code extension) and sign in, "
+                "or set SENTRI_CLAUDE_BIN to the claude executable"
+            )
+        inner = ClaudeCodeProvider([binary], models, max(settings.llm_timeout_s, 180))
     elif enabled and settings.llm_provider == "openai_compatible":
         if not settings.llm_base_url:
             raise LLMConfigError("openai_compatible needs SENTRI_LLM_BASE_URL (e.g. http://localhost:11434/v1)")
@@ -57,6 +72,8 @@ def describe_provider(settings: Settings, provider: BudgetedProvider) -> str:
     if provider.inner.name == "none":
         return "none (static payloads)"
     where = f" @ {settings.llm_base_url}" if settings.llm_provider == "openai_compatible" else ""
+    if settings.llm_provider == "claude_code":
+        where = " (your Claude Code login, no API key)"
     return f"{provider.inner.name}{where}: {settings.model_fast} (payloads, planner), {settings.model_smart} (fixer)"
 
 

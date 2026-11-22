@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 import pytest
 from pydantic import BaseModel
@@ -106,8 +107,13 @@ async def test_prober_respects_cap_and_applicability():
 def test_make_provider_configs():
     s = Settings()
     s.api_key = None
-    s.llm_provider = "anthropic"
+    assert s.llm_provider == "none" or os.environ.get("SENTRI_LLM_PROVIDER")  # default: no model
+    s.llm_provider = "none"
     assert make_provider(s).inner.name == "none"
+    s.llm_provider = "anthropic"
+    os.environ.pop("ANTHROPIC_API_KEY", None)
+    with pytest.raises(LLMConfigError):  # choosing a paid provider without a key is an error, not a silent no-op
+        make_provider(s)
     s.llm_provider = "openai_compatible"
     with pytest.raises(LLMConfigError):
         make_provider(s)

@@ -21,7 +21,7 @@ LMSTUDIO_URL = "http://localhost:1234"
 class ProviderPreset(BaseModel):
     id: str
     label: str
-    kind: Literal["none", "anthropic", "openai_compatible"]
+    kind: Literal["none", "anthropic", "claude_code", "openai_compatible"]
     base_url: str | None = None
     needs_key: bool
     local: bool = False
@@ -53,6 +53,14 @@ PRESETS: list[ProviderPreset] = [
         base_url=f"{LMSTUDIO_URL}/v1",
         needs_key=False,
         local=True,
+    ),
+    ProviderPreset(
+        id="claude_code",
+        label="Claude Code (your Claude login, no API key)",
+        kind="claude_code",
+        needs_key=False,
+        local=True,
+        note="Uses the Claude Code installed and signed in on this computer.",
     ),
     ProviderPreset(
         id="anthropic", label="Anthropic Claude", kind="anthropic", needs_key=True, key_env="ANTHROPIC_API_KEY"
@@ -261,6 +269,13 @@ async def test_selection(selection: ModelSelection) -> dict[str, Any]:
         return {"ok": False, "detail": f"unknown provider {selection.preset!r}", "models": []}
     if preset.kind == "none":
         return {"ok": True, "detail": "no model: basic tests with built-in payloads", "models": []}
+    if preset.kind == "claude_code":
+        from sentri.llm.claude_code import find_claude
+
+        binary = find_claude()
+        if binary is None:
+            return {"ok": False, "detail": "Claude Code CLI not found on this computer", "models": []}
+        return {"ok": True, "detail": f"found Claude Code at {binary}", "models": ["claude-sonnet-5-5"]}
     if preset.kind == "anthropic":
         ok, detail, ids = await check_anthropic(selection.api_key)
     else:

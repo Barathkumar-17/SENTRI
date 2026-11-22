@@ -22,22 +22,16 @@ class Settings:
     db_path: Path = field(default_factory=lambda: Path(os.environ.get("SENTRI_DB", ".sentri/ledger.db")))
     evidence_dir: Path = field(default_factory=lambda: Path(os.environ.get("SENTRI_EVIDENCE_DIR", "evidence")))
     live_path: Path = field(default_factory=lambda: Path(".sentri/live.jpg"))
+    # Only Sentri's own variables are read here. Vendor variables such as ANTHROPIC_API_KEY are used only
+    # after the user explicitly chooses that provider (see llm.make_provider), so a key that happens to be
+    # in the environment is never spent silently.
     api_key: str | None = field(
-        default_factory=lambda: (
-            os.environ.get("SENTRI_LLM_API_KEY")
-            or os.environ.get("LLM_API_KEY")
-            or (
-                os.environ.get("OPENAI_API_KEY")
-                if os.environ.get("SENTRI_LLM_PROVIDER") == "openai_compatible"
-                else os.environ.get("ANTHROPIC_API_KEY")
-            )
-            or None
-        )
+        default_factory=lambda: os.environ.get("SENTRI_LLM_API_KEY") or os.environ.get("LLM_API_KEY") or None
     )
-    llm_provider: str = field(default_factory=lambda: os.environ.get("SENTRI_LLM_PROVIDER", "anthropic"))
+    llm_provider: str = field(default_factory=lambda: os.environ.get("SENTRI_LLM_PROVIDER", "none"))
     llm_base_url: str | None = field(default_factory=lambda: os.environ.get("SENTRI_LLM_BASE_URL") or None)
     model_fast: str = field(default_factory=lambda: os.environ.get("SENTRI_MODEL_FAST", "claude-sonnet-5-5"))
-    model_smart: str = field(default_factory=lambda: os.environ.get("SENTRI_MODEL_SMART", "claude-opus-5-5"))
+    model_smart: str = field(default_factory=lambda: os.environ.get("SENTRI_MODEL_SMART", "claude-sonnet-5-5"))
     llm_budget_usd: float = field(default_factory=lambda: _env_float("SENTRI_LLM_BUDGET_USD", 1.0))
     llm_timeout_s: float = field(default_factory=lambda: _env_float("SENTRI_LLM_TIMEOUT_S", 60.0))
     max_probes_per_flow: int = field(default_factory=lambda: _env_int("SENTRI_MAX_PROBES_PER_FLOW", 2))
