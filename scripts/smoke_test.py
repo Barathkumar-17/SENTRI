@@ -79,6 +79,9 @@ def main() -> int:
     if doctor.returncode not in (0,):
         raise SystemExit("doctor reports missing requirements; run `sentri setup`")
     sentri("contract", "check", "contract.yaml", env=env, cwd=app_dir)
+    refused = sentri("run", "--contract", "contract.yaml", env=env, cwd=app_dir, check=False)
+    assert refused.returncode == 2, "an unapproved contract must be refused"
+    sentri("contract", "approve", "contract.yaml", "--as", "smoke-test", "--out", "contract.yaml", env=env, cwd=app_dir)
 
     only = [] if args.full else ["--only", "signup:empty_input", "--only", "profile:double_submit"]
     sentri("run", "--contract", "contract.yaml", "--out", "report.md", *only, env=env, cwd=app_dir)

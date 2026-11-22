@@ -1,8 +1,7 @@
 # Same contract as contract.yaml, but the app runs in a throwaway Docker container.
 version: 1
-meta:
-  approved_by: "sentri-examples"
-  approved_at: "2026-11-21T00:00:00Z"
+# Not approved on purpose: approving a contract is a human decision.
+# Run `sentri contract approve <this file> --as <your name>` before `sentri run`.
 
 app:
   docker: {context: ".", dockerfile: "Dockerfile", container_port: 5055}
@@ -14,17 +13,19 @@ app:
 auth:
   login_flow: login
 
-fixtures:
-  seed_email: "demo@example.test"
-  seed_password: "demo-password"
-
 flows:
   - id: login
-    start: "/login"
+    description: "Sign up a fresh random account, then log in with it"
+    start: "/signup"
     attack: false
     steps:
-      - fill: {selector: "input[name=email]", value: "{seed_email}"}
-      - fill: {selector: "input[name=password]", value: "{seed_password}"}
+      - fill: {selector: "input[name=email]", value: "{email}"}
+      - fill: {selector: "input[name=password]", value: "{password}"}
+      - click: "#signup-btn"
+      - wait_for: {selector: "[data-testid=user-row]"}
+      - goto: "/login"
+      - fill: {selector: "input[name=email]", value: "{email}"}
+      - fill: {selector: "input[name=password]", value: "{password}"}
       - click: "button[type=submit]"
     success: {url_contains: "/tasks"}
   - id: signup

@@ -31,7 +31,8 @@ def test_minimal_contract_defaults(minimal_contract):
 def test_example_contracts_validate():
     for name in ("contract.yaml", "contract.docker.yaml"):
         c = load_contract(BUGGY_APP / name)
-        assert c.approved
+        assert not c.approved  # shipped unapproved: approval is a human step
+        assert not c.fixtures  # no seeded credentials
         assert c.flow("create_task").expected_creates == 1  # default when list_selector is set
 
 

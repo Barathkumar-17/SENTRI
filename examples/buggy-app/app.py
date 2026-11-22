@@ -7,6 +7,7 @@ without editing code. State lives in memory and is re-seeded on every start (cle
 from __future__ import annotations
 
 import os
+import secrets
 import tempfile
 import threading
 import time
@@ -16,20 +17,18 @@ from pathlib import Path
 from flask import Flask, abort, jsonify, redirect, render_template_string, request, session, url_for
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev-only-secret")
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)  # random per start; nothing hard-coded
 
 
 def fixed(name: str) -> bool:
     return os.environ.get(f"FIX_{name}") == "1"
 
 
-SEED_EMAIL = os.environ.get("SEED_EMAIL", "demo@example.test")
-SEED_PASSWORD = os.environ.get("SEED_PASSWORD", "demo-password")
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 FLAKY_STATE = Path(os.environ.get("FLAKY_STATE", Path(tempfile.gettempdir()) / "sentri-buggy-flaky.txt"))
 
 LOCK = threading.Lock()
-USERS: list[dict] = [{"id": 1, "email": SEED_EMAIL, "password": SEED_PASSWORD, "name": "Demo"}]
+USERS: list[dict] = []  # no built-in accounts: tests sign up a fresh random user
 TASKS: list[dict] = []
 COMMENTS: list[dict] = [{"id": 1, "text": "Welcome to the board"}]
 USED_NONCES: set[str] = set()
