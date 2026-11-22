@@ -43,10 +43,12 @@ from sentri.agent.actions import (
     resolve_same_origin,
 )
 from sentri.attacks.types import NO_THROTTLE, SLOW_3G, BadFile
+from sentri.evidence.agent_models import AgentEvidence, CountProbe, HealthProbe, ResponseRecord
 from sentri.evidence.models import ConsoleRecord, Evidence, HttpRecord
 from sentri.redact import redact
 from sentri.runner.browser import BrowserManager
 from sentri.sandbox.base import Sandbox
+from sentri.verdict.signature import normalize_path
 
 TEXT_TYPES = ("text/", "application/json", "application/xml", "application/javascript")
 MAX_BODY = 20_000
@@ -130,6 +132,10 @@ class AgentSession:
         # in another identity's responses is plain-code proof of cross-user exposure.
         run_salt = secrets.token_hex(3)
         self.canaries = {who: f"sentri-canary-{who}-{run_salt}" for who in ("a", "b")}
+        # Recon tells the session which paths need login. A canary is private only if its owner submitted it
+        # from or to protected paths and never anywhere public.
+        self.protected: set[str] = set()
+        self._submitted: dict[str, dict[str, bool]] = {"a": {}, "b": {}}  # who -> canary -> sent publicly?
 
     # ---- lifecycle ----------------------------------------------------------------------------------
     async def start(self) -> None:
@@ -188,6 +194,7 @@ class AgentSession:
             )
             self.requests.append(rec)
             self._pending[req] = rec
+            self._note_submission(who, rec, page.url)
 
         def on_response(resp: Any) -> None:
             rec = self._pending.get(resp.request)
@@ -224,6 +231,43 @@ class AgentSession:
         )
         page.on("pageerror", lambda e: self.console.append(ConsoleRecord("page_error", getattr(e, "message", str(e)))))
         page.on("crash", lambda _p: setattr(self, "crashed", True))
+
+    def _is_protected(self, url: str) -> bool:
+        return normalize_path(url) in self.protected
+
+    def _note_submission(self, who: str, rec: ObservedRequest, page_url: str) -> None:
+        canary = self.canaries.get(who)
+        if canary is None or not rec.body or canary not in rec.body:
+            return
+        public = not (self._is_protected(page_url) or self._is_protected(rec.url))
+        self._submitted[who][canary] = self._submitted[who].get(canary, False) or public
+
+    def private_markers(self) -> dict[str, tuple[str, ...]]:
+        return {who: tuple(c for c, public in sent.items() if not public) for who, sent in self._submitted.items()}
+
+    def responses_since(self, mark: Mark) -> tuple[ResponseRecord, ...]:
+        out = []
+        for r in self.requests[mark.requests :]:
+            if not self.same_origin(r.url) or r.status is None:
+                continue
+            path = "/" + r.url.split("://", 1)[-1].split("/", 1)[-1] if "/" in r.url.split("://", 1)[-1] else "/"
+            out.append(ResponseRecord(r.identity, r.method, path.split("?")[0], r.status, r.response_text or ""))
+        return tuple(out)
+
+    def agent_evidence_since(
+        self,
+        mark: Mark,
+        count_probes: tuple[CountProbe, ...] = (),
+        health_probes: tuple[HealthProbe, ...] = (),
+    ) -> AgentEvidence:
+        return AgentEvidence(
+            base=self.evidence_since(mark),
+            responses=self.responses_since(mark),
+            protected_paths=tuple(sorted(self.protected)),
+            private_markers=self.private_markers(),
+            count_probes=count_probes,
+            health_probes=health_probes,
+        )
 
     async def _read_body(self, resp: Any, rec: ObservedRequest) -> None:
         with contextlib.suppress(Exception):
@@ -290,6 +334,7 @@ class AgentSession:
             via=via,
         )
         self.requests.append(rec)
+        self._note_submission(self.current, rec, self._url() or url)
         headers = {"content-type": ctype} if ctype else {}
         try:
             resp = await ctx.request.fetch(
