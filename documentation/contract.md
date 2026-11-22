@@ -90,6 +90,7 @@ Each identity (`a`, `b`) registers its own fresh account, and its token is sent 
 | `clean` | `[]` | Files deleted before every start (SQLite `-wal`/`-shm` included), inside the app folder only |
 | `log_patterns_extra` | `[]` | Extra regexes that count as an exception in the app's logs |
 | `ignore_console` | `favicon.ico` | Regexes for browser console messages to ignore (baseline suite and agentic phase alike) |
+| `offsite_assets` | `allow` | `block` also stops off-origin scripts, styles, images and fonts. Every other request to another origin (links, form posts, popups, fetch calls, websockets, redirects that would carry a login token) is always blocked |
 
 ### `auth`
 Exactly one of `login_flow` (the id of a browser flow) or `api` (token login, above).
