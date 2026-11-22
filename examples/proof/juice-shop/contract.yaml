@@ -1,0 +1,27 @@
+# OWASP Juice Shop 20.4.0, an intentionally vulnerable shop (Angular single-page app + REST API).
+# Fetch it first: python examples/proof/fetch_apps.py juice-shop   (command mode; needs Node.js 24)
+# Not approved on purpose: approving a contract is a human decision (`sentri contract approve ...`).
+version: 1
+
+app:
+  run: "node build/app.js"
+  cwd: "app"
+  port: 3123
+  base_url: "http://127.0.0.1:3123"
+  startup_timeout_s: 120
+  health_path: "/rest/admin/application-version"
+  reset: restart                  # Juice Shop rebuilds its SQLite database on every start
+
+auth:
+  api:                            # token login: each identity registers its own fresh account
+    register:
+      path: "/api/Users"
+      json: {email: "{email}", password: "{password}", passwordRepeat: "{password}"}
+    login:
+      path: "/rest/user/login"
+      json: {email: "{email}", password: "{password}"}
+    token_field: "authentication.token"
+    header: "Authorization"
+    scheme: "Bearer"
+
+flows: []                         # API app: agentic mode only, no baseline browser flows

@@ -1,0 +1,46 @@
+# flaskr, the official Flask tutorial blog (server-rendered; register, log in, write and edit your own posts).
+# Fetch it first: python examples/proof/fetch_apps.py flaskr
+# Not approved on purpose: approving a contract is a human decision (`sentri contract approve ...`).
+version: 1
+
+app:
+  # A fresh database on every start, so each replay begins from the same state.
+  run: "{python} -m flask --app flaskr init-db && {python} -m flask --app flaskr run --host 127.0.0.1 --port 5077"
+  cwd: "app"
+  port: 5077
+  base_url: "http://127.0.0.1:5077"
+  startup_timeout_s: 60
+  health_path: "/"
+  reset: restart
+
+auth:
+  login_flow: login
+
+flows:
+  - id: login
+    description: "Register a fresh account, then log in with it"
+    attack: false
+    start: "/auth/register"
+    steps:
+      - fill: {selector: "input[name=username]", value: "{username}"}
+      - fill: {selector: "input[name=password]", value: "{password}"}
+      - click: "input[type=submit]"
+      - wait_for: {selector: "input[value='Log In']"}
+      - fill: {selector: "input[name=username]", value: "{username}"}
+      - fill: {selector: "input[name=password]", value: "{password}"}
+      - click: "input[type=submit]"
+    success: {selector_visible: "a[href='/auth/logout']"}
+
+  - id: create_post
+    description: "Logged-in user writes a post"
+    requires_login: true
+    start: "/create"
+    steps:
+      - fill: {selector: "input[name=title]", value: "{title}"}
+      - fill: {selector: "textarea[name=body]", value: "{text}"}
+      - click: "input[type=submit]"
+    success: {selector_visible: "article.post"}
+    list_selector: "article.post"
+    list_page: "/"
+
+attacks_enabled: [empty_input, double_submit, expired_session, slow_network, rapid_repeat]
