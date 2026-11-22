@@ -52,3 +52,19 @@ action.yml         the GitHub Action
 - Nothing hard-coded: no accounts, secrets or keys in code, examples or tests.
 - Must run on Windows, macOS and Linux, Python 3.12+, Docker optional.
 - Small commits with plain messages.
+
+## Web app
+
+The web app's source is in `frontend/` (React, Vite, TypeScript). Its build is committed to
+`src/sentri/dashboard/static/`, so users never need Node. After changing it:
+
+```
+cd frontend
+npm install
+npm run build      # writes src/sentri/dashboard/static/
+npm run dev        # optional: live reload against `sentri serve` on port 8787
+```
+
+Commit the rebuilt `static/` folder with the source change. `tests/unit/test_web_app.py` checks that the build
+is served and that the app listens for every event kind the backend emits; `tests/integration/test_web_app_ui.py`
+drives the built app in a browser against a real server.

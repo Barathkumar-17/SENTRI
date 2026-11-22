@@ -94,10 +94,10 @@ sentri run --contract contract.yaml --llm-provider auto --out report.md
 
 ## Web app (local)
 
-`sentri ui` starts a local server and opens it in your browser. **The web screens are in progress.** Today the
-server provides the API those screens will use (listed at `/docs` on the server): you can script a run with it
-or follow one live, but the point-and-click workflow is not there yet; use the CLI. Everything stays on your
-machine. The server answers only on localhost and refuses actions sent by other websites.
+`sentri ui` starts a local server and opens it in your browser: choose a model, draft and approve a contract,
+start a run and follow it live, read each finding with its replay evidence, compare runs across commits and
+mark a bug intended (with a reason). The same API is listed at `/docs` on the server for scripts. Everything
+stays on your machine. The server answers only on localhost and refuses actions sent by other websites.
 
 ## Choosing a model
 
@@ -214,7 +214,7 @@ A pass means "survived these attacks", nothing more. Sentri does not check busin
 | `sentri run` | Agentic run (recon, strategy, exploration, confirmation, then the baseline suite); `--mode baseline` runs only the six fixed attacks; `--serve` also starts the dashboard API; `--fresh` disables reuse |
 | `sentri report` | Rebuild `report.md` from the ledger (`--efficiency` shows time and cost per run) |
 | `sentri bug list` / `bug mark BUG-001 intended --note "..."` | Inspect bugs / record a human decision |
-| `sentri ui` | Start the local server and open the browser (screens in progress; the API behind them works today) |
+| `sentri ui` | Start the local server and open the web app in the browser |
 | `sentri serve` | Same server without opening a browser, for scripts (REST + live event stream at http://127.0.0.1:8787) |
 | `sentri fix BUG-001` | Optional: propose a patch for a baseline crash bug (needs a stack trace), run the gate, open a draft PR |
 

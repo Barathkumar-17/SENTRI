@@ -1,8 +1,29 @@
 # Local web app and API
 
-`sentri ui` starts a local server at `http://127.0.0.1:8787` and opens it. **The web screens are in progress**;
-for now, use the CLI. What the server provides today is the API the screens will use, so a script can already
-call each step below; the full list is at `http://127.0.0.1:8787/docs`.
+`sentri ui` starts a local server at `http://127.0.0.1:8787` and opens the web app. `sentri serve` starts the
+same server without opening a browser. The web app is built into the Python package, so it needs no Node.
+
+## Screens
+
+- **Runs**: every run in this machine's ledger, newest first: status, readiness (or *insufficient coverage*
+  when nothing applicable was tested; it is never shown as a pass), confirmed findings, exploration and model use.
+- **Run**: the outcome (readiness, findings, exploration, model use), why it stopped (for example a provider
+  quota), and tabs for the activity log (live while the run is going), findings, exploration steps with who
+  chose each one (the model, a code probe or a fallback), the baseline grid, model use per role and coverage.
+- **Findings**: every finding across runs; each opens with where it came from, its three replays (each from a
+  restarted app), the steps replayed, per-attempt evidence (what fired, the responses seen, the server log tail
+  shown to you only) and its limitations.
+- **Ledger**: runs side by side (readiness, agentic impact, checks, exploration, model use) and every bug with
+  its status. Marking a bug *intended* needs a reason and is recorded with your name; Sentri never does it.
+- **New run**: choose a model, point at your app folder or URL, draft or paste a contract, validate, approve,
+  and start the run.
+
+If the server stops, the app says so and reconnects on its own when it is back.
+
+## The API, step by step
+
+Everything the screens do goes through this API, so a script can do the same; the full list is at
+`http://127.0.0.1:8787/docs`.
 
 ## The API, step by step
 
@@ -18,7 +39,7 @@ call each step below; the full list is at `http://127.0.0.1:8787/docs`.
 | Run | `POST /api/runs {contract, mode, only, attempts, ...}`: a background job, one run at a time |
 | Follow a job | `GET /api/jobs/{id}`, `POST /api/jobs/{id}/cancel` |
 | Live progress | `GET /api/events/stream?run_id=...` (Server-Sent Events), `GET /api/live/screenshot.jpg` |
-| Results | `GET /api/runs`, `/api/runs/{id}`, `/api/runs/{id}/grid`, `/api/runs/{id}/agentic` (findings and attack tree), `/api/checks/{id}`, `/api/bugs`, `/api/trend` |
+| Results | `GET /api/runs`, `/api/runs/{id}`, `/api/runs/{id}/grid`, `/api/runs/{id}/agentic` (findings and attack tree), `/api/findings`, `/api/findings/{id}` (replay evidence per attempt), `/api/checks/{id}`, `/api/bugs`, `/api/trend` |
 | Human decision | `POST /api/bugs/{id}/status {status, note, by}` |
 
 ## Safety without a login
