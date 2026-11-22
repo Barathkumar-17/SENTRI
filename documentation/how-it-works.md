@@ -82,7 +82,8 @@ The loop is hardened in code:
 - unusable answers, invalid actions and refused actions each use up a visible step, and three in a row end
   exploration;
 - each hypothesis gets 10 steps, more while it keeps reaching new page states (up to 20); repeating the same
-  action three times with no change moves the focus to the next hypothesis at once.
+  action three times with no change moves the focus to the next hypothesis at once;
+- the model can only end exploration early once every hypothesis has had its turn.
 
 To test privacy, each identity has a unique **canary** string, and **Sentri itself** adds it to free text the
 agent types and to JSON bodies it sends as user `a` or `b`. Typed fields such as email, number or password,
