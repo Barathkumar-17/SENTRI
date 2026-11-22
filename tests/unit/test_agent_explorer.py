@@ -121,3 +121,43 @@ def test_to_action_keeps_only_fields_for_the_kind():
 def test_tokens_in_request_bodies():
     assert tokens_in('{"title": "Sentri item r1-3-ab12cd", "c": "sentri-canary-a-9f"}') == ["sentri-canary-a-9f"]
     assert tokens_in("email=sentri+r1-1-xyz@example.test") == ["sentri+r1-1-xyz@example.test"]
+
+
+async def test_the_same_break_is_flagged_once_and_exploration_continues():
+    class AlwaysLeaking(FakeSession):
+        def agent_evidence_since(self, mark, count_probes=(), health_probes=()):
+            r = ResponseRecord("anon", "GET", "/tasks/1", 200, "<h1>task</h1>")
+            return AgentEvidence(base=Evidence(), responses=(r,), protected_paths=("/tasks/:id",))
+
+    steps: list[dict] = []
+    decisions = [
+        d("navigate", path="/tasks/1"),
+        d("navigate", path="/tasks/1"),
+        Decision(
+            thought="t",
+            hypothesis_id="idor",
+            action=ActionSpec(kind="wait", ms=1),
+            suspect=True,
+            suspect_reason="anon can read tasks",
+        ),
+        Decision(
+            thought="t",
+            hypothesis_id="idor",
+            action=ActionSpec(kind="wait", ms=1),
+            suspect=True,
+            suspect_reason="Anon can read tasks",
+        ),
+        d("finish", reason="done"),
+    ]
+    explorer = Explorer(
+        AlwaysLeaking(),
+        BudgetedProvider(ScriptedModel(decisions), 1, 5),
+        STRATEGY,
+        AppMap(base_url="http://127.0.0.1"),
+        ExploreBudget(max_steps=10, max_candidates=1),
+        steps.append,
+    )
+    result = await explorer.run()
+    assert len(result.candidates) == 1  # one break, not one per step
+    assert result.steps == 5 and result.stopped.startswith("model finished")  # the cap never stops exploring
+    assert explorer.flagged and "already_flagged" in explorer._request(6, None, 60)

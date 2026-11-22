@@ -180,6 +180,9 @@ class Explorer:
         self.emit = emit or (lambda *a, **k: None)
         self.history: list[dict[str, Any]] = []
         self.cfg = OracleConfig(flow_id="agentic", attack_id="explore")
+        self.flagged: list[str] = []
+        self._signal_keys: set[str] = set()
+        self._suspect_reasons: set[str] = set()
 
     # ---- prompt ---------------------------------------------------------------------------------------
     def _focus(self, step: int) -> Hypothesis | None:
@@ -201,6 +204,7 @@ class Explorer:
                 "seconds_left": round(seconds_left),
                 "identities": ["anon", "a", "b"] if self.app_map.has_login_flow else ["anon"],
                 "recent_steps": self.history[-10:],
+                "already_flagged": self.flagged[-12:],  # move on: these are queued for replay already
                 "observation": self._observation,
             },
             indent=1,
@@ -221,6 +225,22 @@ class Explorer:
                 match = {"method": src.method, "path": normalize_path(src.url)}
         return ReproStep(action.model_dump(), match)
 
+    def _is_new_break(self, signals: list[dict[str, Any]], decision: Decision) -> bool:
+        """New oracle signals always count; a suspicion without signals counts once per distinct reason."""
+        keys = {f"{s['oracle_id']}|{s.get('route')}|{str(s['detail'])[:80]}" for s in signals}
+        if keys - self._signal_keys:
+            self._signal_keys |= keys
+            return True
+        if signals or not decision.suspect:
+            return False  # the same break again
+        reason = " ".join(decision.suspect_reason.lower().split())[:80]
+        if not reason or reason in self._suspect_reasons:
+            return False
+        if any(reason[:40] in f.lower() for f in self.flagged):
+            return False
+        self._suspect_reasons.add(reason)
+        return True
+
     # ---- loop -------------------------------------------------------------------------------------------
     async def run(self) -> ExploreResult:
         result = ExploreResult()
@@ -235,9 +255,6 @@ class Explorer:
                 break
             if not self.provider.available:
                 result.stopped = "model unavailable or budget used"
-                break
-            if len(result.candidates) >= self.budget.max_candidates:
-                result.stopped = "candidate limit reached"
                 break
             focus = self._focus(step)
             self._observation = await self.s.observe()
@@ -317,17 +334,15 @@ class Explorer:
             )
             result.steps = step
             parent = step
-            if signals or decision.suspect:
+            if self._is_new_break(signals, decision):
                 title = next((h.title for h in self.strategy.hypotheses if h.id == hyp), hyp or "exploration")
-                result.candidates.append(
-                    Candidate(hyp, title, path_start, step, list(path), signals, decision.suspect_reason)
-                )
-                self.emit(
-                    "candidate",
-                    f"possible break at step {step}: "
-                    + (", ".join(str(s["detail"]) for s in signals) or decision.suspect_reason),
-                    step=step,
-                )
+                what = ", ".join(str(s["detail"]) for s in signals) or decision.suspect_reason
+                if len(result.candidates) < self.budget.max_candidates:
+                    result.candidates.append(
+                        Candidate(hyp, title, path_start, step, list(path), signals, decision.suspect_reason)
+                    )
+                    self.emit("candidate", f"possible break at step {step}: {what}", step=step)
+                self.flagged.append(f"step {step}: {what}"[:200])
                 path = [ReproStep(SwitchUser(user=self.s.current).model_dump())]  # type: ignore[arg-type]
                 path_start, parent = step + 1, None
             if isinstance(action, Finish):

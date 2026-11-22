@@ -152,11 +152,12 @@ async def run_agentic(
 
     # 5. Confirm each candidate by replaying it 3x from a clean state
     seen: set[str] = set()
-    for cand in explored.candidates:
+    for cand in sorted(explored.candidates, key=lambda c: len(c.repro)):
         data = cand.to_dict()
-        fingerprint = json.dumps(data["repro"], sort_keys=True)
+        signal_keys = sorted(f"{s['oracle_id']}|{s.get('route')}" for s in cand.signals)
+        fingerprint = json.dumps(signal_keys) if signal_keys else json.dumps(data["repro"], sort_keys=True)
         if fingerprint in seen:
-            continue
+            continue  # the same break, already confirmed through a shorter path
         seen.add(fingerprint)
         verdict, key, notes = await confirm(env, data["repro"])
         _check, events = record(ledger, run_id, commit, data, verdict, key)
