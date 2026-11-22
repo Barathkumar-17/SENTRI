@@ -169,6 +169,7 @@ class Explorer:
         budget: ExploreBudget,
         record_step: Callable[[dict[str, Any]], None],
         emit: Callable[..., Any] | None = None,
+        oracle_cfg: OracleConfig | None = None,
     ):
         self.s = session
         self.provider = provider
@@ -178,7 +179,7 @@ class Explorer:
         self.record_step = record_step
         self.emit = emit or (lambda *a, **k: None)
         self.history: list[dict[str, Any]] = []
-        self.cfg = OracleConfig(flow_id="agentic", attack_id="explore", app_origin=session.base_url)
+        self.cfg = oracle_cfg or OracleConfig(flow_id="agentic", attack_id="explore", app_origin=session.base_url)
         self.flagged: list[str] = []
         self._signal_keys: set[str] = set()
         self._suspect_reasons: set[str] = set()

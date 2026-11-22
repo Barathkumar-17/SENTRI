@@ -37,6 +37,17 @@ _NONCE = re.compile(r"\b[0-9a-f]{16,}\b|\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 PRIMARY_ORDER = (*AGENT_ORACLE_IDS, "http_500", "exception", "duplicates", "timeout", "console_error")
 
 
+def agentic_oracle_config(contract: Contract) -> OracleConfig:
+    """The same contract settings the baseline suite applies (ignored console noise, extra log patterns)."""
+    return OracleConfig(
+        flow_id="agentic",
+        attack_id="explore",
+        ignore_console=tuple(contract.app.ignore_console),
+        extra_log_patterns=tuple(contract.app.log_patterns_extra),
+        app_origin=contract.app.url,
+    )
+
+
 @dataclass
 class ReplayEnv:
     contract: Contract
@@ -178,7 +189,7 @@ def primary_key(results: list[list[OracleResult]]) -> str:
 async def confirm(
     env: ReplayEnv, repro: list[dict[str, Any]], key: str | None = None
 ) -> tuple[CheckVerdict, str, list[str]]:
-    cfg = OracleConfig(flow_id="agentic", attack_id="explore", app_origin=env.contract.app.url)
+    cfg = agentic_oracle_config(env.contract)
     results: list[list[OracleResult]] = []
     notes: list[str] = []
     for attempt in range(1, env.attempts + 1):

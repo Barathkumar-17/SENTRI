@@ -11,7 +11,7 @@ from typing import Any
 from sentri.agent.explorer import ExploreBudget, Explorer
 from sentri.agent.identities import make_login
 from sentri.agent.recon import Recon
-from sentri.agent.replay import ReplayEnv, confirm, record
+from sentri.agent.replay import ReplayEnv, agentic_oracle_config, confirm, record
 from sentri.agent.session import AgentSession
 from sentri.agent.strategy import plan_strategy
 from sentri.contract.models import Contract
@@ -19,6 +19,7 @@ from sentri.contract.placeholders import DataGenerator, seed_for
 from sentri.feed import EventBus
 from sentri.ledger.ledger import Ledger
 from sentri.llm import BudgetedProvider
+from sentri.redact import redact
 from sentri.runner.browser import BrowserManager
 from sentri.sandbox.base import Sandbox
 
@@ -37,10 +38,11 @@ class AgenticResult:
 
 
 def _readme(workdir: Path) -> str:
+    """The app's README for the strategist, with secrets scrubbed like everything else sent to a model."""
     for name in ("README.md", "README.rst", "README.txt"):
         path = workdir / name
         if path.exists():
-            return path.read_text(encoding="utf-8", errors="replace")[:20000]
+            return redact(path.read_text(encoding="utf-8", errors="replace")[:20000])
     return ""
 
 
@@ -136,7 +138,14 @@ async def run_agentic(
     try:
         await session.start()
         explored = await Explorer(
-            session, provider, planned.strategy, app_map, budget, record_step, emit=bus.emit
+            session,
+            provider,
+            planned.strategy,
+            app_map,
+            budget,
+            record_step,
+            emit=bus.emit,
+            oracle_cfg=agentic_oracle_config(contract),
         ).run()
     finally:
         await session.close()
