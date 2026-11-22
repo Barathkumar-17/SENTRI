@@ -399,6 +399,108 @@ class Ledger:
             (run_id,),
         ).fetchall()
 
+    # ---- agentic mode -------------------------------------------------------------------------------
+    def save_app_map(self, run_id: int, data: dict[str, Any]) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO app_maps (run_id, created_at, data) VALUES (?,?,?)", (run_id, now(), json.dumps(data))
+        )
+        self.conn.commit()
+        return int(cur.lastrowid or 0)
+
+    def latest_app_map(self, run_id: int | None = None) -> dict[str, Any] | None:
+        sql, args = "SELECT data FROM app_maps", []
+        if run_id is not None:
+            sql, args = sql + " WHERE run_id=?", [run_id]
+        row = self.conn.execute(sql + " ORDER BY id DESC LIMIT 1", args).fetchone()
+        return json.loads(row["data"]) if row else None
+
+    def save_strategy(self, run_id: int, source: str, data: dict[str, Any]) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO strategies (run_id, created_at, source, data) VALUES (?,?,?,?)",
+            (run_id, now(), source, json.dumps(data)),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid or 0)
+
+    def strategy(self, run_id: int) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT source, data FROM strategies WHERE run_id=? ORDER BY id DESC LIMIT 1", (run_id,)
+        ).fetchone()
+        return {"source": row["source"], **json.loads(row["data"])} if row else None
+
+    def add_step(self, run_id: int, step: dict[str, Any]) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO exploration_steps (run_id, step, parent_step, hypothesis_id, identity, thought, action,"
+            " action_text, ok, error, url_after, signals, ts) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                run_id,
+                step["step"],
+                step.get("parent_step"),
+                step.get("hypothesis_id"),
+                step.get("identity"),
+                step.get("thought"),
+                json.dumps(step.get("action")),
+                step.get("action_text"),
+                int(bool(step.get("ok"))),
+                step.get("error"),
+                step.get("url_after"),
+                json.dumps(step.get("signals", [])),
+                now(),
+            ),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid or 0)
+
+    def steps_for_run(self, run_id: int) -> list[dict[str, Any]]:
+        rows = self.conn.execute("SELECT * FROM exploration_steps WHERE run_id=? ORDER BY step", (run_id,))
+        out = []
+        for r in rows.fetchall():
+            d = dict(r)
+            d["action"] = json.loads(d["action"] or "null")
+            d["signals"] = json.loads(d["signals"] or "[]")
+            out.append(d)
+        return out
+
+    def add_finding(self, run_id: int, finding: dict[str, Any]) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO findings (run_id, hypothesis_id, title, oracle_ids, repro, from_step, to_step, verdict,"
+            " attempts, check_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                run_id,
+                finding.get("hypothesis_id"),
+                finding.get("title"),
+                ",".join(finding.get("oracle_ids", [])),
+                json.dumps(finding.get("repro", [])),
+                finding.get("from_step"),
+                finding.get("to_step"),
+                finding["verdict"],
+                finding.get("attempts", 0),
+                finding.get("check_id"),
+                now(),
+            ),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid or 0)
+
+    def findings_for_run(self, run_id: int) -> list[dict[str, Any]]:
+        rows = self.conn.execute("SELECT * FROM findings WHERE run_id=? ORDER BY id", (run_id,)).fetchall()
+        return [{**dict(r), "repro": json.loads(r["repro"] or "[]")} for r in rows]
+
+    def confirmed_repros(self) -> list[dict[str, Any]]:
+        """Latest confirmed repro per agentic cell, for regression re-checks in later runs."""
+        rows = self.conn.execute(
+            "SELECT f.*, c.flow_id, c.attack_id FROM findings f JOIN checks c ON c.id=f.check_id"
+            " WHERE f.verdict IN ('fail','flaky') ORDER BY f.id DESC"
+        ).fetchall()
+        seen: set[str] = set()
+        out = []
+        for r in rows:
+            if r["attack_id"] in seen:
+                continue
+            seen.add(r["attack_id"])
+            out.append({**dict(r), "repro": json.loads(r["repro"] or "[]")})
+        return out
+
     # ---- events -------------------------------------------------------------------------------------
     def add_event(self, run_id: int | None, kind: str, message: str, reason: str | None, data: dict[str, Any]) -> int:
         cur = self.conn.execute(
