@@ -28,6 +28,8 @@ def test_every_kind_parses():
         "switch_tab": {"index": 1},
         "back": {},
         "refresh": {},
+        "fill_form": {"selector": "#signup", "fields": [{"selector": "input[name=email]", "text": "x@y.z"}]},
+        "look": {"part": "forms"},
         "clear_session": {},
         "throttle": {"on": True},
         "switch_user": {"user": "b"},

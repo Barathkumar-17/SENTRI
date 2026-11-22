@@ -318,7 +318,7 @@ async def test_the_same_action_three_times_with_no_change_rotates_the_focus():
     result, model = await _explore(
         FakeSession(leak_on=99), [d("click", selector="#same")] * 4, ExploreBudget(max_steps=4)
     )
-    assert result.stalls == 1
+    assert result.stalls == 2 and result.stats["known_dead_end_refusals"] == 2  # tries 3 and 4: never run
     focus = [_focus_of(p) for p in model.prompts]
     assert focus == ["h1", "h1", "h1", "h2"]
     assert "stalled" in model.prompts[3] and "try something different" in model.prompts[3]

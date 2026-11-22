@@ -93,7 +93,7 @@ def test_markdown_shows_findings_and_the_path(tmp_path):
     lg, run = seeded(tmp_path)
     md = agentic_markdown(lg, run)
     assert "Recon: 2 pages, 1 endpoints, 1 login-only (/tasks)" in md
-    assert "❌ confirmed | Other users' tasks are visible | cross_user_exposure | 1-2" in md
+    assert "❌ confirmed | Other users' tasks are visible | - | cross_user_exposure | 1-2" in md
     assert "- **idor** - Other users' tasks are visible" in md
     assert "    - 2. `[b] navigate('/tasks')` **⚑ user b received user a's data**" in md
     assert "_why: can b see it?_" in md and "(failed: selector not found)" in md
