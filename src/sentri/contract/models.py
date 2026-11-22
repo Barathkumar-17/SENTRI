@@ -287,8 +287,11 @@ class Contract(_Strict):
                     unknown = api_step.placeholders() - known
                     if unknown:
                         raise ValueError(f"auth.api: unknown placeholders {sorted(unknown)}")
-        if self.flows and not any(f.attack for f in self.flows):
-            raise ValueError("at least one flow must have attack: true")
+        if self.flows and not any(f.attack for f in self.flows) and not (self.auth and self.auth.login_flow):
+            # Helper flows only make sense as the login of an agent-only contract (no baseline cells then).
+            raise ValueError(
+                "at least one flow must have attack: true (or be the auth.login_flow of an agent-only contract)"
+            )
         return self
 
     @property
