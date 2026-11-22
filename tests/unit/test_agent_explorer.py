@@ -191,3 +191,52 @@ async def test_contract_console_ignores_apply_during_exploration():
     assert [s["oracle_id"] for s in await explore(None)] == ["console_error"]
     ignored = OracleConfig(flow_id="agentic", attack_id="explore", ignore_console=(r"analytics beacon",))
     assert await explore(ignored) == []
+
+
+async def test_every_candidate_keeps_the_whole_session_prefix():
+    """State-dependent bugs need their setup: nothing is dropped after a flagged break or a focus change."""
+
+    class LeaksTwice(FakeSession):
+        def agent_evidence_since(self, mark, count_probes=(), health_probes=()):
+            n = len(self.executed)
+            path = {3: "/tasks/1", 6: "/admin"}.get(n)
+            responses = (ResponseRecord("anon", "GET", path, 200, "<h1>task</h1>"),) if path else ()
+            return AgentEvidence(base=Evidence(), responses=responses, protected_paths=("/tasks/:id", "/admin"))
+
+    class FailsOn(LeaksTwice):
+        async def execute(self, action):
+            r = await super().execute(action)
+            if getattr(action, "selector", None) == "#missing":
+                return ActionResult(False, "selector not found", r.url, [])
+            return r
+
+    steps: list[dict] = []
+    decisions = [
+        d("switch_user", user="a"),
+        d("navigate", path="/tasks/new"),
+        d("navigate", path="/tasks/1", hyp="other"),  # break 1, and a hypothesis change
+        d("click", selector="#missing"),  # failed and did nothing: not part of the state
+        d("type", selector="#t", text="x"),
+        d("navigate", path="/admin", hyp="third"),  # break 2
+        d("finish"),
+    ]
+    explorer = Explorer(
+        FailsOn(),
+        BudgetedProvider(ScriptedModel(decisions), 1, 5),
+        STRATEGY,
+        AppMap(base_url="http://127.0.0.1"),
+        ExploreBudget(max_steps=10),
+        steps.append,
+    )
+    result = await explorer.run()
+    first, second = result.candidates
+    kinds = lambda c: [(r.action["kind"], r.action.get("path") or r.action.get("selector")) for r in c.repro]  # noqa: E731
+    assert kinds(first) == [
+        ("switch_user", None),
+        ("switch_user", None),
+        ("navigate", "/tasks/new"),
+        ("navigate", "/tasks/1"),
+    ]
+    assert kinds(second) == kinds(first) + [("type", "#t"), ("navigate", "/admin")]
+    assert all(r.expect_ok for r in second.repro) and "#missing" not in str(second.repro)
+    assert (first.from_step, second.from_step) == (3, 6)  # the attack tree still shows lines of attack

@@ -105,3 +105,16 @@ def test_agentic_only_contract_is_still_scored():
     b = compute(["na"], 0, agentic=[_f("http_500 POST /api", "http_500:3")], agentic_ran=True)
     assert b.score == 95 and b.baseline is None
     assert compute([], 0, agentic_ran=True).score == 100
+
+
+def test_unreplayable_attempts_never_pass_and_cap_at_flaky():
+    from sentri.verdict.engine import decide_replays
+    from sentri.verdict.oracles import OracleResult
+
+    hit = [OracleResult("cross_user_exposure", True, "leak", "GET /t")]
+    quiet: list = []
+    assert decide_replays("agentic", "k", [hit, hit, hit]).verdict == "fail"
+    assert decide_replays("agentic", "k", [quiet, quiet, quiet]).verdict == "pass"
+    assert decide_replays("agentic", "k", [hit, None, hit]).verdict == "flaky"
+    assert decide_replays("agentic", "k", [quiet, None, quiet]).verdict == "error"  # inconclusive, not fixed
+    assert decide_replays("agentic", "k", [None, None, None]).verdict == "error"

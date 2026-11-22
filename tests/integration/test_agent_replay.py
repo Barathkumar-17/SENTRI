@@ -91,3 +91,24 @@ async def test_cross_user_leak_is_confirmed_and_recorded(env: ReplayEnv, tmp_pat
 async def test_harmless_path_passes(env: ReplayEnv):
     verdict, _key, _notes = await confirm(env, HARMLESS)
     assert verdict.verdict == "pass", verdict
+
+
+async def test_a_step_that_cannot_run_fails_the_attempt_instead_of_being_skipped(env: ReplayEnv, tmp_path: Path):
+    broken = [*LEAK[:4], {"action": {"kind": "click", "selector": "button#gone"}}, *LEAK[4:]]
+    env.attempts = 1
+    verdict, _key, notes = await confirm(env, broken)
+    assert verdict.verdict == "error", verdict  # inconclusive: never pass, never a confirmed leak
+    assert any("failed at step 5/" in n for n in notes), notes
+
+    ledger = Ledger(tmp_path / "l.db")
+    run_id = ledger.create_run("c1", "main", "fp", "ch")
+    check_id, events = record(
+        ledger,
+        run_id,
+        "c1",
+        {"title": "t", "repro": broken, "recheck": True},
+        verdict,
+        "cross_user_exposure GET /tasks",
+    )
+    assert check_id is None and events == []  # a re-check that could not replay leaves the bug alone
+    assert ledger.findings_for_run(run_id)[0]["verdict"] == "unconfirmed"
