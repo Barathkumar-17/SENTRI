@@ -60,7 +60,14 @@ def http_500(ev: Evidence, cfg: OracleConfig) -> OracleResult:
 
 
 def _exception_key(lines: list[str], hit: int) -> str:
-    """The exception line of a trace block: the last non-frame line after the hit, before a blank line."""
+    """The exception line of a trace block: the last non-frame line after the hit, before a blank line. A JavaScript
+    trace (Node) prints the error before its `at ...` frames, so when the hit is a frame, the line above is it."""
+    if _FRAME.match(lines[hit]):
+        above = hit - 1
+        while above >= 0 and _FRAME.match(lines[above]):
+            above -= 1
+        if above >= 0 and lines[above].strip():
+            return normalize_error(lines[above].strip())
     key = lines[hit]
     for line in lines[hit + 1 : hit + 80]:
         stripped = line.strip()
