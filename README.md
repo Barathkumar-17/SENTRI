@@ -30,7 +30,8 @@ Try it on the bundled demo app, which has planted bugs:
 ```bash
 git clone https://github.com/Barathkumar-17/SENTRI.git && cd SENTRI
 pip install -e ".[dev]" && sentri setup
-sentri run --contract examples/buggy-app/contract.yaml --no-llm --out report.md
+sentri contract approve examples/buggy-app/contract.yaml --as "<your name>" --out examples/buggy-app/approved.yaml
+sentri run --contract examples/buggy-app/approved.yaml --out report.md
 ```
 
 On your own app:
@@ -49,29 +50,37 @@ sentri run --contract contract.yaml --out report.md
 ## Web app (local)
 
 `sentri ui` starts a local web app for the whole process, as an alternative to the CLI: point at a project
-folder, choose a model (installed locally, pulled from online, Groq/OpenAI/Claude with your key, or none),
-review and approve the proposed flows, run, and read the results. Everything stays on your machine. The server
-answers only on localhost and every action needs the session token printed at start (the URL it opens already
-carries it). The screens are being built; the API they use (`/docs` on the server) is complete.
+folder, choose a model, review and approve the proposed flows, run, and read the results. Everything stays on
+your machine and there is no login. The server answers only on localhost and refuses actions sent by other
+websites, so pages open in the same browser cannot drive it. The screens are being built; the API they use
+(`/docs` on the server) is complete.
 
 ## Choosing a model
 
-**You bring the model.** Sentri ships no API key and never uses anyone else's. The model only picks attack
-payloads, proposes flows and drafts fixes; plain code decides every verdict. With no model configured,
-Sentri still runs every check using its built-in payloads.
+**You bring the model, or none.** Sentri ships no API key and uses none by default: with no model it runs
+every check with its built-in payloads. The model only picks attack payloads, proposes flows and drafts
+fixes; plain code decides every verdict.
+
+`sentri models` lists what this computer has: signed-in coding-agent CLIs, running local model servers and
+their models, and which API-key variables are set (names only). `--llm-provider auto` picks a signed-in CLI
+first, then a local server. It never picks a paid API key on its own.
 
 | Option | How |
 |---|---|
-| No model | Nothing to set (or `--no-llm`). |
-| Local model with Ollama (no key, nothing leaves your machine) | `ollama pull qwen2.5:7b`, then `sentri run --ollama qwen2.5:7b` (or `SENTRI_OLLAMA_MODEL=qwen2.5:7b`) |
+| No model (default) | Nothing to set. |
+| Claude Code you are signed in to (no API key) | `--llm-provider claude_code` (found on PATH or inside the VS Code, Cursor or Windsurf extension) |
+| OpenAI Codex CLI you are signed in to (no API key) | `--llm-provider codex` |
+| Gemini CLI you are signed in to (no API key) | `--llm-provider gemini_cli` |
+| Local model with Ollama (no key, nothing leaves your machine) | `ollama pull qwen2.5:7b`, then `--ollama qwen2.5:7b` |
 | Other local servers (LM Studio, vLLM, llama.cpp) | `--llm-provider openai_compatible --llm-base-url http://localhost:1234/v1 --model <id>` |
-| Anthropic Claude with your key | `ANTHROPIC_API_KEY=...` (or `LLM_API_KEY`). Defaults: `claude-sonnet-5-5` for payloads, probes and the planner; `claude-opus-5-5` for the fixer |
+| Anthropic API with your key | `--llm-provider anthropic` with `ANTHROPIC_API_KEY` (read only after you choose this provider) |
 | Any OpenAI-compatible API with your key (OpenAI, Gemini, OpenRouter, Groq, Together, Mistral, DeepSeek...) | `--llm-provider openai_compatible --llm-base-url <url> --model <id>` and `SENTRI_LLM_API_KEY=...` |
 
-Each flag has an environment variable: `SENTRI_LLM_PROVIDER`, `SENTRI_LLM_BASE_URL`, `SENTRI_LLM_API_KEY`,
-`SENTRI_MODEL_FAST` (`--model`), `SENTRI_MODEL_SMART` (`--model-smart`, used by the fixer).
-`sentri doctor` shows which model will be used and whether its server is reachable.
-Paid APIs are capped per run by `SENTRI_LLM_BUDGET_USD` (default 1.00).
+Claude models default to `claude-sonnet-5-5` for every role. Other CLIs use their own default model unless you
+pass `--model`. Each flag has an environment variable: `SENTRI_LLM_PROVIDER`, `SENTRI_LLM_BASE_URL`,
+`SENTRI_LLM_API_KEY`, `SENTRI_MODEL_FAST` (`--model`), `SENTRI_MODEL_SMART` (`--model-smart`, used by the
+fixer). `sentri doctor` shows which model will be used and whether it is reachable. Paid APIs are capped per
+run by `SENTRI_LLM_BUDGET_USD` (default 1.00).
 
 ## The contract
 
@@ -118,6 +127,7 @@ A pass means "survived these attacks", nothing more. Sentri does not check busin
 | Command | What it does |
 |---|---|
 | `sentri setup` / `sentri doctor` | Install Chromium / check this machine |
+| `sentri models` | List the model sources on this machine (agent CLIs, local servers, key variables) |
 | `sentri plan` | Crawl the app and propose a draft contract |
 | `sentri contract check FILE` / `approve FILE --as NAME` | Validate / approve a contract |
 | `sentri run` | Run the attack grid (`--serve` also starts the dashboard API, `--fresh` disables reuse, `--only flow:attack`) |
