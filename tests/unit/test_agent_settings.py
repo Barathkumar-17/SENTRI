@@ -26,3 +26,10 @@ def test_no_readme_reaches_the_strategist_or_the_planner():
         assert "README" not in source.replace("no README", "").replace("No README", ""), module.__name__
     assert "readme" not in inspect.signature(strategy.plan_strategy).parameters
     assert "readme" not in inspect.signature(planner.plan).parameters
+
+
+def test_provider_organization_ids_are_redacted():
+    from sentri.redact import redact
+
+    text = "Rate limit reached in organization `org_0000fakeorganizationid00` service tier"
+    assert "org_0000fakeorganizationid00" not in redact(text)

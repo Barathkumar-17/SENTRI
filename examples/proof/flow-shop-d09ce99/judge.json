@@ -1,0 +1,174 @@
+{
+ "run_id": 1,
+ "readiness": 100,
+ "status": "scored",
+ "duration_s": 1833.79,
+ "usage": {
+  "calls": 22,
+  "input_tokens": 30882,
+  "output_tokens": 5492,
+  "retries": 60,
+  "cost_usd": null,
+  "stop_reason": null
+ },
+ "roles": {
+  "attacker": {
+   "calls": 4,
+   "input_tokens": 2542,
+   "output_tokens": 570,
+   "retries": 5
+  },
+  "explorer": {
+   "calls": 12,
+   "input_tokens": 24254,
+   "output_tokens": 1975,
+   "retries": 39
+  },
+  "prober": {
+   "calls": 5,
+   "input_tokens": 1357,
+   "output_tokens": 501,
+   "retries": 16
+  },
+  "strategist": {
+   "calls": 1,
+   "input_tokens": 2729,
+   "output_tokens": 2446,
+   "retries": 0
+  }
+ },
+ "exploration": {
+  "pages": 8,
+  "endpoints": 3,
+  "hypotheses": 7,
+  "steps": 8,
+  "invalid_steps": 0,
+  "fallback_steps": 3,
+  "stalls": 0,
+  "candidates": 0,
+  "confirmed": 0,
+  "unconfirmed": 0,
+  "inconclusive": 0,
+  "rechecked": 0,
+  "exploration_stop": "time budget used",
+  "distinct_states": 3,
+  "transitions": 8,
+  "states_by_identity": {
+   "anon": 3
+  },
+  "untried_options_left": 13,
+  "ai_steps": 5,
+  "code_probe_steps": 0,
+  "known_dead_end_refusals": 0,
+  "looks": 0,
+  "goals_done": 0,
+  "goals_stuck": 0,
+  "goals_added": 0,
+  "actions_attempted": 8,
+  "actions_executed_ok": 8,
+  "notes": []
+ },
+ "steps": [
+  {
+   "step": 1,
+   "origin": "ai",
+   "as": "anon",
+   "action": "navigate(path='/product/1')",
+   "ok": true,
+   "error": null,
+   "why": "Navigate to a product page to locate the add\u2011to\u2011cart form/button for anon user.",
+   "signals": []
+  },
+  {
+   "step": 2,
+   "origin": "ai",
+   "as": "anon",
+   "action": "fill_form form (input[name=\"qty\"]) + submit",
+   "ok": true,
+   "error": null,
+   "why": "Submit add-to-cart form as anon to test cart access.",
+   "signals": []
+  },
+  {
+   "step": 3,
+   "origin": "ai",
+   "as": "anon",
+   "action": "navigate(path='/cart')",
+   "ok": true,
+   "error": null,
+   "why": "Attempt to view cart as anon after a prior add-to-cart which redirected to login; if cart is accessible it supports hypothesis",
+   "signals": []
+  },
+  {
+   "step": 4,
+   "origin": "ai",
+   "as": "anon",
+   "action": "request(method='POST', path='cart/add', content_type='application/x-www-form-urlencoded')",
+   "ok": true,
+   "error": null,
+   "why": "Send a raw POST /cart/add with product and quantity while anon to see if the server adds to cart without redirecting to login.",
+   "signals": []
+  },
+  {
+   "step": 5,
+   "origin": "code_fallback",
+   "as": "anon",
+   "action": "navigate(path='/')",
+   "ok": true,
+   "error": null,
+   "why": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `[REDACTED])",
+   "signals": []
+  },
+  {
+   "step": 6,
+   "origin": "code_fallback",
+   "as": "anon",
+   "action": "navigate(path='/orders')",
+   "ok": true,
+   "error": null,
+   "why": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `[REDACTED])",
+   "signals": []
+  },
+  {
+   "step": 7,
+   "origin": "ai",
+   "as": "anon",
+   "action": "request(path='cart')",
+   "ok": true,
+   "error": null,
+   "why": "Attempt a raw GET request to /cart to see if the cart is accessible after the earlier POST add, without following browser navigation which redirects to login.",
+   "signals": []
+  },
+  {
+   "step": 8,
+   "origin": "code_fallback",
+   "as": "anon",
+   "action": "navigate(path='/login')",
+   "ok": true,
+   "error": null,
+   "why": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `[REDACTED])",
+   "signals": []
+  }
+ ],
+ "findings": [],
+ "expected_failures": [
+  {
+   "expected": "zero_quantity_order",
+   "found": false,
+   "by": null,
+   "ai_discovery": false
+  },
+  {
+   "expected": "resubmit_confirm",
+   "found": false,
+   "by": null,
+   "ai_discovery": false
+  },
+  {
+   "expected": "non_ascii_coupon",
+   "found": false,
+   "by": null,
+   "ai_discovery": false
+  }
+ ]
+}

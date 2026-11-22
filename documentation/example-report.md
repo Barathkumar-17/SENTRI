@@ -87,3 +87,36 @@ had not, all fixed with a test each before the runs above.
   finding's cost, and the attack tree with the model's reasoning under every step.
 - `agentic.json`: everything behind it, including the recon app map and the steps the tree abbreviates.
 - Verdicts come only from plain-code oracles over 3 clean replays; the model's reasoning is shown, never trusted.
+
+## Validation run on flow-shop (revision d09ce99, 2026-11-22)
+
+A fresh run, separate from the proof runs above, against [`examples/flow-shop`](../examples/flow-shop/): a small
+multi-step shop (sign up, log in, product, cart, address, payment with coupon, confirm, orders) with three
+functional failures. Those failures are written down only in the validation harness
+([`tests/validation/flow_shop_expected.yaml`](../tests/validation/flow_shop_expected.yaml)); Sentri got only the
+[contract](../examples/flow-shop/contract.yaml): how to start the app, how a test user logs in, one baseline flow
+(add to cart) and one plain goal ("buy something as a logged-in customer and check that the order shows up").
+Files: [`examples/proof/flow-shop-d09ce99/`](../examples/proof/flow-shop-d09ce99/) (`report.md`, `judge.json` from
+[`tests/validation/judge_run.py`](../tests/validation/judge_run.py), `baseline-only-report.md`).
+
+Configuration: command mode (restart = clean state), Groq `openai/gpt-oss-120b`, 25 steps / 15 minutes, at most 60
+calls and 120 000 tokens.
+
+| | |
+|---|---|
+| Result | Readiness 100 from the 5 baseline checks (all pass); **0 candidates**; none of the 3 hidden failures found |
+| Exploration | 8 steps: 5 chosen by the model, 3 code fallbacks; 3 distinct states, all as the logged-out identity; stopped by the 15-minute budget |
+| Model use | 22 calls (explorer 12, prober 5, attacker 4, strategist 1), 30 882 input + 5 492 output tokens, 60 retries; cost unknown (no Groq price table) |
+| Explorer context | about 2 000 input tokens per call (24 254 over 12 calls). No comparable before/after measurement was made, so no saving is claimed |
+
+**What this shows and what it does not.** AI-led discovery was *not* demonstrated. The model stayed logged out
+(testing "can a visitor use the cart?", which the app correctly refuses), so it never reached checkout, where all
+three failures sit. The reason it stalled is in the run's events: the key had used its daily Groq quota (200 000
+tokens per day for this model), so most calls were refused and Sentri kept waiting and falling back. A baseline-only
+run of the same app also scores 100: the score covers only the add-to-cart checks, and the report says it is not a
+safety rating.
+
+Fixed because of this run (revision a3e4763): a quota-sized rate limit now stops model use at once with that reason
+instead of waiting and falling back; each decision reserves 900 output tokens instead of 2 000 (measured average
+165); switching to a logged-in identity is offered as an option in the compact view. A rerun with an available
+quota is still needed to show whether the model then completes the checkout journey and finds the failures.

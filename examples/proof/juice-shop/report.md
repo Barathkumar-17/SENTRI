@@ -34,9 +34,9 @@ Strategy: OWASP Juice Shop demo e‑commerce, 8 hypotheses.
   - 6. `[anon] request(method='POST', path='socket.io/')`
     - _why: Send a raw POST request to /socket.io/ as anonymous to see if the endpoint responds without authentication, fulfilling the first move of the socketio_state_chan_
     - 7. `[anon] navigate(path='/')`
-      - _why: fallback (model reply unusable: http 429: {"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m81q084weh29v5f)_
+      - _why: fallback (model reply unusable: http 429: {"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` in organization `[REDACTED])_
       - 8. `[anon] navigate(path='/redirect?to=https://github.com/juice-shop/juice-shop')`
-        - _why: fallback (model reply unusable: http 429: {"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m81q084weh29v5f)_
+        - _why: fallback (model reply unusable: http 429: {"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` in organization `[REDACTED])_
 
 
 Flaky: 0 · N/A: 0 · Errors: 0 · Reused: 0 · Probes: 0 (0 fail) · LLM: llm, $0.00 · Duration: 11m31s

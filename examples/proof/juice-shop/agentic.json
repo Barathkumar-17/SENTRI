@@ -867,7 +867,7 @@
    "parent_step": 6,
    "hypothesis_id": "socketio_state_change",
    "identity": "anon",
-   "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m81q084weh29v5f)",
+   "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `[REDACTED])",
    "action": {
     "kind": "navigate",
     "path": "/"
@@ -886,7 +886,7 @@
    "parent_step": 7,
    "hypothesis_id": "socketio_state_change",
    "identity": "anon",
-   "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m81q084weh29v5f)",
+   "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `[REDACTED])",
    "action": {
     "kind": "navigate",
     "path": "/redirect?to=https://github.com/juice-shop/juice-shop"
@@ -1063,7 +1063,7 @@
        "parent_step": 6,
        "hypothesis_id": "socketio_state_change",
        "identity": "anon",
-       "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m81q084weh29v5f)",
+       "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `[REDACTED])",
        "action": {
         "kind": "navigate",
         "path": "/"
@@ -1082,7 +1082,7 @@
          "parent_step": 7,
          "hypothesis_id": "socketio_state_change",
          "identity": "anon",
-         "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m81q084weh29v5f)",
+         "thought": "fallback (model reply unusable: http 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `[REDACTED])",
          "action": {
           "kind": "navigate",
           "path": "/redirect?to=https://github.com/juice-shop/juice-shop"
