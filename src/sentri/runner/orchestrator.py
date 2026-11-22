@@ -257,6 +257,14 @@ class RunOrchestrator:
                 run_id=run_id,
                 readiness=breakdown.score,
                 breakdown=breakdown.__dict__,
+                llm_calls=self.provider.calls,
+                llm_input_tokens=self.provider.input_tokens,
+                llm_output_tokens=self.provider.output_tokens,
+            )
+            bus.emit(
+                "llm_usage",
+                f"model: {self.provider.calls} calls, {self.provider.input_tokens} input + "
+                f"{self.provider.output_tokens} output tokens, ${self.provider.spent_usd:.4f}",
             )
             return RunResult(run_id, "finished", breakdown, regressions)
         finally:

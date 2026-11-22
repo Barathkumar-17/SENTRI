@@ -119,6 +119,8 @@ class BudgetedProvider:
         self.spent_usd = 0.0
         self.calls = 0
         self.failures = 0
+        self.input_tokens = 0
+        self.output_tokens = 0
 
     @property
     def available(self) -> bool:
@@ -140,6 +142,8 @@ class BudgetedProvider:
             self.failures += 1
             return LLMResult(ok=False, error=f"timeout after {self.timeout_s:g}s")
         self.spent_usd += result.cost_usd
+        self.input_tokens += result.input_tokens
+        self.output_tokens += result.output_tokens
         if not result.ok:
             self.failures += 1
         return result
