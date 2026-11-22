@@ -5,12 +5,15 @@ same server without opening a browser. The web app is built into the Python pack
 
 ## Screens
 
-- **Runs**: every run in this machine's ledger, newest first: status, readiness (or *insufficient coverage*
-  when nothing applicable was tested; it is never shown as a pass), confirmed findings, exploration and model use.
+- **Runs**: every run in this machine's ledger, newest first: status, readiness out of 100 with what it was
+  built from (for example "3 of 10 applicable checks passed"; *insufficient coverage* when nothing applicable
+  was tested, never a pass), confirmed findings, exploration and model use. Readiness counts only what the run
+  tested; it is not a safety rating.
 - **Run**: the outcome (readiness, findings, exploration, model use), why it stopped (for example a provider
   quota), and tabs for the activity log (live while the run is going), findings, exploration steps with who
   chose each one (the model, a code probe or a fallback), the baseline grid, model use per role and coverage.
-- **Findings**: every finding across runs; each opens with where it came from, its three replays (each from a
+- **Findings**: every finding across runs; each opens with what broke (the checks that fired, as recorded) and
+  the replay outcome, then where it came from, its three replays (each from a
   restarted app), the steps replayed, per-attempt evidence (what fired, the responses seen, the server log tail
   shown to you only) and its limitations.
 - **Ledger**: runs side by side (readiness, agentic impact, checks, exploration, model use) and every bug with
