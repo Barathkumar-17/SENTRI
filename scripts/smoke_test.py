@@ -20,6 +20,7 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -92,29 +93,66 @@ def main() -> int:
     rerun = sentri("run", "--contract", "contract.yaml", "--only", "profile:double_submit", env=env, cwd=app_dir)
     assert "reused" in rerun.stdout, "a passing check on unchanged code must be reused"
 
-    # Dashboard API over the same ledger.
+    # Dashboard + control API over the same ledger: the web UI's workflow, over real HTTP.
     dash_port = free_port()
     server = subprocess.Popen(
         [sys.executable, "-m", "sentri.cli", "serve", "--port", str(dash_port)],
         cwd=app_dir,
         env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     try:
+        token = None
+        assert server.stdout is not None
+        for _ in range(20):
+            line = server.stdout.readline()
+            if "token=" in line:
+                token = line.strip().split("token=", 1)[1]
+                break
+        if not token:
+            raise SystemExit("sentri serve did not print a session token")
+        base = f"http://127.0.0.1:{dash_port}"
+
+        def api(method: str, path: str, body: object | None = None) -> Any:
+            data = json.dumps(body).encode() if body is not None else None
+            req = urllib.request.Request(base + path, data=data, method=method)
+            req.add_header("X-Sentri-Token", token)
+            req.add_header("Content-Type", "application/json")
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.loads(r.read())
+
         for _ in range(50):
             try:
-                with urllib.request.urlopen(f"http://127.0.0.1:{dash_port}/api/runs", timeout=2) as r:
-                    runs = json.loads(r.read())
+                runs = api("GET", "/api/runs")
                 break
             except OSError:
                 time.sleep(0.2)
         else:
             raise SystemExit("dashboard did not start")
         assert len(runs) >= 2, runs
-        with urllib.request.urlopen(f"http://127.0.0.1:{dash_port}/api/runs/{runs[-1]['id']}/grid") as r:
-            assert json.loads(r.read())["cells"]
+        assert api("GET", f"/api/runs/{runs[-1]['id']}/grid")["cells"]
         print(f"  dashboard API ok ({len(runs)} runs)")
+
+        # The web UI's flow: 1. point at the project  2. choose "no model"  3. run  4. read the result
+        info = api("POST", "/api/projects/inspect", {"path": str(app_dir)})
+        assert any(sg.get("framework") == "flask" for sg in info["suggestions"]), info
+        assert api("PUT", "/api/settings/model", {"preset": "none"})["preset"] == "none"
+        assert {"none", "ollama", "groq", "anthropic"} <= {p["id"] for p in api("GET", "/api/providers")}
+        body = {"contract": str(app_dir / "contract.yaml"), "only": ["comment:double_submit"], "attempts": 1}
+        job = api("POST", "/api/runs", body)
+        for _ in range(300):
+            job = api("GET", f"/api/jobs/{job['id']}")
+            if job["status"] not in ("queued", "running"):
+                break
+            time.sleep(1)
+        assert job["status"] == "finished", job
+        grid = api("GET", f"/api/runs/{job['run_id']}/grid")
+        assert grid["cells"][0]["verdict"] == "pass", grid
+        print(f"  control API ok (UI-started run {job['run_id']} finished)")
     finally:
         server.terminate()
         threading.Thread(target=server.wait, daemon=True).start()

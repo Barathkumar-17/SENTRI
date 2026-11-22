@@ -46,6 +46,14 @@ sentri contract approve contract.draft.yaml --as "you@example.com"
 sentri run --contract contract.yaml --out report.md
 ```
 
+## Web app (local)
+
+`sentri ui` starts a local web app for the whole process, as an alternative to the CLI: point at a project
+folder, choose a model (installed locally, pulled from online, Groq/OpenAI/Claude with your key, or none),
+review and approve the proposed flows, run, and read the results. Everything stays on your machine. The server
+answers only on localhost and every action needs the session token printed at start (the URL it opens already
+carries it). The screens are being built; the API they use (`/docs` on the server) is complete.
+
 ## Choosing a model
 
 **You bring the model.** Sentri ships no API key and never uses anyone else's. The model only picks attack
@@ -115,7 +123,8 @@ A pass means "survived these attacks", nothing more. Sentri does not check busin
 | `sentri run` | Run the attack grid (`--serve` also starts the dashboard API, `--fresh` disables reuse, `--only flow:attack`) |
 | `sentri report` | Rebuild `report.md` from the ledger (`--efficiency` shows time and cost per run) |
 | `sentri bug list` / `bug mark BUG-001 intended --note "..."` | Inspect bugs / record a human decision |
-| `sentri serve` | Dashboard API over the ledger at http://127.0.0.1:8787 (REST + live event stream; the web UI is coming) |
+| `sentri ui` | Start the local web app and open the browser (full workflow; the screens are in progress, the API behind them works today) |
+| `sentri serve` | Same server without opening a browser, for scripts (REST + live event stream at http://127.0.0.1:8787) |
 | `sentri fix BUG-001` | Optional: propose a patch, run the gate, open a draft PR |
 
 Exit codes: 0 finished, 1 gate (`--fail-under`, `--fail-on-regression`), 2 contract or config error, 3 app failed to start, 4 infrastructure missing.
