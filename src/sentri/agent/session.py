@@ -52,7 +52,7 @@ from sentri.verdict.signature import normalize_path
 
 TEXT_TYPES = ("text/", "application/json", "application/xml", "application/javascript")
 MAX_BODY = 20_000
-LoginFn = Callable[[Page, str], Awaitable[None]]
+LoginFn = Callable[[Page, str], Awaitable[dict[str, str] | None]]
 
 
 @dataclass
@@ -135,6 +135,7 @@ class AgentSession:
         # Recon tells the session which paths need login. A canary is private only if its owner submitted it
         # from or to protected paths and never anywhere public.
         self.protected: set[str] = set()
+        self.identity_headers: dict[str, dict[str, str]] = {}  # token auth: sent on every request of an identity
         self._submitted: dict[str, dict[str, bool]] = {"a": {}, "b": {}}  # who -> canary -> sent publicly?
 
     # ---- lifecycle ----------------------------------------------------------------------------------
@@ -165,8 +166,10 @@ class AgentSession:
         self.tabs[who] = [page]
         if who in ("a", "b"):
             if self.login_fn is None:
-                raise ActionRefused("this contract has no login flow, so only the anon identity exists")
-            await self.login_fn(page, who)
+                raise ActionRefused("this contract has no login, so only the anon identity exists")
+            headers = await self.login_fn(page, who)
+            if headers:
+                self.identity_headers[who] = headers
         else:
             await page.goto(self.base_url + "/", wait_until="load", timeout=self.timeout_ms)
         return ctx
@@ -339,7 +342,7 @@ class AgentSession:
         )
         self.requests.append(rec)
         self._note_submission(self.current, rec, self._url() or url)
-        headers = {"content-type": ctype} if ctype else {}
+        headers = {**self.identity_headers.get(self.current, {}), **({"content-type": ctype} if ctype else {})}
         try:
             resp = await ctx.request.fetch(
                 url, method=method, data=body, headers=headers, timeout=self.timeout_ms, max_redirects=0
@@ -441,6 +444,8 @@ class AgentSession:
             await page.reload(wait_until="load", timeout=t)
         elif isinstance(action, ClearSession):
             await self.contexts[self.current].clear_cookies()
+            if self.identity_headers.pop(self.current, None) is not None:
+                await self.contexts[self.current].set_extra_http_headers({})  # drop the token too
             await page.evaluate("() => { try { localStorage.clear(); sessionStorage.clear(); } catch (e) {} }")
         elif isinstance(action, Throttle):
             cdp = self._cdp.get(self.current) or await self.contexts[self.current].new_cdp_session(page)

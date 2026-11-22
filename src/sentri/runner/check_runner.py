@@ -142,19 +142,15 @@ class CheckRunner:
         self.reset_seconds.append(time.monotonic() - started)
 
     async def login(self, page: Page, flow: Flow, attempt: int) -> None:
-        assert self.contract.auth is not None
-        login_flow = self.contract.flow(self.contract.auth.login_flow)
-        gen = self.generator(login_flow, "login", attempt)
-        timeout_s = self.contract.action_timeout_s(login_flow)
-        ex = FlowExecutor(page, login_flow, gen, self.contract.app.url, timeout_s * 1000)
+        from sentri.agent.identities import LoginFailed, make_login
+
+        login = make_login(self.contract, self.tmp_root / "login", f"{self.run_tag}-{attempt}")
+        if login is None:
+            raise InfraError("flow requires login but the contract has no auth")
         try:
-            await ex.start()
-            await ex.run_all()
-        except AttackStop as exc:
-            raise InfraError(f"login flow '{login_flow.id}' failed: {exc}") from None
-        ok, detail = await ex.check_success()
-        if not ok:
-            raise InfraError(f"login flow '{login_flow.id}' did not succeed: {detail}")
+            await login(page, "a")
+        except LoginFailed as exc:
+            raise InfraError(str(exc)) from None
 
     def _sqlite_count(self, flow: Flow) -> int | None:
         db = self.contract.duplicate_db
