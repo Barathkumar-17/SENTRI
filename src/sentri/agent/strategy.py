@@ -86,11 +86,16 @@ def _too_large(error: str | None) -> bool:
     return "413" in text or "too large" in text or "context length" in text or "maximum context" in text
 
 
-async def plan_strategy(app_map: AppMap, provider: BudgetedProvider) -> PlannedStrategy:
+async def plan_strategy(app_map: AppMap, provider: BudgetedProvider, goals: list[str] | None = None) -> PlannedStrategy:
     """Black box: the strategist sees only the app map recon built from outside (no README, no source)."""
     if not provider.available:
         return PlannedStrategy(strategy=Strategy(), source="none", error="no model: agentic mode needs one")
-    task = {"identities": ["anon", "a", "b"] if app_map.has_login_flow else ["anon"], "hypotheses_wanted": "5-12"}
+    task: dict[str, object] = {
+        "identities": ["anon", "a", "b"] if app_map.has_login_flow else ["anon"],
+        "hypotheses_wanted": "5-12",
+    }
+    if goals:
+        task["user_goals"] = [g[:300] for g in goals]
     request = build_user_prompt(task, {"app_map": app_map.summary()})
     result = await provider.complete_json("strategist", load_prompt("strategist"), request, Strategy, max_tokens=8000)
     if not result.ok and _too_large(result.error) and provider.available:

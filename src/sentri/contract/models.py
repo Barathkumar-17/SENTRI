@@ -259,6 +259,9 @@ class Contract(_Strict):
     fixtures: dict[str, str] = Field(default_factory=dict)
     defaults: Defaults = Field(default_factory=Defaults)
     flows: list[Flow] = Field(default_factory=list)  # may be empty for API-only apps (agentic mode only)
+    # Optional user goals for the agentic phase, in plain words ("buy something and check your orders"). They are
+    # the user's input, not knowledge of the target's internals, and reach the strategist and explorer as task.
+    goals: list[str] = Field(default_factory=list, max_length=10)
     attacks_enabled: list[AttackId] = Field(default_factory=lambda: list(ATTACK_IDS))  # type: ignore[arg-type]
     duplicate_db: DuplicateDb | None = None
 

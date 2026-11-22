@@ -91,7 +91,7 @@ async def run_agentic(
     )
 
     # 2. Understand
-    planned = await plan_strategy(app_map, provider)  # black box: no README, only what recon saw
+    planned = await plan_strategy(app_map, provider, contract.goals)  # black box: recon + the user's goals
     ledger.save_strategy(run_id, planned.source, planned.model_dump())
     out.hypotheses = len(planned.strategy.hypotheses)
     if planned.error:
@@ -158,6 +158,7 @@ async def run_agentic(
             record_step,
             emit=bus.emit,
             oracle_cfg=agentic_oracle_config(contract),
+            goals=contract.goals,
         ).run()
     finally:
         await session.close()

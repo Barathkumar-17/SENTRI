@@ -211,7 +211,9 @@ class Explorer:
         record_step: Callable[[dict[str, Any]], None],
         emit: Callable[..., Any] | None = None,
         oracle_cfg: OracleConfig | None = None,
+        goals: list[str] | None = None,
     ):
+        self.goals = list(goals or [])
         self.s = session
         self.provider = provider
         self.strategy = strategy
@@ -270,6 +272,7 @@ class Explorer:
             "steps_left": self.budget.max_steps - step + 1,
             "seconds_left": round(seconds_left),
             "identities": ["anon", "a", "b"] if self.app_map.has_login_flow else ["anon"],
+            "user_goals": self.goals,
             "current_identity": observation.get("identity"),
             "canary_for_this_identity": canary,
             "xss_marker": observation.pop("xss_marker", None),
