@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react'
 import { api, useApi, type Run } from '../api'
-import { Badge, count, Empty, ErrorState, Loading, PageHead, Panel, Readiness, RunStatus, cost, duration, go, num, quotaStopped, short, when } from '../ui'
+import { Badge, count, Empty, ErrorState, Loading, PageHead, Panel, Readiness, READINESS_NOTE, RunStatus, cost, readinessBasis, duration, go, num, quotaStopped, short, when } from '../ui'
 
 export function Runs() {
   const runs = useApi(api.runs, [], 5000)
@@ -30,6 +30,7 @@ export function Runs() {
           ) : (
             <RunsTable runs={runs.data} />
           )}
+          {!!runs.data?.length && <p id="readiness-note" className="footnote panel-foot">{READINESS_NOTE}</p>}
         </Panel>
       </div>
     </>
@@ -43,9 +44,9 @@ export function RunsTable({ runs }: { runs: Run[] }) {
         <thead>
           <tr>
             <th>Run</th>
-            <th>Status</th>
-            <th>Readiness</th>
-            <th className="num">Found</th>
+            <th className="hide-narrow">Status</th>
+            <th aria-describedby="readiness-note">Readiness</th>
+            <th className="num hide-narrow">Found</th>
             <th className="hide-narrow">Exploration</th>
             <th className="hide-narrow">Model use</th>
             <th className="num hide-narrow">Duration</th>
@@ -61,19 +62,25 @@ export function RunsTable({ runs }: { runs: Run[] }) {
                   <a href={`#/runs/${r.id}`} onClick={(e) => e.stopPropagation()}>
                     Run {r.id}
                   </a>
-                  <span className="sub mono">
-                    {short(r.commit_sha)} · {r.branch ?? 'local'} · {when(r.started_at)}
+                  <span className="sub">
+                    <span className="mono">{short(r.commit_sha)}</span> · {r.branch ?? 'local'}
+                  </span>
+                  <span className="sub hide-narrow">{when(r.started_at)}</span>
+                  <span className="sub show-narrow">
+                    <RunStatus run={r} />
+                    {stop && <span className="sub">{/^(stopped|model use)/.test(stop) ? stop : `stopped: ${stop}`}</span>}
+                    {ag && <span className="sub">{num(ag.confirmed)} confirmed of {count(ag.candidates ?? 0, 'candidate')}</span>}
                   </span>
                 </td>
-                <td>
+                <td className="hide-narrow">
                   <RunStatus run={r} />
                   {stop && <span className="sub">{/^(stopped|model use)/.test(stop) ? stop : `stopped: ${stop}`}</span>}
                 </td>
                 <td>
                   <Readiness breakdown={r.breakdown} />
-                  {r.breakdown?.agentic_impact ? <span className="sub">agentic −{r.breakdown.agentic_impact}</span> : null}
+                  <span className="sub">{readinessBasis(r.breakdown)}</span>
                 </td>
-                <td className="num">
+                <td className="num hide-narrow">
                   {ag ? (
                     <>
                       {num(ag.confirmed)}

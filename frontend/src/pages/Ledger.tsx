@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react'
 import { api, useApi } from '../api'
-import { BUG_STATUS, Badge, Empty, ErrorState, Loading, PageHead, Panel, Readiness, Tabs, cost, go, num, short, when } from '../ui'
+import { BUG_STATUS, Badge, Empty, ErrorState, Loading, PageHead, Panel, Readiness, READINESS_NOTE, Tabs, cost, go, num, short, when } from '../ui'
 import { BugDecision } from './Findings'
 
 type Tab = 'runs' | 'bugs'
@@ -23,7 +23,7 @@ export function Ledger() {
                 <table className="nowrap">
                   <thead>
                     <tr>
-                      <th>Run</th><th>Commit</th><th>Readiness</th>
+                      <th>Run</th><th>Commit</th><th aria-describedby="ledger-readiness-note">Readiness</th>
                       <th className="num">Regressions</th><th className="num">Checks</th><th className="num">Steps / states</th>
                       <th className="num">Confirmed</th><th className="num wrap-cell">Model use</th>
                     </tr>
@@ -56,6 +56,7 @@ export function Ledger() {
                 </table>
               </div>
             )}
+            {!!runs.data?.length && <p id="ledger-readiness-note" className="footnote panel-foot">{READINESS_NOTE}</p>}
           </Panel>
         ) : (
           <BugList bugs={bugs} />

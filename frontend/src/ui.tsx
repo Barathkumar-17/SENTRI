@@ -91,13 +91,31 @@ export function RunStatus({ run }: { run: Run }) {
 }
 
 /** Readiness exactly as the backend decided it; insufficient coverage is never shown as a number. */
-export function Readiness({ breakdown, compact }: { breakdown: Breakdown | null; compact?: boolean }) {
+export function Readiness({ breakdown }: { breakdown: Breakdown | null }) {
   if (!breakdown) return <span className="faint">–</span>
-  if (breakdown.status === 'insufficient_coverage' || breakdown.score == null)
-    return <Badge tone="warn" title={breakdown.formula}>Insufficient coverage</Badge>
-  if (compact) return <span className="mono">{breakdown.score}</span>
-  return <span className="mono">{breakdown.score}</span>
+  if (breakdown.status === 'insufficient_coverage' || breakdown.score == null) return <Badge tone="warn">Insufficient coverage</Badge>
+  return (
+    <span className="score">
+      <span className="mono">{breakdown.score}</span>
+      <span className="of"> / 100</span>
+    </span>
+  )
 }
+
+/** What the readiness number was built from, in words, straight from the recorded breakdown. */
+export function readinessBasis(b: Breakdown | null): string {
+  if (!b) return ''
+  if (b.status === 'insufficient_coverage' || b.score == null)
+    return `no applicable baseline check ran${b.na ? ` (${b.na} not applicable)` : ''}`
+  const parts = [`${b.passed} of ${count(b.applicable, 'applicable check')} passed`]
+  if (b.flaky) parts.push(`${b.flaky} flaky (half credit)`)
+  if (b.regressed) parts.push(`−${(b.penalty_per_regression ?? 5) * b.regressed} for ${count(b.regressed, 'regression')}`)
+  if (b.agentic_impact) parts.push(`−${b.agentic_impact} for confirmed findings`)
+  return parts.join(', ')
+}
+
+export const READINESS_NOTE =
+  'Readiness is the share of applicable baseline checks that passed (flaky counts half) on a 0–100 scale, minus 5 per regression and points for each finding confirmed by replay. It counts only what this run tested and is not a safety rating.'
 
 export function quotaStopped(run: Run): string | null {
   const reason = run.usage?.stop_reason || run.coverage?.completion?.model_stop || run.coverage?.agentic?.exploration_stop || ''

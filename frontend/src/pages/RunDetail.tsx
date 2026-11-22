@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { api, useApi, useEventStream, type Run, type SentriEvent } from '../api'
 import {
   Badge, Banner, CHECK, Empty, ErrorState, Loading, ORIGIN, PageHead, Panel, Readiness, RunStatus, Tabs, VERDICT,
-  cost, count, duration, go, num, quotaStopped, short, when,
+  READINESS_NOTE, cost, count, duration, readinessBasis, go, num, quotaStopped, short, when,
 } from '../ui'
 
 // Events worth weight in the feed; the rest read as ordinary progress.
@@ -87,7 +87,7 @@ function Outcome({ run }: { run: Run }) {
         <div className="fact">
           <span className="label">Readiness</span>
           <span className="value"><Readiness breakdown={b} /></span>
-          <span className="note">{insufficient ? 'No applicable baseline check ran, so there is no score.' : `baseline ${b?.baseline ?? '–'}${b?.agentic_impact ? `, agentic impact −${b.agentic_impact}` : ''}`}</span>
+          <span className="note">{insufficient ? 'No applicable baseline check ran, so there is no score.' : readinessBasis(b)}</span>
         </div>
         <div className="fact">
           <span className="label">Confirmed findings</span>
@@ -106,7 +106,7 @@ function Outcome({ run }: { run: Run }) {
         </div>
       </div>
       {b?.formula && <p className="faint xs mono wrap-anywhere">{b.formula}</p>}
-      {run.coverage?.caveat && <p className="faint small">{run.coverage.caveat}</p>}
+      <p className="footnote">{READINESS_NOTE}</p>
     </div>
   )
 }

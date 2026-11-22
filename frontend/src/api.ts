@@ -70,6 +70,7 @@ export type Breakdown = {
   na: number
   errors: number
   regressed: number
+  penalty_per_regression?: number
   formula: string
   baseline?: number | null
   agentic_impact?: number
