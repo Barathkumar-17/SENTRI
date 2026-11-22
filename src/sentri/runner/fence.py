@@ -12,8 +12,10 @@ action, a click on a link, a form whose action points elsewhere, a popup, a scri
 - identity tokens (contract `auth.api`) are attached per request, to same-origin requests only. Those requests
   are fetched with redirects disabled, so a redirect to another origin is stubbed before the token can follow.
 
-Cookies are origin-scoped by the browser, so a cookie-only redirect hop to another origin carries none of the
-app's credentials; the agent session notices when a page lands off-origin and returns to the app.
+Page navigations are fetched the same way, so an open redirect cannot take the browser off the app either (found
+by the Juice Shop proof run: its /redirect?to= sent a logged-out recon visit to github.com). While a context is
+throttled the browser fetches by itself (CDP throttling does not apply to fence fetches); the agent session then
+still notices a page that lands off-origin and returns to the app.
 """
 
 from __future__ import annotations
@@ -55,6 +57,7 @@ class OriginFence:
     base_url: str | None
     offsite_assets: OffsiteAssets = "allow"
     headers: dict[str, str] = field(default_factory=dict)  # identity token headers, same-origin only
+    throttled: bool = False  # set while slow-network emulation is on (fence fetches would bypass it)
     blocked: list[Blocked] = field(default_factory=list)
 
     def same_origin(self, url: str) -> bool:
@@ -78,7 +81,11 @@ class OriginFence:
             if not self.same_origin(url):
                 await self._offsite(route, req.method, url, req.resource_type)
                 return
-            if self.headers and req.resource_type in TOKEN_TYPES:
+            # Fetched by the fence with redirects off, so a redirect to another origin is stubbed: every request
+            # carrying a token, and every page navigation (an open redirect must not take the browser off the
+            # app). Skipped while throttled, so slow-network attacks keep the browser's real timing.
+            navigation = req.resource_type == "document" and req.method in ("GET", "HEAD")
+            if req.resource_type in TOKEN_TYPES and (self.headers or navigation) and not self.throttled:
                 await self._with_token(route, req.headers, url, req.resource_type)
                 return
             if self.headers:
@@ -139,6 +146,12 @@ async def install(ctx: BrowserContext, base_url: str | None, offsite_assets: Off
 
 def fence_of(ctx: BrowserContext) -> OriginFence | None:
     return _FENCES.get(id(ctx))
+
+
+def set_throttled(ctx: BrowserContext, on: bool) -> None:
+    fence = fence_of(ctx)
+    if fence is not None:
+        fence.throttled = on
 
 
 async def set_identity_headers(ctx: BrowserContext, headers: dict[str, str]) -> None:

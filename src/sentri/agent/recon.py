@@ -14,7 +14,7 @@ import re
 import secrets
 from collections import deque
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from playwright.async_api import Error as PlaywrightError
 from pydantic import BaseModel, Field
@@ -141,7 +141,7 @@ class AppMap(BaseModel):
             | {x for e in self.endpoints for x in e.examples}
         )
 
-    def summary(self, max_pages: int = 40) -> dict[str, Any]:
+    def summary(self, max_pages: int = 40, max_endpoints: int = 80) -> dict[str, Any]:
         """Compact view for the model."""
         return {
             "pages": [
@@ -180,7 +180,7 @@ class AppMap(BaseModel):
                     "query": e.query_params,
                     "observed_request_ids": e.request_ids[:3],
                 }
-                for e in self.endpoints[:80]
+                for e in self.endpoints[:max_endpoints]
             ],
             "api_spec": self.api_spec,
             "login_path": self.login_path,
@@ -218,6 +218,9 @@ class Recon:
             data: dict[str, Any] = await page.evaluate(EXTRACT_JS)
         except (PlaywrightError, ActionRefused):
             return None
+        if not self.s.same_origin(page.url):
+            self.map.notes.append(f"{path} left the app (landed on {page.url[:100]}); not recorded")
+            return None  # an open redirect or a link elsewhere: never part of the app map
         data["final_path"] = _path(page.url)
         data["status"] = resp.status if resp is not None else None
         return data
@@ -264,7 +267,8 @@ class Recon:
                 continue
             for href in data.get("links", []):
                 with contextlib.suppress(ActionRefused):
-                    target = _path(resolve_same_origin(self.s.page.url, href)).split("#")[0]
+                    # Resolved against the current page, then fenced to the app itself (not to the page's origin).
+                    target = _path(resolve_same_origin(self.s.base_url, urljoin(self.s.page.url, href))).split("#")[0]
                     if target not in seen:
                         queue.append((target, depth + 1))
             for target in await self._follow_nav_buttons(path, who):
@@ -291,9 +295,9 @@ class Recon:
                 await self.s.page.locator(selector).first.click(timeout=3000)
                 await self.s.settle()
             to = _path(self.s.page.url).split("#")[0]
-            if entry is not None and to != path and self.s.same_origin(self.s.page.url):
+            if to != path and self.s.same_origin(self.s.page.url):
                 edge = {"button": selector, "text": text, "to": to}
-                if edge not in entry.leads_to:
+                if entry is not None and edge not in entry.leads_to:
                     entry.leads_to.append(edge)
                 targets.append(to)
         return targets

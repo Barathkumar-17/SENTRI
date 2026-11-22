@@ -57,7 +57,7 @@ from sentri.evidence.agent_models import (
 from sentri.evidence.models import ConsoleRecord, Evidence, HttpRecord
 from sentri.redact import redact
 from sentri.runner.browser import BrowserManager
-from sentri.runner.fence import blocked_summary, set_identity_headers
+from sentri.runner.fence import blocked_summary, set_identity_headers, set_throttled
 from sentri.sandbox.base import Sandbox
 from sentri.verdict.signature import normalize_path
 
@@ -691,6 +691,7 @@ class AgentSession:
             self._cdp[self.current] = cdp
             await cdp.send("Network.enable")
             await cdp.send("Network.emulateNetworkConditions", SLOW_3G if action.on else NO_THROTTLE)
+            set_throttled(self.contexts[self.current], action.on)
         elif isinstance(action, Wait):
             await page.wait_for_timeout(action.ms)
         elif isinstance(action, Finish):

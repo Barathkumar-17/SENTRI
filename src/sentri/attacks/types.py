@@ -9,6 +9,7 @@ from typing import Any
 from sentri.attacks.base import APPLIES, Applicability, Attack, AttackContext, Payload, PayloadSlot
 from sentri.contract.models import Flow
 from sentri.contract.placeholders import tiny_png
+from sentri.runner.fence import set_throttled
 
 SLOW_3G = {"offline": False, "latency": 2000, "downloadThroughput": 50_000, "uploadThroughput": 50_000}
 NO_THROTTLE = {"offline": False, "latency": 0, "downloadThroughput": -1, "uploadThroughput": -1}
@@ -95,6 +96,7 @@ class SlowNetwork(Attack):
         await cdp.send("Network.enable")
         ctx.emit("throttle network to Slow 3G")
         await cdp.send("Network.emulateNetworkConditions", SLOW_3G)
+        set_throttled(ctx.context, True)
         await ctx.executor.start()
         await ctx.executor.run_prefix()
         await ctx.executor.submit()
@@ -106,6 +108,7 @@ class SlowNetwork(Attack):
 
 async def remove_throttle(ctx: AttackContext) -> None:
     cdp, ctx.cdp = ctx.cdp, None
+    set_throttled(ctx.context, False)
     if cdp is not None:
         try:
             await cdp.send("Network.emulateNetworkConditions", NO_THROTTLE)

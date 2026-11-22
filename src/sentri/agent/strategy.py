@@ -81,12 +81,25 @@ def validate(strategy: Strategy, app_map: AppMap, limit: int = 12) -> tuple[Stra
     return strategy.model_copy(update={"hypotheses": kept[:limit]}), dropped
 
 
+def _too_large(error: str | None) -> bool:
+    text = (error or "").lower()
+    return "413" in text or "too large" in text or "context length" in text or "maximum context" in text
+
+
 async def plan_strategy(app_map: AppMap, provider: BudgetedProvider, readme: str = "") -> PlannedStrategy:
     if not provider.available:
         return PlannedStrategy(strategy=Strategy(), source="none", error="no model: agentic mode needs one")
     task = {"identities": ["anon", "a", "b"] if app_map.has_login_flow else ["anon"], "hypotheses_wanted": "5-12"}
     request = build_user_prompt(task, {"app_map": app_map.summary(), "readme": readme[:8000]})
     result = await provider.complete_json("strategist", load_prompt("strategist"), request, Strategy, max_tokens=8000)
+    if not result.ok and _too_large(result.error) and provider.available:
+        # Providers with small per-request limits (e.g. free API tiers): one retry with a compact map.
+        compact = build_user_prompt(
+            task, {"app_map": app_map.summary(max_pages=12, max_endpoints=30), "readme": readme[:1500]}
+        )
+        result = await provider.complete_json(
+            "strategist", load_prompt("strategist"), compact, Strategy, max_tokens=4000
+        )
     if not result.ok or result.value is None:
         return PlannedStrategy(strategy=Strategy(), source="llm", error=result.error or "no strategy")
     strategy, dropped = validate(result.value, app_map)
