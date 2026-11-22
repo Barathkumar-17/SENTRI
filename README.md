@@ -5,10 +5,21 @@ Sentri attacks your running web app like a hostile or careless user, so it break
 **Core rule:** the AI proposes attacks; plain code decides pass or fail. The AI never grades the result.
 
 - Runs your app in a throwaway sandbox (Docker container, or a plain local process).
-- Drives a real browser (Chromium via Playwright) through the journeys your demo must survive.
-- Applies six fixed attacks: empty input, double submit, expired session, slow network, bad file, rapid repeat.
-- Decides pass, fail or flaky with five deterministic checks: HTTP 5xx, unhandled exception in the logs, browser console error, duplicate records, timeout.
-- Keeps a bug ledger across commits, flags regressions, and gives a 0-100 readiness score per commit.
+- **Recon:** explores the app first (every reachable page, form and link, logged out and logged in, plus the
+  API from its OpenAPI spec when there is one) and maps which pages and endpoints need login.
+- **Strategy:** a model reads that map and plans attacks specific to *this* app: where data, money and
+  permissions move, which flows look fragile. Hypotheses that do not point at real pages or endpoints are
+  dropped.
+- **Agentic exploration:** the model drives a real browser and raw HTTP requests step by step (huge or odd
+  inputs, logged-out and other-user access, changed ids, wrong methods, back/refresh/two tabs, replays and
+  races, bursts, big uploads, slow network) and decides each next move from what happened.
+- **Plain-code verdicts:** every suspected break is replayed 3 times from a clean state and judged by nine
+  deterministic checks: HTTP 5xx, exceptions in the logs, browser errors, duplicates, hangs, logged-out access
+  to protected data, one user seeing another's data, duplicates from replays or races, and state corruption.
+- **Baseline suite:** six fixed attacks (empty input, double submit, expired session, slow network, bad file,
+  rapid repeat) give a readiness score that stays comparable from commit to commit.
+- Keeps a bug ledger across commits, re-checks every confirmed finding on later runs, flags regressions, and
+  reports the attack tree: the actual path the agent took through the app.
 - Optionally proposes fixes as draft pull requests that must pass a fixed gate first.
 
 ## Install
@@ -107,6 +118,30 @@ attacks_enabled: [empty_input, double_submit, expired_session, slow_network, bad
 
 `{email}`, `{password}`, `{title}`, `{name}`, `{text}`, `{number}` and `{file}` are filled with fresh test data on each attempt. Pin values in a `fixtures:` section. Flows that need a logged-in user set `requires_login: true` and name a login flow in `auth.login_flow`.
 
+## API apps and single-page apps
+
+For apps whose interface is drawn on a canvas (Flutter web) or that are mostly an API, give the contract an API
+login and let recon read the OpenAPI spec:
+
+```yaml
+version: 1
+app:
+  run: "{python} -m uvicorn main:app --port 8765"
+  port: 8765
+  env: {DATABASE_FILE: "sentri.db"}
+  clean: ["sentri.db"]            # deleted before every start: a clean state for each replay
+auth:
+  api:
+    register: {path: "/auth/register", json: {username: "{username}", password: "{password}"}}
+    token_field: "token"          # where the token is in the response
+    header: "Authorization"
+    scheme: "Bearer"
+```
+
+Each identity (`a`, `b`) gets its own fresh account and token, so Sentri can check whether one user can read or
+change another's data. Agentic mode needs a model; without one, only the baseline suite runs. Exploration
+budgets: `SENTRI_EXPLORE_STEPS` (default 60) and `SENTRI_EXPLORE_MINUTES` (default 10).
+
 ## Verdicts and score
 
 Each check (flow x attack) runs 3 times from a clean app state:
@@ -130,7 +165,7 @@ A pass means "survived these attacks", nothing more. Sentri does not check busin
 | `sentri models` | List the model sources on this machine (agent CLIs, local servers, key variables) |
 | `sentri plan` | Crawl the app and propose a draft contract |
 | `sentri contract check FILE` / `approve FILE --as NAME` | Validate / approve a contract |
-| `sentri run` | Run the attack grid (`--serve` also starts the dashboard API, `--fresh` disables reuse, `--only flow:attack`) |
+| `sentri run` | Agentic run (recon, strategy, exploration, confirmation, then the baseline suite); `--mode baseline` runs only the six fixed attacks; `--serve` also starts the dashboard API; `--fresh` disables reuse |
 | `sentri report` | Rebuild `report.md` from the ledger (`--efficiency` shows time and cost per run) |
 | `sentri bug list` / `bug mark BUG-001 intended --note "..."` | Inspect bugs / record a human decision |
 | `sentri ui` | Start the local web app and open the browser (full workflow; the screens are in progress, the API behind them works today) |
