@@ -106,21 +106,11 @@ def main() -> int:
         errors="replace",
     )
     try:
-        token = None
-        assert server.stdout is not None
-        for _ in range(20):
-            line = server.stdout.readline()
-            if "token=" in line:
-                token = line.strip().split("token=", 1)[1]
-                break
-        if not token:
-            raise SystemExit("sentri serve did not print a session token")
         base = f"http://127.0.0.1:{dash_port}"
 
         def api(method: str, path: str, body: object | None = None) -> Any:
             data = json.dumps(body).encode() if body is not None else None
             req = urllib.request.Request(base + path, data=data, method=method)
-            req.add_header("X-Sentri-Token", token)
             req.add_header("Content-Type", "application/json")
             with urllib.request.urlopen(req, timeout=30) as r:
                 return json.loads(r.read())

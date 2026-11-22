@@ -437,9 +437,8 @@ def run_cmd(
     async def go() -> RunResult:
         server_task = None
         if serve:
-            token = _new_token()
-            server_task = asyncio.create_task(_serve_async(s, port, token=token))
-            console.print(f"dashboard: http://127.0.0.1:{port}/?token={token}")
+            server_task = asyncio.create_task(_serve_async(s, port))
+            console.print(f"dashboard: http://127.0.0.1:{port}")
         try:
             return await RunOrchestrator(c, workdir, s, ledger, provider, options, echo=_echo).run()
         finally:
@@ -556,42 +555,34 @@ def bug_mark(
 
 
 # ---- serve --------------------------------------------------------------------------------------------
-async def _serve_async(s: Settings, port: int, host: str = "127.0.0.1", token: str | None = None) -> None:
+async def _serve_async(s: Settings, port: int, host: str = "127.0.0.1") -> None:
     import uvicorn
 
     from sentri.dashboard import create_app
 
     extra = () if host in ("127.0.0.1", "localhost") else (host.lower(),) if host != "0.0.0.0" else ()
-    web = create_app(s.db_path, s.evidence_dir, s.live_path, token=token, settings=s, extra_hosts=extra)
+    web = create_app(s.db_path, s.evidence_dir, s.live_path, settings=s, extra_hosts=extra)
     config = uvicorn.Config(web, host=host, port=port, log_level="warning")
     await uvicorn.Server(config).serve()
-
-
-def _new_token() -> str:
-    import secrets
-
-    return secrets.token_urlsafe(24)
 
 
 def _serve(port: int, host: str, db: Path | None, open_browser: bool) -> None:
     s = _settings(db)
     if host != "127.0.0.1":
         err.print(
-            "[yellow]warning: binding beyond localhost. Requests must use that exact host name, and every action "
-            "still needs the session token.[/yellow]"
+            "[yellow]warning: binding beyond localhost. The local app has no login, so only do this on a "
+            "network you trust; requests must use that exact host name.[/yellow]"
         )
     Ledger(s.db_path).close()  # create/migrate the ledger so the API works on a fresh machine
-    token = _new_token()
-    url = f"http://{'127.0.0.1' if host == '0.0.0.0' else host}:{port}/?token={token}"
-    console.print(f"dashboard: {url}")
-    console.print("open that URL once; the token protects actions such as starting runs. Ctrl+C stops the server.")
+    url = f"http://{'127.0.0.1' if host == '0.0.0.0' else host}:{port}"
+    console.print(f"Sentri is running at {url}  (Ctrl+C stops it)")
     if open_browser:
         import threading
         import webbrowser
 
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:
-        asyncio.run(_serve_async(s, port, host, token))
+        asyncio.run(_serve_async(s, port, host))
     except KeyboardInterrupt:
         console.print("stopped")
 

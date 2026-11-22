@@ -82,8 +82,8 @@ def test_report_markdown(tmp_path):
 def test_dashboard_api(tmp_path):
     lg, run = seeded_ledger(tmp_path)
     lg.close()
-    app = create_app(tmp_path / "l.db", tmp_path / "evidence", tmp_path / "live.jpg", token="t0k")
-    client = TestClient(app, base_url="http://127.0.0.1", headers={"X-Sentri-Token": "t0k"})
+    app = create_app(tmp_path / "l.db", tmp_path / "evidence", tmp_path / "live.jpg")
+    client = TestClient(app, base_url="http://127.0.0.1")
     assert client.get("/").status_code == 200
     assert [r["id"] for r in client.get("/api/runs").json()] == [run, run - 1]
     grid = client.get(f"/api/runs/{run}/grid").json()

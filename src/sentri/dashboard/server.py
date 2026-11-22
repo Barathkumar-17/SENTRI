@@ -10,10 +10,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-import secrets
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
@@ -62,7 +62,6 @@ def _row(row: Any) -> dict[str, Any] | None:
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
-TOKEN_COOKIE = "sentri_token"
 
 
 def create_app(
@@ -71,28 +70,36 @@ def create_app(
     live_path: Path,
     poll_s: float = 0.5,
     *,
-    token: str | None = None,
     settings: Settings | None = None,
     extra_hosts: tuple[str, ...] = (),
 ) -> FastAPI:
-    """`token` protects every state-changing request (Jupyter-style): open `/?token=...` once and the browser
-    keeps it in a SameSite=Strict cookie, or send it as the `X-Sentri-Token` header. Requests whose Host is
-    not local are refused, which blocks DNS-rebinding attacks from other websites."""
+    """Local app: no login. Three checks keep other websites in the same browser from driving it:
+    - Host must be local (blocks DNS rebinding);
+    - a state-changing request that carries an Origin header must come from this server's own origin
+      (browsers always send Origin on cross-site POST/PUT/DELETE; local scripts and curl send none);
+    - state-changing requests must be JSON (a plain HTML form on another site cannot send that).
+    The SaaS version adds real accounts; this local server never has one."""
     app = FastAPI(title="Sentri", version="0.1.0")
+    allowed_hosts = LOCAL_HOSTS | set(extra_hosts)
 
     @app.middleware("http")
     async def guard(request: Request, call_next: Any) -> Response:
-        host = (request.headers.get("host") or "").rsplit(":", 1)[0].lower()
-        if host not in LOCAL_HOSTS and host not in extra_hosts:
+        host_header = (request.headers.get("host") or "").lower()
+        host = host_header.rsplit(":", 1)[0] if not host_header.startswith("[") else host_header.split("]")[0] + "]"
+        if host not in allowed_hosts:
             return Response("Sentri only answers on localhost", status_code=403)
         if request.method not in SAFE_METHODS:
-            given = request.headers.get("x-sentri-token") or request.cookies.get(TOKEN_COOKIE)
-            if token is None or not given or not secrets.compare_digest(given, token):
-                return Response("missing or wrong session token; open the URL printed by `sentri serve`", 401)
+            origin = request.headers.get("origin")
+            if origin is not None:
+                parsed = urlsplit(origin)
+                same = parsed.netloc.lower() == host_header and parsed.scheme in ("http", "https")
+                if not same:
+                    return Response("cross-site request refused", status_code=403)
+            ctype = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+            has_body = request.headers.get("content-length") not in (None, "0")
+            if has_body and ctype != "application/json":
+                return Response("send JSON (Content-Type: application/json)", status_code=415)
         response: Response = await call_next(request)
-        query_token = request.query_params.get("token")
-        if token and request.url.path == "/" and query_token and secrets.compare_digest(query_token, token):
-            response.set_cookie(TOKEN_COOKIE, token, httponly=True, samesite="strict")
         return response
 
     if settings is not None:

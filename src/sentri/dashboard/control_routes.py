@@ -7,7 +7,7 @@ FRONTEND: the React app (not built yet) drives the whole local workflow through 
   4. POST /api/projects/inspect                  -> point at a folder, get start-command suggestions
   5. POST /api/plan -> job; POST /api/contracts/save (with approve_as = the human approval)
   6. POST /api/runs -> job; progress via /api/events/stream?run_id=..., live view via /api/live/screenshot.jpg
-Every POST/PUT needs the session token (see server.py).
+No login: the local server only accepts actions from its own page or local tools (see server.py).
 """
 
 from __future__ import annotations

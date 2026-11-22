@@ -16,8 +16,6 @@ from sentri.control.projects import inspect_project
 from sentri.dashboard import create_app
 from tests.conftest import BUGGY_APP
 
-TOKEN = "s3cret-token"
-
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
@@ -29,41 +27,45 @@ def settings(tmp_path: Path) -> Settings:
     return s
 
 
-def make_app(settings: Settings, token: str | None = TOKEN):
-    return create_app(settings.db_path, settings.evidence_dir, settings.live_path, token=token, settings=settings)
+def make_app(settings: Settings):
+    return create_app(settings.db_path, settings.evidence_dir, settings.live_path, settings=settings)
 
 
 @pytest.fixture
 def client(settings: Settings) -> TestClient:
-    return TestClient(make_app(settings), base_url="http://127.0.0.1", headers={"X-Sentri-Token": TOKEN})
+    return TestClient(make_app(settings), base_url="http://127.0.0.1")
 
 
-# ---- security -----------------------------------------------------------------------------------------
+# ---- local safety without any login -------------------------------------------------------------------
+def test_no_login_needed_for_local_use(client: TestClient):
+    assert client.get("/api/providers").status_code == 200
+    assert client.post("/api/projects/inspect", json={"path": str(BUGGY_APP)}).status_code == 200
+    same_origin = {"Origin": "http://127.0.0.1"}
+    assert client.put("/api/settings/model", json={"preset": "none"}, headers=same_origin).status_code == 200
+
+
 def test_foreign_host_is_refused(settings: Settings):
     evil = TestClient(make_app(settings), base_url="http://attacker.example")
     assert evil.get("/api/providers").status_code == 403
 
 
-def test_state_changes_need_the_token(settings: Settings):
-    anon = TestClient(make_app(settings), base_url="http://127.0.0.1")
-    assert anon.get("/api/providers").status_code == 200  # reads are fine
-    assert anon.post("/api/projects/inspect", json={"path": str(BUGGY_APP)}).status_code == 401
-    assert anon.put("/api/settings/model", json={"preset": "none"}).status_code == 401
-    bad = TestClient(make_app(settings), base_url="http://127.0.0.1", headers={"X-Sentri-Token": "wrong"})
-    assert bad.post("/api/runs", json={"contract": "x.yaml"}).status_code == 401
+def test_cross_site_requests_are_refused(client: TestClient):
+    evil = {"Origin": "https://attacker.example"}
+    assert client.post("/api/projects/inspect", json={"path": str(BUGGY_APP)}, headers=evil).status_code == 403
+    assert client.post("/api/runs", json={"contract": "x.yaml"}, headers=evil).status_code == 403
+    other_port = {"Origin": "http://127.0.0.1:9999"}
+    assert client.put("/api/settings/model", json={"preset": "none"}, headers=other_port).status_code == 403
 
 
-def test_token_url_sets_cookie(settings: Settings):
-    browser = TestClient(make_app(settings), base_url="http://127.0.0.1")
-    r = browser.get(f"/?token={TOKEN}")
-    cookie = r.headers.get("set-cookie", "")
-    assert r.status_code == 200 and "sentri_token" in cookie and "samesite=strict" in cookie.lower()
-    assert browser.post("/api/projects/inspect", json={"path": str(BUGGY_APP)}).status_code == 200
-
-
-def test_no_token_configured_means_read_only(settings: Settings):
-    c = TestClient(make_app(settings, token=None), base_url="http://127.0.0.1", headers={"X-Sentri-Token": "x"})
-    assert c.put("/api/settings/model", json={"preset": "none"}).status_code == 401
+def test_actions_must_be_json(client: TestClient):
+    form = client.post(
+        "/api/projects/inspect",
+        content=f"path={BUGGY_APP}",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert form.status_code == 415
+    plain = client.post("/api/runs", content='{"contract": "x.yaml"}', headers={"Content-Type": "text/plain"})
+    assert plain.status_code == 415
 
 
 # ---- model choice -------------------------------------------------------------------------------------
