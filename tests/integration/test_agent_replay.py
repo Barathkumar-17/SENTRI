@@ -125,3 +125,34 @@ async def test_code_owned_idor_check_is_confirmed_by_replay(env: ReplayEnv):
     verdict, key, notes_out = await confirm(env, notes)
     assert verdict.verdict == "fail", (verdict, notes_out)
     assert key == "cross_user_exposure GET /api/notes/:id"
+
+
+DUP = [
+    {"action": {"kind": "switch_user", "user": "a"}},
+    {"action": {"kind": "navigate", "path": "/tasks/new"}},
+    {"action": {"kind": "type", "selector": "input[name=title]", "text": "sentri-dupcheck-x1"}},
+    {"action": {"kind": "upload", "selector": "input[type=file]", "shape": "valid"}},
+    {"action": {"kind": "click", "selector": "button#save"}},
+    {
+        "action": {"kind": "replay", "request_id": 1, "times": 2, "concurrent": False},
+        "match": {"method": "POST", "path": "/tasks/new"},
+    },
+]
+
+
+async def test_replay_duplicate_counts_records_on_the_list_page(env: ReplayEnv):
+    import json as _json
+
+    env.attempts = 1
+    verdict, _key, notes = await confirm(env, DUP)
+    assert verdict.verdict == "pass", (verdict, notes)  # the one-time nonce makes the app refuse replays (409)
+    (evidence,) = (env.evidence_dir or Path()).glob("agentic-*-a1.json")
+    probes = [p for p in _json.loads(evidence.read_text(encoding="utf-8"))["probes"] if p["page"] == "/tasks"]
+    assert probes and all(not p["inconclusive"] and p["before"] == p["after"] == 1 for p in probes), probes
+
+
+async def test_no_list_page_makes_the_duplicate_probe_inconclusive(env: ReplayEnv):
+    env.attempts = 1
+    env.app_map = env.app_map.model_copy(update={"pages": [PageEntry(path="/tasks/new", requires_login=True)]})
+    _verdict, _key, notes = await confirm(env, DUP)
+    assert any("replay_duplicate inconclusive" in n and "no list page" in n for n in notes), notes
