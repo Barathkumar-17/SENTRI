@@ -142,6 +142,8 @@ async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int)
     tag = f"{env.run_tag}-rp{attempt}"
     session = AgentSession(env.browser, env.sandbox, env.contract.app.url, make_login(env.contract, tmp, tag), tmp)
     session.protected = env.protected
+    session.proven_protected = env.app_map.proven_protected_paths()
+    session.anon_shells = tuple(env.app_map.anon_shells)
     notes: list[str] = []
     try:
         await session.start()

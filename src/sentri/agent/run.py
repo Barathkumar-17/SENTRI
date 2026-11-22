@@ -131,6 +131,8 @@ async def run_agentic(
     await sandbox.reset()
     session = AgentSession(browser, sandbox, contract.app.url, login, tmp)
     session.protected = set(protected)
+    session.proven_protected = app_map.proven_protected_paths()
+    session.anon_shells = tuple(app_map.anon_shells)
 
     def record_step(step: dict[str, Any]) -> None:
         ledger.add_step(run_id, step)

@@ -60,7 +60,8 @@ class IdorProbe:
 class AgentEvidence:
     base: Evidence
     responses: tuple[ResponseRecord, ...] = ()
-    protected_paths: tuple[str, ...] = ()  # normalized paths recon proved need login
+    protected_paths: tuple[str, ...] = ()  # normalized paths recon proved need login (behaviour, not "unseen")
+    anon_shells: tuple[str, ...] = ()  # what a logged-out visitor gets for the app shell / login page
     private_markers: dict[str, tuple[str, ...]] = field(default_factory=dict)  # identity -> its private values
     count_probes: tuple[CountProbe, ...] = ()
     health_probes: tuple[HealthProbe, ...] = ()

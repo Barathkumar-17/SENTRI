@@ -7,6 +7,7 @@ from protected pages or to protected endpoints.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 from sentri.evidence.agent_models import AgentEvidence, ResponseRecord
@@ -21,6 +22,27 @@ _LOGIN_FORM = ('type="password"', "type='password'", "type=password")
 def _looks_like_login_form(text: str) -> bool:
     lowered = text.lower()
     return any(marker in lowered for marker in _LOGIN_FORM)
+
+
+_WORD = re.compile(r"[a-z][a-z_-]{1,40}")
+_NOISE = re.compile(r"[0-9a-f]{8,}|\d+", re.I)  # nonces, hashes, build ids, timestamps
+
+
+def _words(text: str) -> set[str]:
+    return set(_WORD.findall(_NOISE.sub(" ", text.lower())))
+
+
+def is_shell(text: str, shells: tuple[str, ...], threshold: float = 0.95) -> bool:
+    """Same page as the app shell or login page a logged-out visitor gets anyway (a single-page app serves the
+    same HTML on every route): same words, ignoring nonces and numbers, at >= `threshold` Jaccard similarity."""
+    words = _words(text)
+    if not words:
+        return False
+    for shell in shells:
+        other = _words(shell)
+        if other and len(words & other) / len(words | other) >= threshold:
+            return True
+    return False
 
 
 def _leak(ev: AgentEvidence, r: ResponseRecord, owners: tuple[str, ...]) -> str | None:
@@ -43,7 +65,13 @@ def auth_bypass(ev: AgentEvidence, cfg: OracleConfig) -> OracleResult:
                 "auth_bypass", True, f"logged-out {route} returned user {owner}'s private data", route, "private_data"
             )
         served = r.status is not None and 200 <= r.status < 300 and r.redirected_to is None
-        if r.method == "GET" and served and normalize_path(r.path) in protected and not _looks_like_login_form(r.text):
+        if (
+            r.method == "GET"
+            and served
+            and normalize_path(r.path) in protected
+            and not _looks_like_login_form(r.text)
+            and not is_shell(r.text, ev.anon_shells)
+        ):
             return OracleResult(
                 "auth_bypass",
                 True,

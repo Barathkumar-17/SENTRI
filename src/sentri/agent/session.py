@@ -153,6 +153,10 @@ class AgentSession:
         # Recon tells the session which paths need login. A canary is private only if its owner submitted it
         # from or to protected paths and never anywhere public.
         self.protected: set[str] = set()
+        # The auth_bypass oracle only trusts login requirements proven by behaviour, and ignores anon bodies
+        # that are just the app shell / login page. None = same as `protected` (callers that know no better).
+        self.proven_protected: set[str] | None = None
+        self.anon_shells: tuple[str, ...] = ()
         self.identity_headers: dict[str, dict[str, str]] = {}  # token auth: sent on every request of an identity
         self._submitted: dict[str, dict[str, bool]] = {"a": {}, "b": {}}  # who -> canary -> sent publicly?
         # Code-owned cross-user checks: records a/b created (found from their requests) and the direct-by-id
@@ -296,7 +300,8 @@ class AgentSession:
         return AgentEvidence(
             base=self.evidence_since(mark),
             responses=self.responses_since(mark),
-            protected_paths=tuple(sorted(self.protected)),
+            protected_paths=tuple(sorted(self.protected if self.proven_protected is None else self.proven_protected)),
+            anon_shells=self.anon_shells,
             private_markers=self.private_markers(),
             count_probes=count_probes,
             health_probes=health_probes,

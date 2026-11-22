@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import json
 import re
+import secrets
 from collections import deque
 from typing import Any
 from urllib.parse import urlsplit
@@ -21,6 +22,7 @@ from pydantic import BaseModel, Field
 from sentri.agent.actions import ActionRefused, resolve_same_origin
 from sentri.agent.session import AgentSession
 from sentri.contract.placeholders import DataGenerator
+from sentri.redact import redact
 from sentri.runner.extract import EXTRACT_JS
 from sentri.verdict.signature import normalize_path
 
@@ -64,6 +66,7 @@ class PageEntry(BaseModel):
     seen_as: list[str] = Field(default_factory=list)
     requires_login: bool = False
     anon_outcome: str | None = None  # e.g. "redirect -> /login", "401", "200"
+    auth_evidence: str | None = None  # behaviour that proved requires_login: "redirect", "401", "403"
     forms: list[dict[str, Any]] = Field(default_factory=list)
     buttons: list[dict[str, Any]] = Field(default_factory=list)
     list_selectors: list[str] = Field(default_factory=list)
@@ -79,6 +82,7 @@ class EndpointEntry(BaseModel):
     state_changing: bool = False
     request_ids: list[int] = Field(default_factory=list)
     requires_login: bool = False
+    auth_evidence: str | None = None  # "401"/"403" as anon while a user got 2xx; None = declared or unknown
     body_fields: dict[str, str] = Field(default_factory=dict)  # from the API spec: name -> type/constraints
     query_params: list[str] = Field(default_factory=list)
     from_spec: bool = False
@@ -92,11 +96,18 @@ class AppMap(BaseModel):
     has_login_flow: bool = False
     api_spec: str | None = None  # where an OpenAPI/Swagger spec was found
     notes: list[str] = Field(default_factory=list)
+    anon_shells: list[str] = Field(default_factory=list)  # logged-out bodies of /, the login page, an unknown path
 
     def protected_paths(self) -> set[str]:
         """Normalized paths recon proved (or the spec declares) need login: pages and endpoints."""
         out = {normalize_path(p.path) for p in self.pages if p.requires_login}
         return out | {e.path for e in self.endpoints if e.requires_login}
+
+    def proven_protected_paths(self) -> set[str]:
+        """Only paths where login was proven by behaviour (anon redirected, 401 or 403 while a user got the page).
+        The auth_bypass oracle uses these: a spec declaration or "never seen logged out" is not enough."""
+        out = {normalize_path(p.path) for p in self.pages if p.requires_login and p.auth_evidence}
+        return out | {e.path for e in self.endpoints if e.requires_login and e.auth_evidence}
 
     def page(self, path: str) -> PageEntry | None:
         return next((p for p in self.pages if p.path == path), None)
@@ -263,13 +274,24 @@ class Recon:
                 continue
             data = await self._visit(entry.path)
             if data is None:
-                entry.anon_outcome, entry.requires_login = "error", True
+                entry.anon_outcome = "error"  # unknown: an error is not evidence that login is needed
             elif data["final_path"] != entry.path:
                 entry.anon_outcome, entry.requires_login = f"redirect -> {data['final_path']}", True
+                entry.auth_evidence = "redirect"
             elif (data.get("status") or 200) in (401, 403):
                 entry.anon_outcome, entry.requires_login = str(data["status"]), True
+                entry.auth_evidence = str(data["status"])
             else:
                 entry.anon_outcome = str(data.get("status") or 200)
+
+    async def record_shells(self) -> None:
+        """What a logged-out visitor gets anyway: the home page, the login page and an unknown route (a
+        single-page app answers every route with the same shell). auth_bypass ignores anon pages like these."""
+        probe = f"/sentri-unknown-{secrets.token_hex(4)}"
+        for path in dict.fromkeys(["/", self.map.login_path or "/login", probe]):
+            status, text = await self._get(path, "anon")
+            if status is not None and 200 <= status < 300 and text.strip():
+                self.map.anon_shells.append(redact(text[:20000]))
 
     async def from_spec(self) -> None:
         """Read an OpenAPI/Swagger spec if the app publishes one: every endpoint, its body and auth."""
@@ -329,6 +351,7 @@ class Recon:
                     ep.statuses.append(st)
             if anon in (401, 403) and user is not None and 200 <= user < 300:
                 ep.requires_login = True
+                ep.auth_evidence = str(anon)
             elif anon is not None and 200 <= anon < 300:
                 ep.requires_login = False  # behaviour wins over the spec
 
@@ -363,6 +386,7 @@ class Recon:
         else:
             await self.probe_forms("anon")
         await self.probe_endpoints()
+        await self.record_shells()
         self.collect_endpoints()
         if not self.map.pages:
             self.map.notes.append("no pages could be loaded")
