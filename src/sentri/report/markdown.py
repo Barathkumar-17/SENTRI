@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from sentri.ledger.ledger import Ledger
+from sentri.report.agentic import agentic_markdown
 
 MARKER = "<!-- sentri-report -->"
 ICONS = {"pass": "✅", "fail": "❌", "flaky": "⚠️", "na": "N/A", "error": "❗"}
@@ -105,7 +106,11 @@ def build_report(ledger: Ledger, run_id: int, base_branch: str | None = "main", 
             lines.append(f"| {f} | " + " | ".join(row) + " |")
         lines.append("")
 
-    probes = [r for r in ledger.checks_for_run(run_id) if r["is_probe"]]
+    agentic = agentic_markdown(ledger, run_id)
+    if agentic:
+        lines.append(agentic)
+
+    probes = [r for r in ledger.checks_for_run(run_id) if r["is_probe"] and r["flow_id"] != "agentic"]
     probe_fails = sum(1 for r in probes if r["verdict"] == "fail")
     reused = sum(1 for r in rows if r["reused_from_check_id"])
     lines.append(

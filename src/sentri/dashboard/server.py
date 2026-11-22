@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from sentri.config import Settings
 from sentri.dashboard.control_routes import ControlState, register
 from sentri.ledger.ledger import HumanDecision, Ledger
+from sentri.report.agentic import agentic_data
 from sentri.verdict.scorer import compute
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -168,6 +169,18 @@ def create_app(
                 )
             probes = [_row(c) for c in lg.checks_for_run(run_id) if c["is_probe"]]
             return {"flows": flows, "attacks": attacks, "cells": cells, "probes": probes}
+        finally:
+            lg.close()
+
+    @app.get("/api/runs/{run_id}/agentic")
+    def agentic(run_id: int) -> dict[str, Any]:
+        """Recon map, strategy, findings and the attack tree of an agentic run (FRONTEND: tree view)."""
+        lg = ledger()
+        try:
+            if lg.run(run_id) is None:
+                raise HTTPException(404, "run not found")
+            data = agentic_data(lg, run_id)
+            return data or {"app_map": None, "strategy": None, "findings": [], "steps": [], "tree": []}
         finally:
             lg.close()
 
