@@ -512,6 +512,10 @@ class Explorer:
                 decision, error = await self._decide(step, focus, seconds_left)
                 by_code = decision is None
             self._focus_note = ""
+            if decision is None and not self._code_steps and not self.provider.available:
+                # Model use has stopped (a limit or the provider's quota): a code fallback step would add nothing.
+                result.stopped = f"model use stopped: {getattr(self.provider, 'stop_reason', None) or 'unavailable'}"
+                break
             if decision is None:
                 failures += 1
                 self.emit("llm_fallback", f"explorer step {step}: model gave no usable action ({error})", error=error)
