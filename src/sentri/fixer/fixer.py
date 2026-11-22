@@ -112,6 +112,11 @@ class Fixer:
             raise FixerError(f"unknown bug {bug_id}")
         if bug["status"] not in ("open", "flaky"):
             raise FixerError(f"{bug_id} is {bug['status']}; only open or flaky bugs are fixed")
+        if bug["flow_id"] == "agentic":
+            raise FixerError(
+                f"{bug_id} is an agentic finding; the Fixer only handles baseline crash bugs (its gate re-runs a "
+                "baseline check and needs a stack trace). Fix it by hand: the next run re-checks it and marks it fixed"
+            )
         context, logs = self._latest_hit(bug_id)
         files = source_files_from_logs(logs, repo)
         if not files:

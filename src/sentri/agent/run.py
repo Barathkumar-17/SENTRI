@@ -66,6 +66,14 @@ async def run_agentic(
     tmp = Path(tempfile.mkdtemp(prefix="sentri-agent-"))
     login = make_login(contract, tmp, tag)
 
+    if login is None:
+        note = (
+            "no auth in the contract (auth.login_flow or auth.api): only the logged-out identity exists, so "
+            "cross-user checks (user b reading user a's data, by id or in pages) and login-boundary tests do not run"
+        )
+        out.notes.append(note)
+        bus.emit("warning", note)
+
     # 1. Recon
     bus.emit("phase", "recon: exploring the app before attacking it")
     await sandbox.reset()
