@@ -89,7 +89,7 @@ Each identity (`a`, `b`) registers its own fresh account, and its token is sent 
 | `reset` / `reset_command` | `restart` | Clean state between attempts: restart the app, or run a command |
 | `clean` | `[]` | Files deleted before every start (SQLite `-wal`/`-shm` included), inside the app folder only |
 | `log_patterns_extra` | `[]` | Extra regexes that count as an exception in the app's logs |
-| `ignore_console` | `favicon.ico` | Regexes for browser console messages to ignore |
+| `ignore_console` | `favicon.ico` | Regexes for browser console messages to ignore (baseline suite and agentic phase alike) |
 
 ### `auth`
 Exactly one of `login_flow` (the id of a browser flow) or `api` (token login, above).
