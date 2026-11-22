@@ -82,3 +82,23 @@ async def test_rate_limit_retries_are_bounded(monkeypatch):
     monkeypatch.setattr(asyncio, "sleep", no_sleep)
     result = await provider_with(lambda r: httpx.Response(429, json={})).complete_json("attacker", "s", "u", PayloadSet)
     assert not result.ok and "429" in (result.error or "")
+
+
+async def test_a_daily_quota_stops_model_use_instead_of_waiting(monkeypatch):
+    """Found by the flow-shop run: Groq's tokens-per-day limit answered every call with 429 'try again in 7m'."""
+    import asyncio
+
+    from sentri.llm import BudgetedProvider
+
+    slept: list[float] = []
+
+    async def no_sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    body = {"error": {"message": "Rate limit reached on tokens per day (TPD). Please try again in 7m12.5s."}}
+    inner = provider_with(lambda r: httpx.Response(429, json=body))
+    budgeted = BudgetedProvider(inner, 1.0, 5)
+    result = await budgeted.complete_json("explorer", "s", "u", PayloadSet)
+    assert not result.ok and "provider quota" in (result.error or "") and slept == []  # no pointless waiting
+    assert not budgeted.available and budgeted.stop_reason.startswith("provider quota exhausted")

@@ -242,3 +242,20 @@ def test_finding_origin_separates_ai_discovery_from_sentri_probes():
     assert finding_origin([{"oracle_id": "http_500", "error_key": "500"}], "ai") == "ai"
     assert finding_origin([{"oracle_id": "xss_reflection", "error_key": "x"}], "code_probe") == "code_probe"
     assert finding_origin([], "ai") == "ai_suspicion"
+
+
+async def test_other_identities_are_offered_as_options_when_the_app_has_login():
+    model = OptionFollower()
+    session = FlowSession()
+    explorer = Explorer(
+        session,
+        BudgetedProvider(model, 1, 5),
+        STRATEGY.model_copy(deep=True),
+        AppMap(base_url="http://127.0.0.1", has_login_flow=True),
+        ExploreBudget(max_steps=1),
+        lambda s: None,
+    )
+    await explorer.run()
+    options = {o["id"]: o for o in _app_data(model.prompts[0])["options"]}
+    assert options["U1"]["do"].startswith("switch_user a") and options["U1"]["status"] == "untried"
+    assert options["U2"]["do"].startswith("switch_user b")
