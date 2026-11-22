@@ -402,6 +402,11 @@ class AgentSession:
         elif isinstance(action, Finish):
             return
 
+    async def execute_switch(self, who: str) -> None:
+        """Become `who` (creating and logging in its context on first use)."""
+        await self._context(who)
+        self.current, self.tab_index = who, 0
+
     # ---- observation for the model -------------------------------------------------------------------
     async def observe(self, max_text: int = 2500) -> dict[str, Any]:
         page = self.page
