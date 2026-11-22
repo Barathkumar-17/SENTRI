@@ -79,7 +79,7 @@ def create_app(
     - a state-changing request that carries an Origin header must come from this server's own origin
       (browsers always send Origin on cross-site POST/PUT/DELETE; local scripts and curl send none);
     - state-changing requests must be JSON (a plain HTML form on another site cannot send that).
-    The SaaS version adds real accounts; this local server never has one."""
+    Sentri is a local tool: this server has no accounts and never will."""
     app = FastAPI(title="Sentri", version="0.1.0")
     allowed_hosts = LOCAL_HOSTS | set(extra_hosts)
 
