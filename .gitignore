@@ -29,3 +29,7 @@ examples/buggy-app/.contract-*.yaml
 
 # Apps downloaded by examples/proof/fetch_apps.py (third-party code, not committed)
 examples/proof/*/app/
+
+# Local secrets (API keys); never committed
+.env
+.env.*

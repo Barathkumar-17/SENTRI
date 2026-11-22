@@ -7,6 +7,7 @@ suspects something) become candidates with exact reproduction steps, confirmed l
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import time
@@ -133,9 +134,10 @@ class ReproStep:
     action: dict[str, Any]
     match: dict[str, str] | None = None  # for replay/request: which observed request, by method + path
     expect_ok: bool = True  # it ran cleanly during exploration, so it must run cleanly on replay
+    setup: bool = False  # before the candidate's own line of attack: replayed for state, not judged
 
     def to_dict(self) -> dict[str, Any]:
-        return {"action": self.action, "match": self.match, "expect_ok": self.expect_ok}
+        return {"action": self.action, "match": self.match, "expect_ok": self.expect_ok, "setup": self.setup}
 
 
 @dataclass
@@ -395,6 +397,7 @@ class Explorer:
         started = time.monotonic()
         prefix: list[ReproStep] = [ReproStep(SwitchUser(user=self.s.current).model_dump())]  # type: ignore[arg-type]
         path_start, parent, failures = 1, None, 0
+        line_index = 1  # where the current line of attack starts in `prefix`
         current_hyp = ""
         self._code_steps = self._reflection_probes()
         self._observation = await self.s.observe()
@@ -453,6 +456,7 @@ class Explorer:
             hyp = decision.hypothesis_id or (focus.id if focus else "")
             if decision.new_path or (hyp != current_hyp and current_hyp):
                 path_start, parent = step, None
+                line_index = len(prefix)
             current_hyp = hyp
 
             identity = self.s.current
@@ -523,11 +527,20 @@ class Explorer:
                 what = ", ".join(str(s["detail"]) for s in signals) or decision.suspect_reason
                 if len(result.candidates) < self.budget.max_candidates:
                     result.candidates.append(
-                        Candidate(hyp, title, path_start, step, list(prefix), signals, decision.suspect_reason)
+                        Candidate(
+                            hyp,
+                            title,
+                            path_start,
+                            step,
+                            [dataclasses.replace(r, setup=i < line_index) for i, r in enumerate(prefix)],
+                            signals,
+                            decision.suspect_reason,
+                        )
                     )
                     self.emit("candidate", f"possible break at step {step}: {what}", step=step)
                 self.flagged.append(f"step {step}: {what}"[:200])
                 path_start, parent = step + 1, None
+                line_index = len(prefix)
             if isinstance(action, Finish):
                 result.stopped = f"model finished: {action.reason}"
                 break

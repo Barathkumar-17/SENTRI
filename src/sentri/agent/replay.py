@@ -168,11 +168,18 @@ async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int)
     try:
         await session.start()
         health = env.health_pages(repro)
-        before = {key: await _fetch_text(session, *key) for key in health}
+        before: dict[tuple[str, str], tuple[int | None, str]] = {}
         mark = session.mark()
+        judging = False
         counts: list[CountProbe] = []
         completed = True
         for index, step in enumerate(repro, start=1):
+            if not judging and not step.get("setup"):
+                # Setup (earlier lines of attack) only rebuilds the state; earlier breaks belong to their own
+                # findings. Evidence and the health baseline start with the candidate's own steps.
+                judging = True
+                before = {key: await _fetch_text(session, *key) for key in health}
+                mark = session.mark()
             try:
                 action = _resolve(session, step)
             except ActionRefused as exc:
@@ -220,6 +227,9 @@ async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int)
                 break
             if probe is not None:
                 counts += await _count_probes(env, session, probe, pages_before, index, notes)
+        if not judging:  # every step was setup (should not happen): judge from the end, i.e. nothing
+            before = {key: await _fetch_text(session, *key) for key in health}
+            mark = session.mark()
         after = {key: await _fetch_text(session, *key) for key in health}
         probes = tuple(HealthProbe(path, who, before[(who, path)][0], after[(who, path)][0]) for (who, path) in health)
         return Attempt(session.agent_evidence_since(mark, tuple(counts), probes), notes, completed)
