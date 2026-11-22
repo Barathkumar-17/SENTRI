@@ -235,12 +235,16 @@ class AgentSession:
     def _is_protected(self, url: str) -> bool:
         return normalize_path(url) in self.protected
 
-    def _note_submission(self, who: str, rec: ObservedRequest, page_url: str) -> None:
+    def _note(self, who: str, text: str | None, page_url: str, target_url: str | None = None) -> None:
         canary = self.canaries.get(who)
-        if canary is None or not rec.body or canary not in rec.body:
+        if canary is None or not text or canary not in text:
             return
-        public = not (self._is_protected(page_url) or self._is_protected(rec.url))
+        public = not (self._is_protected(page_url) or (target_url is not None and self._is_protected(target_url)))
         self._submitted[who][canary] = self._submitted[who].get(canary, False) or public
+
+    def _note_submission(self, who: str, rec: ObservedRequest, page_url: str) -> None:
+        # Bodies are not always visible (multipart uploads), so typing is tracked too; see _execute.
+        self._note(who, rec.body, page_url, rec.url)
 
     def private_markers(self) -> dict[str, tuple[str, ...]]:
         return {who: tuple(c for c, public in sent.items() if not public) for who, sent in self._submitted.items()}
@@ -386,6 +390,7 @@ class AgentSession:
         elif isinstance(action, TypeText):
             field_ = page.locator(action.selector).first
             await field_.fill(action.text * action.repeat, timeout=t)
+            self._note(self.current, action.text, page.url)  # where the canary was entered decides privacy
             if action.submit:
                 await field_.press("Enter", timeout=t)
         elif isinstance(action, Navigate):
