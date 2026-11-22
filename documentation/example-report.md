@@ -120,3 +120,13 @@ Fixed because of this run (revision a3e4763): a quota-sized rate limit now stops
 instead of waiting and falling back; each decision reserves 900 output tokens instead of 2 000 (measured average
 165); switching to a logged-in identity is offered as an option in the compact view. A rerun with an available
 quota is still needed to show whether the model then completes the checkout journey and finds the failures.
+
+## Live agent validation, revision 55db884 (2026-11-23): blocked by quota
+
+A neutral agent-only contract ([`contract.agent.yaml`](../examples/flow-shop/contract.agent.yaml): URL, a login
+flow that creates fresh test accounts, the goal "Complete a purchase", nothing else). A one-request quota check
+passed; the strategist call then succeeded and the first explorer call was refused with Groq's tokens-per-day limit
+(retry hint 1 728 s). Sentri stopped model use immediately: 2 calls, 2 387 + 1 226 tokens, cost unknown, 28 s,
+readiness "insufficient coverage". No AI-selected step ran, so nothing was discovered. Details:
+[`examples/proof/flow-shop-live-55db884/`](../examples/proof/flow-shop-live-55db884/README.md). The run exposed one
+engine inefficiency (a fallback step after model use had stopped), fixed in `85aab6f` with a regression test.

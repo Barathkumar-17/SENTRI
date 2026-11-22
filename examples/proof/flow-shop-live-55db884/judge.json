@@ -1,0 +1,92 @@
+{
+ "run_id": 1,
+ "readiness": null,
+ "status": "insufficient_coverage",
+ "duration_s": 28.43,
+ "usage": {
+  "calls": 2,
+  "input_tokens": 2387,
+  "output_tokens": 1226,
+  "retries": 0,
+  "cost_usd": null,
+  "stop_reason": "provider quota exhausted (rate limit beyond the wait cap)"
+ },
+ "roles": {
+  "explorer": {
+   "calls": 1,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "retries": 0
+  },
+  "strategist": {
+   "calls": 1,
+   "input_tokens": 2387,
+   "output_tokens": 1226,
+   "retries": 0
+  }
+ },
+ "exploration": {
+  "pages": 8,
+  "endpoints": 3,
+  "hypotheses": 8,
+  "steps": 1,
+  "invalid_steps": 0,
+  "fallback_steps": 1,
+  "stalls": 0,
+  "candidates": 0,
+  "confirmed": 0,
+  "unconfirmed": 0,
+  "inconclusive": 0,
+  "rechecked": 0,
+  "exploration_stop": "model use stopped: provider quota exhausted (rate limit beyond the wait cap)",
+  "distinct_states": 1,
+  "transitions": 1,
+  "states_by_identity": {
+   "anon": 1
+  },
+  "untried_options_left": 7,
+  "ai_steps": 0,
+  "code_probe_steps": 0,
+  "known_dead_end_refusals": 0,
+  "looks": 0,
+  "goals_done": 0,
+  "goals_stuck": 0,
+  "goals_added": 0,
+  "actions_attempted": 1,
+  "actions_executed_ok": 1,
+  "notes": []
+ },
+ "steps": [
+  {
+   "step": 1,
+   "origin": "code_fallback",
+   "as": "anon",
+   "action": "navigate(path='/')",
+   "ok": true,
+   "error": null,
+   "why": "fallback (model reply unusable: rate limit beyond the wait cap (provider quota): retry in 1728s; {\"error\":{\"message\":\"Rate limit reached for model `open)",
+   "signals": []
+  }
+ ],
+ "findings": [],
+ "expected_failures": [
+  {
+   "expected": "zero_quantity_order",
+   "found": false,
+   "by": null,
+   "ai_discovery": false
+  },
+  {
+   "expected": "resubmit_confirm",
+   "found": false,
+   "by": null,
+   "ai_discovery": false
+  },
+  {
+   "expected": "non_ascii_coupon",
+   "found": false,
+   "by": null,
+   "ai_discovery": false
+  }
+ ]
+}
