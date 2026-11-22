@@ -112,3 +112,16 @@ async def test_a_step_that_cannot_run_fails_the_attempt_instead_of_being_skipped
     )
     assert check_id is None and events == []  # a re-check that could not replay leaves the bug alone
     assert ledger.findings_for_run(run_id)[0]["verdict"] == "unconfirmed"
+
+
+async def test_code_owned_idor_check_is_confirmed_by_replay(env: ReplayEnv):
+    """The model only created a note; Sentri added the canary, found the id and fetched it as user b."""
+    notes = [
+        {"action": {"kind": "switch_user", "user": "a"}},
+        {"action": {"kind": "navigate", "path": "/notes"}},
+        {"action": {"kind": "type", "selector": "input[name=title]", "text": "plan sentri-canary-a-000000"}},
+        {"action": {"kind": "click", "selector": "#note-btn"}},
+    ]
+    verdict, key, notes_out = await confirm(env, notes)
+    assert verdict.verdict == "fail", (verdict, notes_out)
+    assert key == "cross_user_exposure GET /api/notes/:id"
