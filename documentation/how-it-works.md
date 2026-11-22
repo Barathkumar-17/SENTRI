@@ -64,7 +64,8 @@ requests, console errors). It answers with its reasoning and **one** action from
 Code validates every action before it runs. **Every browser context is fenced to the app's own origin**:
 links, form posts, popups, scripts' requests and websockets to other sites are blocked or stubbed; static
 assets from a CDN still load (set `app.offsite_assets: block` to stop them too); test-account tokens are only
-ever attached to the app's own requests, and a redirect that would carry one elsewhere is stopped. After each
+ever attached to the app's own requests, and a redirect from the app to another site (an open redirect) is stopped
+before the browser follows it. After each
 step, the plain-code oracles look at what happened. A path where an oracle fired, or where
 the model suspects a break for a new reason, becomes a **candidate**. Its reproduction steps are the **whole
 session up to that point**, because the app is not reset during exploration and a bug can depend on setup done

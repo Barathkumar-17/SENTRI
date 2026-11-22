@@ -269,8 +269,9 @@ regressions, and a link to the evidence. It is report-only by default; add `fail
 
 - **Only run Sentri on apps you own or have permission to test.** It behaves like a hostile user on purpose.
 - Only the sandboxed copy of your app is attacked, never a live system.
-- Every browser request is fenced to the app's own origin: links, form posts, popups, scripts and redirects to
-  other sites are blocked, and test-account tokens are only ever sent to the app.
+- Every browser request is fenced to the app's own origin: links, form posts, popups, scripts and redirects
+  (including the app's own open redirects) to other sites are blocked, and test-account tokens are only ever
+  sent to the app.
 - Page text, logs and READMEs reach the model only as fenced, untrusted APP DATA it is told never to obey; and
   whatever it answers is validated and judged by plain code anyway.
 - A human approves the contract, decides whether a failure is intended, and merges every fix.

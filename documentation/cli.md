@@ -59,7 +59,7 @@
 | `SENTRI_EVIDENCE_URL` | none | Link printed in the report (CI artifact URL) |
 | `SENTRI_LLM_PROVIDER` | `none` | `auto`, `claude_code`, `codex`, `gemini_cli`, `anthropic`, `openai_compatible`, `none` |
 | `SENTRI_LLM_BASE_URL` | none | For `openai_compatible` |
-| `SENTRI_LLM_API_KEY` / `LLM_API_KEY` | none | Your key |
+| `SENTRI_LLM_API_KEY` / `LLM_API_KEY` | none | Your key. Sentri reads the environment only, not a `.env` file: load one first (`set -a; . ./.env; set +a` in bash), and keep it out of git |
 | `SENTRI_MODEL_FAST` / `SENTRI_MODEL_SMART` | `claude-sonnet-5-5` | Models for most roles / the fixer |
 | `SENTRI_OLLAMA_MODEL` | none | Shortcut for a local Ollama model |
 | `SENTRI_LLM_BUDGET_USD` | 1.00 | Spending cap per run for paid APIs |
