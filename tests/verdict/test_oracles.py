@@ -159,3 +159,18 @@ def test_browser_local_network_policy_errors_are_not_app_bugs():
         "net::ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS"
     )
     assert not console_error(Evidence(console=(ConsoleRecord("console_error", text),)), OracleConfig("f", "a")).fired
+
+
+def test_node_traces_are_keyed_by_the_error_line_above_the_frames():
+    from sentri.evidence.models import Evidence, LogLine
+    from sentri.verdict.oracles import OracleConfig, exception
+
+    lines = [
+        'Error: Unrecognized target URL for redirect: "><x>',
+        "    at /app/build/routes/redirect.js:54:18",
+        "    at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)",
+        "info: Solved 1-star errorHandlingChallenge (Error Handling)",
+    ]
+    ev = Evidence(logs=tuple(LogLine("2026-01-01T00:00:00Z", "stdout", t) for t in lines))
+    r = exception(ev, OracleConfig("f", "a"))
+    assert r.fired and r.error_key is not None and r.error_key.startswith("error: unrecognized target url")
