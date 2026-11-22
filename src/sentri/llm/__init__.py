@@ -34,6 +34,8 @@ def make_provider(settings: Settings, enabled: bool = True) -> BudgetedProvider:
         "attacker": settings.model_fast,
         "prober": settings.model_fast,
         "planner": settings.model_fast,
+        "strategist": settings.model_fast,
+        "explorer": settings.model_fast,
         "fixer": settings.model_smart,
     }
     inner: LLMProvider = NullProvider()
@@ -47,7 +49,14 @@ def make_provider(settings: Settings, enabled: bool = True) -> BudgetedProvider:
         inner = AnthropicProvider(
             settings.api_key,
             models=models,
-            efforts={"attacker": "low", "prober": "low", "planner": "high", "fixer": "high"},
+            efforts={
+                "attacker": "low",
+                "prober": "low",
+                "planner": "high",
+                "strategist": "high",
+                "explorer": "medium",
+                "fixer": "high",
+            },
         )
     elif enabled and settings.llm_provider == "claude_code":
         from sentri.llm.claude_code import ClaudeCodeProvider, find_claude
