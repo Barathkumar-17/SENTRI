@@ -75,3 +75,20 @@ def decide(flow_id: str, attack_id: str, attempts: list[list[OracleResult]]) -> 
     else:
         verdict = "pass"
     return CheckVerdict(verdict=verdict, attempts=total, hits=tuple(hits))
+
+
+def decide_replays(flow_id: str, attack_id: str, attempts: list[list[OracleResult] | None]) -> CheckVerdict:
+    """Agentic confirmation, where an attempt may fail to replay its steps (`None`: it proves nothing).
+
+    All attempts replayed: the normal 3-attempt rule. Some did not: a break seen in the ones that did is at most
+    `flaky`; with no break seen the result is `error` (inconclusive), never `pass`, so an unreplayable repro can
+    neither open nor close a bug."""
+    done = [a for a in attempts if a is not None]
+    if not done:
+        return CheckVerdict(verdict="error", attempts=0)
+    verdict = decide(flow_id, attack_id, done)
+    if len(done) == len(attempts):
+        return verdict
+    if verdict.hits:
+        return CheckVerdict(verdict="flaky", attempts=len(attempts), hits=verdict.hits)
+    return CheckVerdict(verdict="error", attempts=len(done))

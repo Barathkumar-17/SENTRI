@@ -29,7 +29,7 @@ from sentri.redact import redact_obj
 from sentri.runner.browser import BrowserManager
 from sentri.sandbox.base import Sandbox
 from sentri.verdict.agent_oracles import AGENT_ORACLE_IDS, evaluate_agent
-from sentri.verdict.engine import CheckVerdict, decide
+from sentri.verdict.engine import CheckVerdict, decide_replays
 from sentri.verdict.oracles import OracleConfig, OracleResult
 from sentri.verdict.signature import normalize_path
 
@@ -126,7 +126,17 @@ def _resolve(session: AgentSession, step: dict[str, Any]) -> Any:
     return action
 
 
-async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int) -> tuple[AgentEvidence, list[str]]:
+@dataclass
+class Attempt:
+    evidence: AgentEvidence
+    notes: list[str]
+    completed: bool  # every step ran as it did during exploration; otherwise the attempt proves nothing
+
+
+async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int) -> Attempt:
+    """Replay the whole session prefix from a clean state. A step that ran cleanly during exploration but cannot
+    run now (selector gone, request not observed, refused) fails the attempt: later steps would run against a
+    different state, so skipping it and carrying on could neither confirm nor clear anything."""
     await env.sandbox.reset()
     tmp = Path(tempfile.mkdtemp(prefix="sentri-replay-"))
     tag = f"{env.run_tag}-rp{attempt}"
@@ -139,12 +149,14 @@ async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int)
         before = {key: await _fetch_text(session, *key) for key in health}
         mark = session.mark()
         counts: list[CountProbe] = []
-        for step in repro:
+        completed = True
+        for index, step in enumerate(repro, start=1):
             try:
                 action = _resolve(session, step)
             except ActionRefused as exc:
-                notes.append(str(exc))
-                continue
+                notes.append(f"attempt {attempt} failed at step {index}/{len(repro)}: {exc}")
+                completed = False
+                break
             probe: tuple[str, list[str], int] | None = None
             if isinstance(action, (Replay, Burst)):
                 src_body = None
@@ -163,7 +175,11 @@ async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int)
             if probe is not None:
                 for _who, path in health:
                     pages_before[path] = (await _fetch_text(session, probe[0], path))[1]
-            await session.execute(action)
+            outcome = await session.execute(action)
+            if not outcome.ok and step.get("expect_ok", True):
+                notes.append(f"attempt {attempt} failed at step {index}/{len(repro)}: {outcome.error}")
+                completed = False
+                break
             if probe is not None:
                 who, tokens, expected = probe
                 for path, text_before in pages_before.items():
@@ -174,7 +190,7 @@ async def replay_once(env: ReplayEnv, repro: list[dict[str, Any]], attempt: int)
                         )
         after = {key: await _fetch_text(session, *key) for key in health}
         probes = tuple(HealthProbe(path, who, before[(who, path)][0], after[(who, path)][0]) for (who, path) in health)
-        return session.agent_evidence_since(mark, tuple(counts), probes), notes
+        return Attempt(session.agent_evidence_since(mark, tuple(counts), probes), notes, completed)
     finally:
         await session.close()
 
@@ -193,12 +209,13 @@ async def confirm(
     env: ReplayEnv, repro: list[dict[str, Any]], key: str | None = None
 ) -> tuple[CheckVerdict, str, list[str]]:
     cfg = agentic_oracle_config(env.contract)
-    results: list[list[OracleResult]] = []
+    results: list[list[OracleResult] | None] = []
     notes: list[str] = []
     for attempt in range(1, env.attempts + 1):
-        ev, attempt_notes = await replay_once(env, repro, attempt)
-        results.append(evaluate_agent(ev, cfg))
-        notes += attempt_notes
+        run = await replay_once(env, repro, attempt)
+        ev = run.evidence
+        notes += run.notes
+        results.append(evaluate_agent(ev, cfg) if run.completed else None)
         if env.evidence_dir is not None:
             path = (
                 env.evidence_dir
@@ -209,12 +226,14 @@ async def confirm(
                 "responses": [r.__dict__ for r in ev.responses],
                 "probes": [p.__dict__ for p in ev.count_probes],
                 "health": [h.__dict__ for h in ev.health_probes],
-                "oracles": [r.__dict__ for r in results[-1]],
+                "completed": run.completed,
+                "notes": run.notes,
+                "oracles": [r.__dict__ for r in results[-1] or []],
                 "logs": [line.text for line in ev.base.logs][-80:],
             }
             path.write_text(json.dumps(redact_obj(data), indent=1, default=str), encoding="utf-8")
-    final_key = key or primary_key(results)
-    return decide("agentic", final_key, results), final_key, notes
+    final_key = key or primary_key([r for r in results if r is not None])
+    return decide_replays("agentic", final_key, results), final_key, notes
 
 
 def record(
@@ -245,8 +264,9 @@ def record(
             )
         )
         events, _ = ledger.record_check_result(run_id, check_id, "agentic", key, commit, verdict)
-    elif candidate.get("recheck"):
-        # A stored finding that no longer reproduces: record a passing check so its bugs become fixed.
+    elif candidate.get("recheck") and verdict.verdict == "pass":
+        # A stored finding that no longer reproduces: record a passing check so its bugs become fixed. An
+        # inconclusive re-check (steps could not be replayed) leaves its bugs exactly as they were.
         check_id = ledger.insert_check(
             CheckRecord(
                 run_id,

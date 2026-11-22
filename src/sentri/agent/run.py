@@ -116,6 +116,8 @@ async def run_agentic(
         }
         _check, events = record(ledger, run_id, commit, candidate, verdict, key)
         out.rechecked += 1
+        if verdict.verdict == "error":
+            out.notes.append(f"re-check '{stored['title']}' could not be replayed: {'; '.join(notes[:2])}")
         out.regressions += sum(1 for e in events if e.kind == "regression")
         bus.emit(
             "recheck", f"re-check '{stored['title']}': {verdict.verdict.upper()}", key=key, verdict=verdict.verdict
@@ -172,7 +174,9 @@ async def run_agentic(
         out.regressions += sum(1 for e in events if e.kind == "regression")
         if verdict.verdict in ("fail", "flaky"):
             out.confirmed += 1
-        details = "; ".join(f"{h.detail} [{h.k}/{verdict.attempts}]" for h in verdict.hits) or "did not reproduce"
+        details = "; ".join(f"{h.detail} [{h.k}/{verdict.attempts}]" for h in verdict.hits) or (
+            "could not be replayed (inconclusive)" if verdict.verdict == "error" else "did not reproduce"
+        )
         bus.emit(
             "finding",
             f"{cand.title}: {verdict.verdict.upper()} - {details}",

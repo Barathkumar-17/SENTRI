@@ -118,9 +118,10 @@ _KIND_CLASSES = _kind_classes()
 class ReproStep:
     action: dict[str, Any]
     match: dict[str, str] | None = None  # for replay/request: which observed request, by method + path
+    expect_ok: bool = True  # it ran cleanly during exploration, so it must run cleanly on replay
 
     def to_dict(self) -> dict[str, Any]:
-        return {"action": self.action, "match": self.match}
+        return {"action": self.action, "match": self.match, "expect_ok": self.expect_ok}
 
 
 @dataclass
@@ -247,9 +248,12 @@ class Explorer:
 
     # ---- loop -------------------------------------------------------------------------------------------
     async def run(self) -> ExploreResult:
+        """The app is never reset during exploration, so any step can depend on everything before it. A candidate's
+        repro is therefore the whole session prefix that led to it, replayed from a clean state. `path_start` and
+        `parent` only shape the attack tree (lines of attack), never what gets replayed."""
         result = ExploreResult()
         started = time.monotonic()
-        path: list[ReproStep] = [ReproStep(SwitchUser(user=self.s.current).model_dump())]  # type: ignore[arg-type]
+        prefix: list[ReproStep] = [ReproStep(SwitchUser(user=self.s.current).model_dump())]  # type: ignore[arg-type]
         path_start, parent, failures = 1, None, 0
         current_hyp = ""
         for step in range(1, self.budget.max_steps + 1):
@@ -287,7 +291,6 @@ class Explorer:
                 continue
             hyp = decision.hypothesis_id or (focus.id if focus else "")
             if decision.new_path or (hyp != current_hyp and current_hyp):
-                path = [ReproStep(SwitchUser(user=self.s.current).model_dump())]  # type: ignore[arg-type]
                 path_start, parent = step, None
             current_hyp = hyp
 
@@ -300,7 +303,10 @@ class Explorer:
                 for r in evaluate_agent(evidence, self.cfg)
                 if r.fired
             ]
-            path.append(self._repro_step(action))
+            if outcome.ok or outcome.new_requests:  # a step that did nothing is not part of the state
+                rs = self._repro_step(action)
+                rs.expect_ok = outcome.ok
+                prefix.append(rs)
             text = describe(action)
             record = {
                 "step": step,
@@ -343,11 +349,10 @@ class Explorer:
                 what = ", ".join(str(s["detail"]) for s in signals) or decision.suspect_reason
                 if len(result.candidates) < self.budget.max_candidates:
                     result.candidates.append(
-                        Candidate(hyp, title, path_start, step, list(path), signals, decision.suspect_reason)
+                        Candidate(hyp, title, path_start, step, list(prefix), signals, decision.suspect_reason)
                     )
                     self.emit("candidate", f"possible break at step {step}: {what}", step=step)
                 self.flagged.append(f"step {step}: {what}"[:200])
-                path = [ReproStep(SwitchUser(user=self.s.current).model_dump())]  # type: ignore[arg-type]
                 path_start, parent = step + 1, None
             if isinstance(action, Finish):
                 result.stopped = f"model finished: {action.reason}"
