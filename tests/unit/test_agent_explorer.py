@@ -390,3 +390,12 @@ async def test_earlier_lines_of_attack_are_marked_as_setup():
         "expect_ok": True,
         "setup": False,
     }
+
+
+async def test_finish_moves_on_until_every_hypothesis_had_its_turn():
+    """Found by the Juice Shop proof run: the model finished after 3 of 15 steps with hypotheses untried."""
+    decisions = [d("finish", reason="done"), d("wait", ms=1), d("finish", reason="done"), d("finish", reason="all")]
+    result, model = await _explore(FakeSession(leak_on=99), decisions, ExploreBudget(max_steps=10))
+    assert [_focus_of(p) for p in model.prompts] == ["h1", "h2", "h2", "h3"]
+    assert result.steps == 4 and result.stopped == "model finished: all"
+    assert "finish asked with 2 hypotheses not tried yet" in model.prompts[1]
