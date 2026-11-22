@@ -22,6 +22,14 @@ Sentri attacks your running web app like a hostile or careless user, so it break
   reports the attack tree: the actual path the agent took through the app.
 - Optionally proposes fixes as draft pull requests that must pass a fixed gate first.
 
+## Documentation
+
+Full documentation is in [`documentation/`](documentation/README.md): [getting started](documentation/getting-started.md),
+[how Sentri works](documentation/how-it-works.md), [the contract](documentation/contract.md),
+[models](documentation/models.md), [verdicts and the bug ledger](documentation/verdicts-and-ledger.md),
+[command line](documentation/cli.md), [local web app and API](documentation/web-app.md), [CI](documentation/ci.md),
+[fixer](documentation/fixer.md), [development](documentation/development.md) and [limitations](documentation/limitations.md).
+
 ## Install
 
 Works on Windows, macOS and Linux with Python 3.12 or newer.
