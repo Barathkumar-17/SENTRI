@@ -259,3 +259,19 @@ async def test_other_identities_are_offered_as_options_when_the_app_has_login():
     options = {o["id"]: o for o in _app_data(model.prompts[0])["options"]}
     assert options["U1"]["do"].startswith("switch_user a") and options["U1"]["status"] == "untried"
     assert options["U2"]["do"].startswith("switch_user b")
+
+
+async def test_a_provider_quota_ends_exploration_without_a_fallback_step():
+    """Found by the live flow-shop run (55db884): after Groq's daily quota refused the first explorer call, the
+    loop still ran one code fallback step before stopping."""
+
+    class Quota(OptionFollower):
+        async def complete_json(self, role, system, user, schema, max_tokens=4000):
+            self.prompts.append(user)
+            return LLMResult(False, error="rate limit beyond the wait cap (provider quota): retry in 1728s")
+
+    model = Quota()
+    result, steps, session, _ = await _explore(model)
+    assert session.executed == [] and steps == []
+    assert result.stopped == "model use stopped: provider quota exhausted (rate limit beyond the wait cap)"
+    assert len(model.prompts) == 1  # one refused call, no retry of a quota refusal
