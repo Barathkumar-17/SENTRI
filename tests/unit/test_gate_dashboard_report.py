@@ -98,3 +98,34 @@ def test_dashboard_api(tmp_path):
     assert len(client.get("/api/trend").json()) == 2
     assert client.get(f"/api/events?run_id={run}").json()[0]["reason"] == "double click"
     assert client.get("/api/runs/999").status_code == 404
+
+
+async def test_fixer_declines_agentic_findings_before_calling_a_model(tmp_path, minimal_contract):
+    import pytest
+
+    from sentri.config import Settings
+    from sentri.contract import parse_contract
+    from sentri.fixer.fixer import Fixer, FixerError
+    from sentri.ledger import CheckRecord
+    from sentri.llm import BudgetedProvider
+    from sentri.verdict.engine import CheckVerdict, OracleHit
+
+    class Never:
+        name = "never"
+        available = True
+
+        async def complete_json(self, *a, **k):
+            raise AssertionError("the model must not be called")
+
+    lg = Ledger(tmp_path / "f.db")
+    run = lg.create_run("c1", "main", "fp", "ch")
+    key = "cross_user_exposure GET /tasks"
+    check = lg.insert_check(
+        CheckRecord(run, "agentic", key, "fail", oracle_hits="cross_user_exposure:3", is_probe=True)
+    )
+    verdict = CheckVerdict("fail", 3, (OracleHit("cross_user_exposure", 3, "sig1", "b saw a's tasks"),))
+    lg.record_check_result(run, check, "agentic", key, "c1", verdict)
+    bug_id = lg.bugs()[0]["id"]
+    fixer = Fixer(parse_contract(minimal_contract), tmp_path, Settings(), lg, BudgetedProvider(Never(), 1, 5))
+    with pytest.raises(FixerError, match="agentic finding"):
+        await fixer.propose(bug_id, tmp_path)
