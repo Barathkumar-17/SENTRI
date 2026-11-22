@@ -59,6 +59,10 @@ def test_web_app_renders_a_run_and_records_a_bug_decision(server):
 
         page.goto(f"{base}/#/runs")
         expect(page.get_by_role("link", name=f"Run {run}", exact=True)).to_be_visible()
+        # readiness carries its scale and what it was built from, visibly (not only on hover)
+        expect(page.get_by_text("0 of 1 applicable check passed")).to_be_visible()
+        expect(page.get_by_text("1 of 1 applicable check passed")).to_be_visible()
+        expect(page.get_by_text("is not a safety rating")).to_be_visible()
 
         page.goto(f"{base}/#/runs/{run}")
         expect(page.get_by_role("heading", name=f"Run {run}")).to_be_visible()
