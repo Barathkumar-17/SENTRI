@@ -399,7 +399,7 @@ def plan(
         await sandbox.start()
         try:
             async with BrowserManager(headless=s.headless) as browser:
-                return await run_plan(browser, provider, section, readme_text)
+                return await run_plan(browser, provider, section, readme_text, sandbox)
         finally:
             await sandbox.stop()
 

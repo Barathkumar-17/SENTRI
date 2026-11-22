@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,10 +13,14 @@ from typing import Any
 import yaml
 from playwright.async_api import Error as PlaywrightError
 
+from sentri.agent.recon import AppMap, Recon
+from sentri.agent.session import AgentSession
 from sentri.contract.loader import ContractError, parse_contract
+from sentri.contract.placeholders import DataGenerator, seed_for
 from sentri.llm import BudgetedProvider, ContractDraft, load_prompt
 from sentri.planner.crawler import PageInfo, crawl
 from sentri.runner.browser import BrowserManager
+from sentri.sandbox.base import Sandbox
 
 log = logging.getLogger(__name__)
 
@@ -137,28 +142,58 @@ async def _verify_selectors(
     return unverified
 
 
+def pages_from_map(app_map: AppMap) -> list[PageInfo]:
+    return [
+        PageInfo(
+            url=app_map.base_url + p.path,
+            path=p.path,
+            title=p.title,
+            forms=p.forms,
+            loose_buttons=p.buttons,
+            list_testids=[s.split('"')[1] for s in p.list_selectors if '"' in s],
+        )
+        for p in app_map.pages
+    ]
+
+
+async def recon_map(browser: BrowserManager, sandbox: Sandbox, base_url: str) -> AppMap:
+    """Recon as a logged-out visitor (there is no contract, so no login flow yet)."""
+    tmp = Path(tempfile.mkdtemp(prefix="sentri-plan-"))
+    session = AgentSession(browser, sandbox, base_url, None, tmp)
+    try:
+        await session.start()
+        return await Recon(session, DataGenerator(seed_for("plan"), {}, tmp, "plan")).run()
+    finally:
+        await session.close()
+
+
 async def plan(
     browser: BrowserManager,
     provider: BudgetedProvider,
     app_section: dict[str, Any],
     readme: str,
+    sandbox: Sandbox | None = None,
 ) -> PlanResult:
     base_url = app_section.get("base_url") or f"http://localhost:{app_section['port']}"
-    context = await browser.new_context()
-    page = await context.new_page()
-    try:
-        pages = await crawl(page, base_url)
-    finally:
-        await context.close()
+    app_map: AppMap | None = None
+    if sandbox is not None:
+        app_map = await recon_map(browser, sandbox, base_url)
+        pages = pages_from_map(app_map)
+    else:
+        context = await browser.new_context()
+        page = await context.new_page()
+        try:
+            pages = await crawl(page, base_url)
+        finally:
+            await context.close()
 
     flows: list[dict[str, Any]] = []
     login_flow: str | None = None
     source = "heuristic"
     if provider.available:
-        request = {
-            "readme": readme[:20000],
-            "pages": [p.to_dict() for p in pages],
-        }
+        request: dict[str, Any] = {"readme": readme[:20000], "pages": [p.to_dict() for p in pages]}
+        if app_map is not None:
+            request["app_map"] = app_map.summary()  # includes endpoints seen behind forms and auth boundaries
         result = await provider.complete_json(
             "planner", load_prompt("planner"), json.dumps(request, indent=1), ContractDraft, max_tokens=16000
         )

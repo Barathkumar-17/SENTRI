@@ -219,7 +219,7 @@ def register(app: FastAPI, state: ControlState) -> None:
             await sandbox.start()
             try:
                 async with BrowserManager(headless=settings.headless) as browser:
-                    result = await run_plan(browser, provider, section, readme)
+                    result = await run_plan(browser, provider, section, readme, sandbox)
             finally:
                 await sandbox.stop()
             draft = root / "contract.draft.yaml"
