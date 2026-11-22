@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from sentri.agent.replay import agentic_oracle_config
-from sentri.agent.run import _readme
 from sentri.contract import parse_contract
 
 
@@ -17,19 +14,15 @@ def test_agentic_oracles_use_the_contract_console_and_log_settings(minimal_contr
     assert cfg.app_origin == "http://localhost:5055"
 
 
-def test_readme_is_redacted_before_the_strategist_sees_it(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("DEMO_API_TOKEN", "hunter2-very-secret")
-    (tmp_path / "README.md").write_text(
-        "Run with OPENAI key sk-abcdefghijklmnopqrstuvwx and token hunter2-very-secret", encoding="utf-8"
-    )
-    text = _readme(tmp_path)
-    assert "sk-abcdefghijklmnopqrstuvwx" not in text and "hunter2-very-secret" not in text
-    assert "[REDACTED]" in text
+def test_no_readme_reaches_the_strategist_or_the_planner():
+    """Black box: the tester chooses tests from what the running app shows, never from the target's README."""
+    import inspect
 
+    from sentri.agent import run, strategy
+    from sentri.planner import planner
 
-def test_planner_readme_is_redacted(tmp_path: Path):
-    from sentri.planner.planner import read_readme
-
-    path = tmp_path / "README.md"
-    path.write_text("key: sk-abcdefghijklmnopqrstuvwx", encoding="utf-8")
-    assert "sk-abcdefghijklmnopqrstuvwx" not in read_readme(path)
+    for module in (run, strategy, planner):
+        source = inspect.getsource(module)
+        assert "README" not in source.replace("no README", "").replace("No README", ""), module.__name__
+    assert "readme" not in inspect.signature(strategy.plan_strategy).parameters
+    assert "readme" not in inspect.signature(planner.plan).parameters

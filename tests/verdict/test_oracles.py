@@ -37,14 +37,14 @@ def test_http_500_same_origin_only():
 
 
 def test_exception_extracts_exception_line():
-    r = oracles.exception(Evidence(logs=logs(TRACE)), cfg())
+    r = oracles.exception(Evidence(response_errors=logs(TRACE)), cfg())
     assert r.fired
     assert r.error_key == "indexerror: list index out of range"
-    assert not oracles.exception(Evidence(logs=logs(['127.0.0.1 "POST /x" 500 -'])), cfg()).fired
+    assert not oracles.exception(Evidence(response_errors=logs(['127.0.0.1 "POST /x" 500 -'])), cfg()).fired
 
 
 def test_exception_extra_patterns():
-    ev = Evidence(logs=logs(["boom: custom failure"]))
+    ev = Evidence(response_errors=logs(["boom: custom failure"]))
     assert not oracles.exception(ev, cfg()).fired
     assert oracles.exception(ev, cfg(extra_log_patterns=(r"^boom:",))).fired
 
@@ -98,13 +98,15 @@ def test_timeout_rules():
 
 
 def test_evaluate_all_is_deterministic():
-    ev = Evidence(http=(http(status=500),), logs=logs(TRACE))
+    ev = Evidence(http=(http(status=500),), response_errors=logs(TRACE))
     assert evaluate_all(ev, cfg()) == evaluate_all(ev, cfg())
     assert [r.oracle_id for r in evaluate_all(ev, cfg())] == list(oracles.ORACLE_IDS)
 
 
 def test_evidence_round_trip():
-    ev = Evidence(http=(http(),), console=(ConsoleRecord("page_error", "x"),), logs=logs(["a"]), timed_out=True)
+    ev = Evidence(
+        http=(http(),), console=(ConsoleRecord("page_error", "x"),), response_errors=logs(["a"]), timed_out=True
+    )
     assert Evidence.from_dict(ev.to_dict()) == ev
 
 
@@ -171,6 +173,6 @@ def test_node_traces_are_keyed_by_the_error_line_above_the_frames():
         "    at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)",
         "info: Solved 1-star errorHandlingChallenge (Error Handling)",
     ]
-    ev = Evidence(logs=tuple(LogLine("2026-01-01T00:00:00Z", "stdout", t) for t in lines))
+    ev = Evidence(response_errors=tuple(LogLine("2026-01-01T00:00:00Z", "stdout", t) for t in lines))
     r = exception(ev, OracleConfig("f", "a"))
     assert r.fired and r.error_key is not None and r.error_key.startswith("error: unrecognized target url")

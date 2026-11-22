@@ -40,7 +40,8 @@ def test_example_contracts_validate():
     "mutate, message",
     [
         (lambda d: d.pop("version"), "version"),
-        (lambda d: d["app"].update(docker={"context": "."}), "exactly one of app.docker or app.run"),
+        (lambda d: d["app"].update(docker={"context": "."}), "at most one of app.docker or app.run"),
+        (lambda d: [d["app"].pop("run"), d["app"].pop("port")], "app.base_url for an app that is already running"),
         (lambda d: d["app"].update(port=70000), "port"),
         (lambda d: d["flows"][0].update(id="Bad-Id"), "flow id"),
         (lambda d: d["flows"][0]["steps"].pop(), "submit step"),

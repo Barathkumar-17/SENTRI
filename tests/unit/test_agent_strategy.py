@@ -86,6 +86,6 @@ async def test_a_too_large_strategy_request_is_retried_compact():
 
     model = Small()
     app_map = AppMap(base_url="http://x", pages=[PageEntry(path=f"/p{i}", title="t" * 50) for i in range(40)])
-    planned = await plan_strategy(app_map, BudgetedProvider(model, 1, 5), readme="r" * 9000)
+    planned = await plan_strategy(app_map, BudgetedProvider(model, 1, 5))
     assert planned.error is None and [h.id for h in planned.strategy.hypotheses] == ["h"]
     assert model.sizes[1] < model.sizes[0] / 2

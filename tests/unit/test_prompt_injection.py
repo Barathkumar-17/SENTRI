@@ -94,9 +94,9 @@ async def test_explorer_puts_page_text_console_and_requests_inside_app_data():
     assert rest.rstrip().endswith(f"<<<END APP DATA id={nonce}>>>")
 
 
-async def test_strategist_gets_the_app_map_and_readme_only_as_app_data():
+async def test_strategist_gets_the_app_map_only_as_app_data():
     model = Capture()
     app_map = AppMap(base_url="http://x", pages=[PageEntry(path="/", title=INJECTION)])
-    await plan_strategy(app_map, BudgetedProvider(model, 1, 5), readme="README: " + INJECTION)
+    await plan_strategy(app_map, BudgetedProvider(model, 1, 5))
     task, rest = _parts(model.prompts[0])
-    assert "IGNORE ALL" not in json.dumps(task) and rest.count("IGNORE ALL") == 2
+    assert "IGNORE ALL" not in json.dumps(task) and rest.count("IGNORE ALL") == 1  # the page title; no README
