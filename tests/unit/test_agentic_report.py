@@ -200,3 +200,19 @@ def test_report_says_insufficient_coverage_and_shows_what_was_measured(tmp_path)
     assert "4 distinct states" in md and "stopped: time budget used" in md
     assert "live state" in md and "not a safety rating" in md
     assert "cost unknown" in md  # llm_cost_usd None: never shown as $0.00
+
+
+def test_the_api_returns_usage_and_coverage_as_objects(tmp_path):
+    lg = Ledger(tmp_path / "api.db")
+    run = lg.create_run("c1", "main", "", "ch")
+    b = compute(["pass"], 0)
+    usage = {"calls": 3, "input_tokens": 10, "output_tokens": 2, "cost_usd": None, "roles": {}}
+    coverage = {"baseline": {"checks": {"passed": 1}}, "agentic": None, "completion": {}, "replay_state": "restart"}
+    lg.finish_run(run, "finished", b.score, 1, None, "llm", b.__dict__, usage=usage, coverage=coverage)
+    lg.close()
+    client = TestClient(
+        create_app(tmp_path / "api.db", tmp_path / "e", tmp_path / "live.jpg"), base_url="http://127.0.0.1"
+    )
+    row = client.get(f"/api/runs/{run}").json()
+    assert row["usage"]["calls"] == 3 and row["usage"]["cost_usd"] is None
+    assert row["coverage"]["replay_state"] == "restart" and row["breakdown"]["status"] == "scored"

@@ -54,7 +54,7 @@ def _row(row: Any) -> dict[str, Any] | None:
     if row is None:
         return None
     out = dict(row)
-    for key in ("payload", "breakdown"):
+    for key in ("payload", "breakdown", "usage", "coverage"):
         if isinstance(out.get(key), str):
             with contextlib.suppress(json.JSONDecodeError):
                 out[key] = json.loads(out[key])
