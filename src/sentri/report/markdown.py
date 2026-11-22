@@ -25,6 +25,44 @@ def _grid(rows: list[Any]) -> tuple[list[str], list[str], dict[tuple[str, str], 
     return flows, attacks, cells
 
 
+def _coverage_lines(cov: dict[str, Any]) -> list[str]:
+    """Measured coverage and completion, as counts. Never a percentage of 'the whole app'."""
+    if not cov:
+        return []
+    out = ["### Coverage and completion"]
+    base = cov.get("baseline") or {}
+    checks = base.get("checks") or {}
+    if checks:
+        out.append(
+            "Baseline checks: "
+            + ", ".join(f"{n} {k.replace('_', ' ')}" for k, n in checks.items())
+            + f" · flows tested: {', '.join(base.get('flows') or []) or 'none'} · probes: {base.get('probes', 0)}"
+        )
+    ag = cov.get("agentic")
+    if ag:
+        out.append(
+            f"Exploration: {ag.get('steps', 0)} steps ({ag.get('ai_steps', '?')} chosen by the model, "
+            f"{ag.get('code_probe_steps', '?')} code probes, {ag.get('fallback_steps', 0)} code fallbacks, "
+            f"{ag.get('invalid_steps', 0)} invalid), {ag.get('distinct_states', '?')} distinct states, "
+            f"{ag.get('pages', 0)} pages and {ag.get('endpoints', 0)} endpoints mapped by recon"
+        )
+        out.append(
+            f"Candidates: {ag.get('candidates', 0)} · confirmed {ag.get('confirmed', 0)} · not reproduced "
+            f"{ag.get('unconfirmed', 0)} · inconclusive {ag.get('inconclusive', 0)} · stopped: "
+            f"{ag.get('exploration_stop') or 'n/a'}"
+        )
+    comp = cov.get("completion") or {}
+    phases = comp.get("phases") or {}
+    if phases:
+        out.append("Phases: " + "; ".join(f"{k}: {v}" for k, v in phases.items()))
+    if comp.get("model_stop"):
+        out.append(f"Model use stopped: {comp['model_stop']}")
+    if cov.get("replay_state") == "none":
+        out.append("Replays ran on the app's live state (URL mode: Sentri cannot reset it), not from a clean state.")
+    out += [f"_{cov.get('caveat', '')}_", ""]
+    return out
+
+
 def _cost(value: float | None, digits: int = 2) -> str:
     """None means a model without a known price was used: the cost is unknown, never $0."""
     return "cost unknown" if value is None else f"${value:.{digits}f}"
@@ -77,8 +115,13 @@ def build_report(ledger: Ledger, run_id: int, base_branch: str | None = "main", 
         delta = f" ({arrow} {abs(diff)} vs {base_branch} @ {(base['commit_sha'] or '')[:7]})"
     elif base_branch and run["branch"] != base_branch:
         delta = f" (no {base_branch} run yet)"
-    lines.append(f"## Sentri readiness: {score if score is not None else 'n/a'}{delta}")
+    if breakdown.get("status") == "insufficient_coverage" or score is None:
+        lines.append("## Sentri readiness: insufficient coverage")
+    else:
+        lines.append(f"## Sentri readiness: {score}{delta}")
     lines += ["", f"`{breakdown.get('formula', '')}`", ""]
+    coverage = json.loads(run["coverage"] or "{}")
+    lines += _coverage_lines(coverage)
     if breakdown.get("agentic_findings"):
         counts = breakdown.get("agentic_counts") or {}
         what = ", ".join(f"{n} {sev.replace('_', ' ')}" for sev, n in counts.items())

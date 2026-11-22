@@ -209,6 +209,10 @@ class RunOrchestrator:
 
             regressions = 0
             agentic_ran = False
+            phases: dict[str, str] = {"preflight": "done" if self.options.preflight else "skipped (--skip-preflight)"}
+            agentic_cov: dict[str, Any] | None = None
+            if self.options.mode != "agentic":
+                phases["agentic"] = "skipped (--mode baseline)"
             if self.options.mode == "agentic":
                 if self.provider.available:
                     from sentri.agent.explorer import ExploreBudget
@@ -234,6 +238,24 @@ class RunOrchestrator:
                     agentic_ran = True
                     regressions += agentic.regressions
                     runner.sandbox_fresh = False
+                    phases["agentic"] = f"done; exploration stopped: {agentic.exploration_stop or 'n/a'}"
+                    agentic_cov = {
+                        "pages": agentic.pages,
+                        "endpoints": agentic.endpoints,
+                        "hypotheses": agentic.hypotheses,
+                        "steps": agentic.steps,
+                        "invalid_steps": agentic.invalid,
+                        "fallback_steps": agentic.fallbacks,
+                        "stalls": agentic.stalls,
+                        "candidates": agentic.candidates,
+                        "confirmed": agentic.confirmed,
+                        "unconfirmed": agentic.unconfirmed,
+                        "inconclusive": agentic.inconclusive,
+                        "rechecked": agentic.rechecked,
+                        "exploration_stop": agentic.exploration_stop,
+                        **agentic.stats,
+                        "notes": agentic.notes[:10],
+                    }
                     bus.emit(
                         "agentic_finished",
                         f"agentic: {agentic.confirmed} confirmed of {agentic.candidates} candidates in "
@@ -241,6 +263,7 @@ class RunOrchestrator:
                         **agentic.__dict__,
                     )
                 else:
+                    phases["agentic"] = "skipped (no model)"
                     bus.emit(
                         "agentic_skipped",
                         "agentic mode needs a model; running the baseline suite only "
@@ -264,10 +287,19 @@ class RunOrchestrator:
                     reset_seconds=round(total, 2),
                 )
             breakdown = self._score(run_id, regressions, agentic_ran)
+            phases["baseline"] = f"done ({len(cells)} cells)" if cells else "no baseline cells in the contract"
+            self.coverage = coverage_record(
+                self.ledger.checks_for_run(run_id),
+                agentic_cov,
+                phases,
+                getattr(sandbox, "reset_kind", "restart"),
+                self.provider.stop_reason,
+            )
             self._finish(run_id, "finished", breakdown, started)
             bus.emit(
                 "run_finished",
-                f"run {run_id} finished: readiness {breakdown.score if breakdown.score is not None else 'n/a'}",
+                f"run {run_id} finished: readiness "
+                f"{breakdown.score if breakdown.score is not None else 'insufficient coverage'}",
                 run_id=run_id,
                 readiness=breakdown.score,
                 breakdown=breakdown.__dict__,
@@ -553,6 +585,37 @@ class RunOrchestrator:
         )
         probe_cell = Cell(cell.flow, attack_id, True)
         return await self._execute(run_id, probe_cell, attack_id, choice, runner, bus, is_probe=True)
+
+
+def coverage_record(
+    checks: list[Any],
+    agentic: dict[str, Any] | None,
+    phases: dict[str, str],
+    reset_kind: str,
+    model_stop: str | None,
+) -> dict[str, Any]:
+    """What this run measurably covered and how it ended. Counts only; no whole-app percentages."""
+    baseline = [c for c in checks if not c["is_probe"]]
+    by_status = {
+        "passed": sum(1 for c in baseline if c["score_verdict"] == "pass" and not c["reused_from_check_id"]),
+        "reused_pass": sum(1 for c in baseline if c["reused_from_check_id"]),
+        "failed": sum(1 for c in baseline if c["score_verdict"] == "fail"),
+        "flaky": sum(1 for c in baseline if c["score_verdict"] == "flaky"),
+        "inapplicable": sum(1 for c in baseline if c["verdict"] == "na"),
+        "inconclusive": sum(1 for c in baseline if c["verdict"] == "error"),
+    }
+    probes = [c for c in checks if c["is_probe"] and c["flow_id"] != "agentic"]
+    return {
+        "baseline": {
+            "flows": sorted({c["flow_id"] for c in baseline if c["verdict"] != "na"}),
+            "checks": by_status,
+            "probes": len(probes),
+        },
+        "agentic": agentic,
+        "completion": {"phases": phases, "model_stop": model_stop},
+        "replay_state": reset_kind,  # restart | none (URL mode: live state, no clean replays)
+        "caveat": "Counts what this run tested. It is not a safety rating; untested behaviour is not covered.",
+    }
 
 
 def score_run(

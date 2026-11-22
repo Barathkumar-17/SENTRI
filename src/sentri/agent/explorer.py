@@ -178,6 +178,7 @@ class ExploreResult:
     fallbacks: int = 0  # steps chosen by code because the model gave no usable answer
     invalid: int = 0  # steps lost to invalid actions
     stalls: int = 0  # times the same action repeated with no change forced a focus rotation
+    stats: dict[str, Any] = field(default_factory=dict)  # measured coverage: states, actions by origin, ...
 
 
 class Explorer:

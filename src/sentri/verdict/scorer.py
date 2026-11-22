@@ -68,6 +68,11 @@ class ScoreBreakdown:
     agentic_impact: int = 0  # points deducted for confirmed agentic findings
     agentic_counts: dict[str, int] = field(default_factory=dict)  # severity -> confirmed findings
     agentic_findings: list[dict[str, object]] = field(default_factory=list)  # per finding: key, severity, points
+    # "scored": the number describes the baseline checks that ran (minus confirmed agentic impact).
+    # "insufficient_coverage": no applicable baseline check ran, so there is no number at all; findings and
+    # measured coverage are still reported. Exploration can lower a score but never create one.
+    status: str = "scored"
+    reused: int = 0
 
 
 def parse_hits(oracle_hits: str | None) -> tuple[tuple[str, int], ...]:
@@ -134,15 +139,28 @@ def compute(
         )  # e.g. "1 data exposure, 2 crash"
 
     if applicable == 0:
-        if not (agentic_ran or impacts):
-            return ScoreBreakdown(None, 0, 0, 0, 0, na, errors, regressed, penalty, "no applicable checks")
-        # The agentic phase ran but the contract has no applicable baseline check: score the agentic part alone.
-        score = max(0, 100 - penalty * regressed - impact)
-        formula = "no applicable baseline checks; score = 100"
-        if regressed:
-            formula += f" - {penalty} x {regressed}"
-        formula += f" - agentic {impact}" + (f" ({agentic_part})" if agentic_part else "") + f" = {score}"
-        return ScoreBreakdown(score, 0, 0, 0, 0, na, errors, regressed, penalty, formula, None, impact, counts, details)
+        # No applicable check is not a pass: there is nothing a number could describe. Confirmed agentic findings
+        # are still listed with their impact, but they cannot turn "untested" into a readiness score.
+        why = f"insufficient coverage: no applicable baseline check ({na} inapplicable, {errors} inconclusive)"
+        if impacts:
+            why += f"; {len(impacts)} confirmed agentic finding(s): {agentic_part}"
+        return ScoreBreakdown(
+            None,
+            0,
+            0,
+            0,
+            0,
+            na,
+            errors,
+            regressed,
+            penalty,
+            why,
+            None,
+            impact,
+            counts,
+            details,
+            "insufficient_coverage",
+        )
 
     base = 100 * (passed + 0.5 * flaky) / applicable
     baseline = max(0, round(base - penalty * regressed))

@@ -33,6 +33,13 @@ class AgenticResult:
     confirmed: int = 0
     regressions: int = 0
     rechecked: int = 0
+    unconfirmed: int = 0
+    inconclusive: int = 0
+    exploration_stop: str = ""
+    fallbacks: int = 0
+    invalid: int = 0
+    stalls: int = 0
+    stats: dict[str, Any] = field(default_factory=dict)  # explorer coverage (states, actions, origins)
     notes: list[str] = field(default_factory=list)
 
 
@@ -156,6 +163,9 @@ async def run_agentic(
         if on_page is not None:
             on_page(None)
     out.steps, out.candidates = explored.steps, len(explored.candidates)
+    out.exploration_stop = explored.stopped
+    out.fallbacks, out.invalid, out.stalls = explored.fallbacks, explored.invalid, explored.stalls
+    out.stats = dict(explored.stats)
     bus.emit(
         "phase",
         f"exploration finished after {explored.steps} steps ({explored.stopped}); "
@@ -181,6 +191,10 @@ async def run_agentic(
         out.regressions += sum(1 for e in events if e.kind == "regression")
         if verdict.verdict in ("fail", "flaky"):
             out.confirmed += 1
+        elif verdict.verdict == "error":
+            out.inconclusive += 1
+        else:
+            out.unconfirmed += 1
         details = "; ".join(f"{h.detail} [{h.k}/{verdict.attempts}]" for h in verdict.hits) or (
             "could not be replayed (inconclusive)" if verdict.verdict == "error" else "did not reproduce"
         )

@@ -518,7 +518,8 @@ def run_cmd(
         raise typer.Exit(EXIT_CONTRACT if result.error and "preflight" in result.error else EXIT_APP)
     b = result.breakdown
     assert b is not None
-    console.print(f"[bold]readiness: {b.score if b.score is not None else 'n/a'}[/bold]   {b.formula}")
+    shown = b.score if b.score is not None else "insufficient coverage"
+    console.print(f"[bold]readiness: {shown}[/bold]   {b.formula}")
     if b.agentic_findings:
         baseline = b.baseline if b.baseline is not None else "n/a"
         console.print(
