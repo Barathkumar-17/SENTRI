@@ -27,7 +27,7 @@ inputs:
       llm-base-url -> openai_compatible, llm-api-key -> anthropic, nothing -> none (built-in payloads).
     default: ""
   llm-api-key:
-    description: Your own API key, passed from your repository secrets, e.g. ${{ secrets.LLM_API_KEY }}.
+    description: Your own API key, passed from your repository secrets (for example secrets.LLM_API_KEY).
     default: ""
   llm-base-url:
     description: Base URL of an OpenAI-compatible API (OpenAI, Gemini, OpenRouter, Groq, a self-hosted server...).
