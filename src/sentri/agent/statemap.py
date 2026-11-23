@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
@@ -90,6 +91,21 @@ def resolve_option_ref(action: dict[str, Any], options: list[dict[str, str]]) ->
         return {"kind": "click", "selector": target}
     if verb == "fill_form" and action.get("kind") == "fill_form":
         return {**action, "selector": target}  # the model's own field values, on the form it named
+    return None
+
+
+_LABEL = re.compile(r"^[LFBU]\d{1,3}$")
+
+
+def unknown_option_ref(action: dict[str, Any], options: list[dict[str, str]]) -> str | None:
+    """A label-shaped selector or path (L6, F2, B1) that is not an option of the current state: the model used an id
+    from an earlier page or invented one. Labels are only valid for the observation they were shown with, and no
+    real selector or path looks like one, so this is refused at once instead of timing out against the page."""
+    known = {o["id"] for o in options}
+    for key in ("selector", "path"):
+        value = action.get(key)
+        if isinstance(value, str) and _LABEL.match(value) and value not in known:
+            return value
     return None
 
 

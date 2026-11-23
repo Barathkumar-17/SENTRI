@@ -14,7 +14,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
-from urllib.parse import parse_qsl, urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -32,9 +32,17 @@ from sentri.agent.actions import (
     SwitchUser,
     describe,
 )
+from sentri.agent.attempts import AttemptMemory, auth_block, operation_after, operation_before, params_of
 from sentri.agent.recon import SKIP_WORDS, AppMap
 from sentri.agent.session import AgentSession
-from sentri.agent.statemap import ExplorationMap, StateNode, action_sig, resolve_option_ref, route_of
+from sentri.agent.statemap import (
+    ExplorationMap,
+    StateNode,
+    action_sig,
+    resolve_option_ref,
+    route_of,
+    unknown_option_ref,
+)
 from sentri.agent.strategy import Hypothesis, Strategy
 from sentri.llm import BudgetedProvider, load_prompt
 from sentri.llm.untrusted import build_user_prompt
@@ -108,6 +116,7 @@ class Decision(BaseModel):
     new_path: bool = False
     goal_status: Literal["continue", "done", "stuck"] = "continue"  # about the focus hypothesis
     new_goal: str = Field(default="", max_length=200)  # a goal the observations suggest (grounded by code)
+    repeat_reason: str = Field(default="", max_length=300)  # why repeating an unchanged attempt adds evidence
 
 
 def to_action(spec: ActionSpec) -> Action:
@@ -187,6 +196,10 @@ class ExploreBudget:
     max_candidates: int = 8
     steps_per_hypothesis: int = 10  # base allotment per focus hypothesis
     max_steps_per_hypothesis: int = 20  # ceiling while it keeps making progress (mid-flow)
+    # Steps in a row, over the whole run (hypothesis changes do not reset it), that added no new evidence: the model
+    # is told at `no_progress_warn`, and exploration stops honestly at `no_progress_stop`.
+    no_progress_warn: int = 4
+    no_progress_stop: int = 8
 
 
 @dataclass
@@ -240,6 +253,7 @@ class Explorer:
         self.map = ExplorationMap()
         self._node: StateNode | None = None
         self.prompt_sizes: list[dict[str, Any]] = []  # per explorer call: section sizes in characters, no content
+        self.attempts = AttemptMemory()  # every operation tried this run, across pages and hypothesis changes
         self._is_new = True
         self._text_changed = True
         self._detail: str | None = None  # what a `look` asked for, shown once
@@ -250,6 +264,8 @@ class Explorer:
             "code_probe_steps": 0,
             "fallback_steps": 0,
             "known_dead_end_refusals": 0,
+            "repeat_refusals": 0,
+            "unknown_option_refusals": 0,
             "looks": 0,
             "goals_done": 0,
             "goals_stuck": 0,
@@ -280,6 +296,12 @@ class Explorer:
         }
         if self._focus_note:
             task["note"] = self._focus_note + "; try something different"
+        if self.attempts.unproductive >= self.budget.no_progress_warn:
+            task["progress"] = (
+                f"the last {self.attempts.unproductive} steps (any page, any hypothesis) added no new evidence; "
+                f"exploration stops after {self.budget.no_progress_stop}. Choose a different experiment, act as "
+                "another identity, or end the goal as stuck"
+            )
         task["hypotheses"] = [
             {"id": h["id"], "title": h["title"], "targets": h.get("targets", [])} for h in task["hypotheses"]
         ]
@@ -356,6 +378,9 @@ class Explorer:
         for i, who in enumerate(w for w in ("anon", "a", "b") if w != node.identity):
             tried = node.tried.get(f"switch_user {who}")
             status = "untried" if tried is None else f"tried {tried.count}x -> {', '.join(tried.to_states) or '?'}"
+            failed = getattr(self.s, "login_failed", {}).get(who)
+            if failed:
+                status = f"login failed: {failed[:80]}"
             out.append({"id": f"U{i + 1}", "do": f"switch_user {who} ({labels[who]})", "status": status})
         return out
 
@@ -585,6 +610,36 @@ class Explorer:
                 resolved = resolve_option_ref(action.model_dump(exclude_none=True), self._node.options)
                 if resolved is not None:
                     action = ACTION_ADAPTER.validate_python(resolved)
+                stale = unknown_option_ref(action.model_dump(exclude_none=True), self._node.options)
+                if stale is not None:
+                    failures += 1
+                    problem = (
+                        f"option {stale} is not offered in this state (option ids belong to the observation they "
+                        "were shown with); use one of the current options or write the action out"
+                    )
+                    self.record_step(
+                        {
+                            "step": step,
+                            "parent_step": parent,
+                            "hypothesis_id": decision.hypothesis_id or (focus.id if focus else ""),
+                            "identity": self.s.current,
+                            "thought": decision.thought,
+                            "action": action.model_dump(),
+                            "action_text": describe(action),
+                            "ok": False,
+                            "error": f"not run: {problem}",
+                            "url_after": self._observation.get("url"),
+                            "signals": [],
+                            "origin": step_origin,
+                        }
+                    )
+                    self.history.append({"step": step, "action": describe(action), "not_run": problem})
+                    self.counts["unknown_option_refusals"] += 1
+                    result.steps = step
+                    if failures >= 3:
+                        result.stopped = f"3 unusable, invalid or refused actions in a row: {problem}"
+                        break
+                    continue
             hyp = decision.hypothesis_id or (focus.id if focus else "")
             node_before = self._node
             sig = action_sig(action.model_dump())
@@ -629,12 +684,51 @@ class Explorer:
                     result.stopped = "3 unusable, invalid or dead-end actions in a row"
                     break
                 continue
+            intent = None if by_code else operation_before(action.model_dump(), self._observation.get("url"))
+            params = params_of(action.model_dump(exclude_none=True))
+            repeat = self.attempts.check(self.s.current, intent, params, decision.repeat_reason)
+            if repeat is not None:
+                failures += 1
+                self.attempts.refusals += 1
+                self.counts["repeat_refusals"] += 1
+                self.record_step(
+                    {
+                        "step": step,
+                        "parent_step": parent,
+                        "hypothesis_id": hyp,
+                        "identity": self.s.current,
+                        "thought": decision.thought,
+                        "action": action.model_dump(),
+                        "action_text": describe(action),
+                        "ok": False,
+                        "error": f"not run: {repeat}",
+                        "url_after": self._observation.get("url"),
+                        "signals": [],
+                        "origin": step_origin,
+                    }
+                )
+                self.history.append({"step": step, "action": describe(action), "not_run": repeat})
+                self._changes = {
+                    "action": describe(action),
+                    "not_run": repeat,
+                    "next": "a different experiment, another identity, or end the goal as stuck",
+                }
+                result.steps = step
+                self.attempts.unproductive += 1
+                if self.attempts.unproductive >= self.budget.no_progress_stop:
+                    result.stopped = f"no progress: {self.attempts.unproductive} steps in a row added no new evidence"
+                    break
+                if failures >= 3:
+                    result.stopped = f"no progress: 3 refused actions in a row; the last: {repeat}"
+                    break
+                continue
             if decision.new_path or (hyp != current_hyp and current_hyp):
                 path_start, parent = step, None
                 line_index = len(prefix)
             current_hyp = hyp
 
             identity = self.s.current
+            start_url = self._observation.get("url")
             fp_before = _fingerprint(self._observation)
             mark = self.s.mark()
             self.counts["actions_attempted"] += 1
@@ -758,13 +852,57 @@ class Explorer:
                     "signals": [f"{s['oracle_id']}: {s['detail']}" for s in signals],
                     "times_tried_here": tried.count,
                 }
+            new_reqs = [r for r in getattr(self.s, "requests", []) if r.id in set(outcome.new_requests)]
+            intended = action.path if isinstance(action, Navigate) else None
+            blocked = auth_block(new_reqs, self._observation, intended, start_url) if outcome.ok else None
+            if isinstance(action, SwitchUser) and outcome.ok:
+                self.attempts.identity_changed()
+            writes = [r for r in new_reqs if str(getattr(r, "method", "GET")).upper() != "GET" and r.status is not None]
+            wrote = outcome.ok and not blocked and any(r.status < 400 for r in writes)
+            final = urlsplit(str(self._observation.get("url") or "")).path or "/"
+            answered = "/".join(map(str, sorted({r.status for r in writes}))) + " " if writes else ""
+            outcome_text = (
+                f"error: {(outcome.error or '')[:60]}"
+                if not outcome.ok
+                else f"{answered}-> {final}" + (" (blocked)" if blocked else "")
+            )
+            op = operation_after(intent, new_reqs, getattr(self.s, "base_url", "")) if intent else None
+            added = self.attempts.record(
+                identity,
+                intent,
+                op,
+                outcome_text,
+                self._is_new,
+                len(signals),
+                wrote,
+                bool(decision.repeat_reason.strip()),
+                params,
+            )
+            if self._changes is not None:
+                self._changes["added_evidence"] = added
+                if blocked:
+                    others = [w for w in ("a", "b") if w != identity and w not in getattr(self.s, "login_failed", {})]
+                    self._changes["auth"] = {
+                        "blocked": blocked,
+                        "acting_as": identity,
+                        "authorized_identities_available": others if self.app_map.has_login_flow else [],
+                    }
+            if self.attempts.unproductive >= self.budget.no_progress_stop:
+                result.stopped = f"no progress: {self.attempts.unproductive} steps in a row added no new evidence"
+                break
             if not by_code:
                 self._goal_update(decision, step)
             self._after_step(_signature(action), fp_before, _fingerprint(self._observation), signals)
         else:
             result.stopped = "step budget used"
         result.stalls = self.stalls
-        result.stats = {**self.map.stats(), **self.counts, "stalls": self.stalls, "prompt_sizes": self.prompt_sizes}
+        result.stats = {
+            **self.map.stats(),
+            **self.counts,
+            "stalls": self.stalls,
+            "no_evidence_streak": self.attempts.unproductive,
+            "prompt_sizes": self.prompt_sizes,
+        }
         return result
 
     def _goal_update(self, decision: Decision, step: int) -> None:
