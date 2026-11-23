@@ -1,47 +1,8 @@
 import { Plus } from 'lucide-react'
 import { api, useApi } from '../api'
-import { PageHead, Panel, Readiness, RunStatus, when } from '../ui'
+import { PageHead, Panel } from '../ui'
 
-// How to use Sentri from this app. Every step names the screen that does it; nothing here is sample data.
-const STEPS = [
-  {
-    title: 'Choose a model, or none',
-    body: 'With no model Sentri runs its fixed baseline attacks with built-in payloads. With a model it also plans an attack strategy for your app and explores it step by step.',
-    href: '#/new',
-    link: 'New run, step 1',
-  },
-  {
-    title: 'Point Sentri at your app',
-    body: 'Give the project folder so Sentri can start and restart the app itself, or a URL for an app that is already running. Sentri only reaches the app through its pages and HTTP.',
-    href: '#/new',
-    link: 'New run, step 2',
-  },
-  {
-    title: 'Draft, check and approve the contract',
-    body: 'The contract says which flows exist, which users Sentri may log in as and what it may attack. Draft one or paste your own, validate it, then approve it under your name.',
-    href: '#/new',
-    link: 'New run, step 2',
-  },
-  {
-    title: 'Start the run and follow it',
-    body: 'One run at a time. The activity log updates live; the run keeps going if you leave the page. If a model quota or budget stops it early, the run says so.',
-    href: '#/runs',
-    link: 'Runs',
-  },
-  {
-    title: 'Read what broke',
-    body: 'Each finding was replayed three times (from a restarted app when Sentri starts it) and plain code decided the verdict. Open one to see what fired, every attempt’s responses and the steps replayed.',
-    href: '#/findings',
-    link: 'Findings',
-  },
-  {
-    title: 'Compare runs and decide',
-    body: 'The ledger lines runs up across commits and keeps every bug. Only a person can mark a bug intended, and it needs a reason.',
-    href: '#/ledger',
-    link: 'Ledger',
-  },
-]
-
+// How to use Sentri from this app: one plain list, with links to the screen that does each step.
 export function Home() {
   const runs = useApi(api.runs, [])
   const latest = runs.data?.[0]
@@ -56,63 +17,34 @@ export function Home() {
           </a>
         }
       />
-      <div className="page-body home">
-        <Panel title="How to use Sentri" hint="six steps, each on its own screen">
+      <div className="page-body">
+        <Panel title="How to use Sentri">
           <ol className="guide">
-            {STEPS.map((s, i) => (
-              <li key={s.title}>
-                <span className="n" aria-hidden="true">{i + 1}</span>
-                <div>
-                  <h3>{s.title}</h3>
-                  <p>{s.body}</p>
-                  <a href={s.href}>{s.link}</a>
-                </div>
-              </li>
-            ))}
+            <li>
+              Open <a href="#/new">New run</a> and choose a model. With no model, only the six fixed baseline attacks run.
+            </li>
+            <li>Give the app's folder so Sentri can start and restart it, or the URL of an app that is already running.</li>
+            <li>Draft or paste the contract (the flows, the users Sentri may log in as, what it may attack), validate it and approve it under your name.</li>
+            <li>
+              Start the run and follow it live in <a href="#/runs">Runs</a>. If a model quota or budget stops it early, the run says so.
+            </li>
+            <li>
+              Read what broke in <a href="#/findings">Findings</a>. Every finding is replayed three times and plain code decides the verdict.
+            </li>
+            <li>
+              Compare runs across commits in the <a href="#/ledger">Ledger</a>, and mark a bug intended there when it is (a reason is required).
+            </li>
           </ol>
-        </Panel>
-
-        <div className="stack">
-          <Panel title="Black box, always">
-            <ul className="plain small muted">
-              <li>The tester learns your app only from its running pages and HTTP responses, using the users the contract allows.</li>
-              <li>Source code, README files, database internals and server logs never reach the model, its memory or a verdict.</li>
-              <li>A project folder is used only to start, stop and restart the app.</li>
-            </ul>
-          </Panel>
-
-          <Panel title="Reading a result">
-            <dl className="kv">
-              <dt>Readiness</dt>
-              <dd>Out of 100: the share of applicable baseline checks that passed, minus confirmed findings. Not a safety rating.</dd>
-              <dt>Insufficient coverage</dt>
-              <dd>Nothing applicable was tested, so there is no score. It is never a pass.</dd>
-              <dt>Confirmed</dt>
-              <dd>The break was seen in every replay. Flaky: in some.</dd>
-            </dl>
-          </Panel>
-
-          <Panel title="This machine">
-            {runs.error ? (
-              <p className="small muted">The run list could not be loaded.</p>
-            ) : !runs.data ? (
-              <p className="small muted">Loading…</p>
-            ) : !latest ? (
-              <p className="small muted">No runs yet. Start with New run.</p>
-            ) : (
-              <div className="stack" style={{ gap: 8 }}>
-                <div className="row">
-                  <a href={`#/runs/${latest.id}`}>Latest: Run {latest.id}</a>
-                  <RunStatus run={latest} />
-                  <Readiness breakdown={latest.breakdown} />
-                </div>
-                <span className="small muted">
-                  {when(latest.started_at)} · {runs.data.length} {runs.data.length === 1 ? 'run' : 'runs'} in this ledger
-                </span>
-              </div>
+          <p className="home-note">
+            Sentri tests from the outside only: the model sees your app's pages and HTTP responses, never its source, README, database or server logs.
+            Readiness is out of 100 and counts only what a run tested; it is not a safety rating.
+            {latest && (
+              <>
+                {' '}Your latest run is <a href={`#/runs/${latest.id}`}>Run {latest.id}</a>.
+              </>
             )}
-          </Panel>
-        </div>
+          </p>
+        </Panel>
       </div>
     </>
   )

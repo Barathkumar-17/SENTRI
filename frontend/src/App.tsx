@@ -35,14 +35,14 @@ export default function App() {
   const current = section === 'runs' && id ? 'runs' : section
   return (
     <div className="shell">
-      <nav className="rail" aria-label="Main">
+      <nav className="topbar" aria-label="Main">
         <a className="brand" href="#/home"><Mark /> Sentri</a>
         {NAV.map(({ id: nid, label, icon: Icon }) => (
           <a key={nid} className="nav-link" href={`#/${nid}`} aria-current={current === nid ? 'page' : undefined}>
             <Icon size={17} aria-hidden="true" /> {label}
           </a>
         ))}
-        <div className="rail-foot">
+        <div className="topbar-status">
           {jobs.error ? <span><span className="dot off" aria-hidden="true" /> server unreachable</span> : <span><span className="dot on" aria-hidden="true" /> local server</span>}
           {active && <a href={active.run_id ? `#/runs/${active.run_id}` : '#/new'}>{active.kind} in progress</a>}
         </div>
