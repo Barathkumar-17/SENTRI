@@ -212,7 +212,7 @@ td .sub { display: block; color: var(--text-3); font-size: var(--fs-xs); margin-
 .fact .value { font-size: var(--fs-lg); font-weight: 600; color: var(--text); }
 .fact .value.small { font-size: var(--fs-md); font-weight: 500; }
 .fact .note { color: var(--text-2); font-size: var(--fs-xs); }
-.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s2) var(--s5); font-size: var(--fs-sm); }
+.kv { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s2) var(--s5); font-size: var(--fs-sm); }
 .kv dt { color: var(--text-3); }
 .kv dd { margin: 0; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
 
@@ -308,8 +308,21 @@ ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s1
 .dot.on { background: var(--ok); box-shadow: 0 0 0 3px rgba(70, 192, 138, 0.18); }
 .dot.off { background: var(--bad); }
 
+/* ---- home ------------------------------------------------------------------------------------------ */
+.home { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: var(--s5); align-items: start; }
+.guide { list-style: none; margin: 0; padding: 0; display: grid; }
+.guide li { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--s3); padding: var(--s4) 0; border-bottom: 1px solid var(--line-soft); }
+.guide li:first-child { padding-top: 0; }
+.guide li:last-child { border-bottom: 0; padding-bottom: 0; }
+.guide .n { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line-strong); display: grid; place-items: center; font-size: var(--fs-xs); color: var(--text-2); font-family: var(--mono); }
+.guide h3 { margin: 2px 0 var(--s1); font-size: var(--fs-md); font-weight: 600; color: var(--text); }
+.guide p { margin: 0 0 var(--s1); color: var(--text-2); font-size: var(--fs-sm); max-width: 68ch; }
+.guide a { font-size: var(--fs-sm); }
+ul.plain.small li { line-height: 1.5; }
+
 /* ---- narrow windows --------------------------------------------------------------------------------- */
 @media (max-width: 960px) {
+  .home { grid-template-columns: minmax(0, 1fr); }
   .split { grid-template-columns: minmax(0, 1fr); }
   .trail { grid-template-columns: minmax(0, 1fr); }
   .summary { grid-template-columns: minmax(0, 1fr); gap: 2px; }

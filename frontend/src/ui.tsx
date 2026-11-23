@@ -5,7 +5,7 @@ import type { ApiError, Breakdown, Run } from './api'
 
 // ---- hash routing: no server route per page --------------------------------------------------------------
 export function useRoute(): string[] {
-  const read = () => (window.location.hash.replace(/^#\/?/, '') || 'runs').split('/').filter(Boolean)
+  const read = () => (window.location.hash.replace(/^#\/?/, '') || 'home').split('/').filter(Boolean)
   const [parts, setParts] = useState(read)
   useEffect(() => {
     const on = () => setParts(read())

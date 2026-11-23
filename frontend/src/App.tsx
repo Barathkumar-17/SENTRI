@@ -1,6 +1,7 @@
-import { FlaskConical, ListChecks, Plus, ScrollText } from 'lucide-react'
+import { FlaskConical, House, ListChecks, Plus, ScrollText } from 'lucide-react'
 import { api, useApi } from './api'
 import { Findings } from './pages/Findings'
+import { Home } from './pages/Home'
 import { Ledger } from './pages/Ledger'
 import { NewRun } from './pages/NewRun'
 import { RunDetail } from './pages/RunDetail'
@@ -8,6 +9,7 @@ import { Runs } from './pages/Runs'
 import { Banner, useRoute } from './ui'
 
 const NAV = [
+  { id: 'home', label: 'Home', icon: House },
   { id: 'runs', label: 'Runs', icon: ListChecks },
   { id: 'findings', label: 'Findings', icon: FlaskConical },
   { id: 'ledger', label: 'Ledger', icon: ScrollText },
@@ -34,7 +36,7 @@ export default function App() {
   return (
     <div className="shell">
       <nav className="rail" aria-label="Main">
-        <a className="brand" href="#/runs"><Mark /> Sentri</a>
+        <a className="brand" href="#/home"><Mark /> Sentri</a>
         {NAV.map(({ id: nid, label, icon: Icon }) => (
           <a key={nid} className="nav-link" href={`#/${nid}`} aria-current={current === nid ? 'page' : undefined}>
             <Icon size={17} aria-hidden="true" /> {label}
@@ -56,7 +58,7 @@ export default function App() {
         {section === 'findings' ? <Findings id={id} /> : null}
         {section === 'ledger' ? <Ledger /> : null}
         {section === 'new' ? <NewRun /> : null}
-        {!['runs', 'findings', 'ledger', 'new'].includes(section) ? <Runs /> : null}
+        {!['runs', 'findings', 'ledger', 'new'].includes(section) ? <Home /> : null}
       </main>
     </div>
   )
