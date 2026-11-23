@@ -346,7 +346,9 @@ class Explorer:
                 "url": obs.get("url"),
                 "title": obs.get("title"),
             }
-            data["options"] = self.map.options_view(node) + self._identity_options(node)
+            data["options"] = self.map.options_view(node) + [
+                {k: v for k, v in o.items() if k != "sig"} for o in self._identity_options(node)
+            ]
             data["frontier"] = [f for f in self.map.frontier() if f["state"] != node.sid]
         if self._changes:
             data["last_step_effect"] = self._changes
@@ -381,7 +383,14 @@ class Explorer:
             failed = getattr(self.s, "login_failed", {}).get(who)
             if failed:
                 status = f"login failed: {failed[:80]}"
-            out.append({"id": f"U{i + 1}", "do": f"switch_user {who} ({labels[who]})", "status": status})
+            out.append(
+                {
+                    "id": f"U{i + 1}",
+                    "sig": f"switch_user {who}",
+                    "do": f"switch_user {who} ({labels[who]})",
+                    "status": status,
+                }
+            )
         return out
 
     def _observe_state(self, step: int) -> None:
@@ -578,6 +587,10 @@ class Explorer:
             step_origin = (
                 ("code_probe" if decision.hypothesis_id == "reflected_input" else "code_fallback") if by_code else "ai"
             )
+            if decision.action.kind == "switch_user" and decision.action.user and self._node is not None:
+                for opt in self._identity_options(self._node):  # "switch_user user=U1": the label of an identity option
+                    if opt["id"] == decision.action.user:
+                        decision.action.user = opt["sig"].split()[1]
             try:
                 action = to_action(decision.action)
             except ValidationError as exc:
@@ -607,10 +620,11 @@ class Explorer:
                     break
                 continue
             if self._node is not None:
-                resolved = resolve_option_ref(action.model_dump(exclude_none=True), self._node.options)
+                offered = [*self._node.options, *self._identity_options(self._node)]
+                resolved = resolve_option_ref(action.model_dump(exclude_none=True), offered)
                 if resolved is not None:
                     action = ACTION_ADAPTER.validate_python(resolved)
-                stale = unknown_option_ref(action.model_dump(exclude_none=True), self._node.options)
+                stale = unknown_option_ref(action.model_dump(exclude_none=True), offered)
                 if stale is not None:
                     failures += 1
                     problem = (

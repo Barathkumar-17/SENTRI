@@ -404,3 +404,26 @@ async def test_when_a_limit_refuses_the_next_call_exploration_ends_with_that_rea
     assert result.stopped == "model use stopped: token limit 3200 reached"
     assert result.fallbacks == 0 and all(s["origin"] == "ai" for s in steps)
     assert len(steps) == 1  # nothing ran after the cap
+
+
+async def test_an_identity_option_can_be_named_by_its_label_however_the_model_writes_it():
+    """Found by the 2026-11-23 live run (step 7): click(selector='U1') was refused as 'not offered' although U1, the
+    switch to another identity, was offered. At anon the options are U1=a, U2=b."""
+    model = Scripted(
+        [
+            _decision("click", selector="U1"),  # as anon: U1 = switch to a
+            _decision("navigate", path="U1"),  # as a: U1 = switch to anon
+            _decision("switch_user", user="U2"),  # as anon: U2 = switch to b
+        ]
+    )
+    _, steps, session, _ = await _explore(model)
+    switches = [a.user for _, a in session.executed if a.kind == "switch_user"]
+    assert switches == ["a", "anon", "b"]
+    assert all(s["ok"] for s in steps[:3]) and not any("not offered" in (s.get("error") or "") for s in steps)
+
+
+async def test_a_label_that_is_not_an_identity_option_is_still_refused():
+    model = Scripted([_decision("click", selector="U9"), _decision("switch_user", user="U9")])
+    result, steps, session, _ = await _explore(model)
+    assert [a for _, a in session.executed if a.kind == "switch_user"] == []
+    assert result.stats["unknown_option_refusals"] >= 1 or any("U9" in (s.get("error") or "") for s in steps)

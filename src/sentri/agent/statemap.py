@@ -89,6 +89,8 @@ def resolve_option_ref(action: dict[str, Any], options: list[dict[str, str]]) ->
         return {"kind": "navigate", "path": target}
     if verb == "click":
         return {"kind": "click", "selector": target}
+    if verb == "switch_user":
+        return {"kind": "switch_user", "user": target}  # an identity option (U1), however the model wrote it
     if verb == "fill_form" and action.get("kind") == "fill_form":
         return {**action, "selector": target}  # the model's own field values, on the form it named
     return None
