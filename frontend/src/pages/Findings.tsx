@@ -1,344 +1,156 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import { api, useApi, type Attempt, type Bug, type FindingDetail } from '../api'
-import { BUG_STATUS, Badge, Banner, Empty, ErrorState, Loading, ORIGIN, PageHead, Panel, VERDICT, go, short, when } from '../ui'
+import { useEffect, useMemo } from 'react'
+import { api, useApi } from '../api'
+import {
+  BugBadge, Card, Empty, ErrorState, Loading, ORIGIN, PageHead, VerdictBadge, count, go, href, num, rememberList, short,
+} from '../ui'
 
-const FILTERS: { id: string; label: string }[] = [
+const VERDICTS = [
   { id: '', label: 'All' },
   { id: 'fail', label: 'Confirmed' },
   { id: 'flaky', label: 'Flaky' },
   { id: 'unconfirmed', label: 'Not reproduced' },
   { id: 'pass', label: 'Fixed' },
 ]
+const STATUSES = [
+  { id: '', label: 'All' },
+  { id: 'open', label: 'Open' },
+  { id: 'flaky', label: 'Flaky' },
+  { id: 'fixed', label: 'Fixed' },
+  { id: 'intended', label: 'Intended' },
+]
 
-export function Findings({ id }: { id?: number }) {
-  const [filter, setFilter] = useState('')
-  const list = useApi(() => api.findings(filter || undefined), [filter])
+export function Findings({ query }: { query: URLSearchParams }) {
+  const view = query.get('view') === 'bugs' ? 'bugs' : 'findings'
+  // the list a person is looking at, so a detail page's breadcrumb can come back to it
+  useEffect(() => rememberList(window.location.hash || '#/findings'), [query])
   return (
     <>
       <PageHead
         title="Findings"
-        context={<span>Candidates the tester flagged, each replayed 3 times and judged by plain code.</span>}
+        purpose={
+          view === 'bugs'
+            ? 'Every bug Sentri tracks across runs and commits: when it opened, whether it was fixed or came back, and any human decision.'
+            : 'Breaks the tester flagged, each replayed three times and judged by plain code. Open one for its evidence and to decide what it is.'
+        }
+        action={
+          <nav className="segmented" aria-label="Findings view">
+            <a href={href('findings')} aria-current={view === 'findings' ? 'true' : undefined}>Findings</a>
+            <a href={href('findings', { view: 'bugs' })} aria-current={view === 'bugs' ? 'true' : undefined}>Bugs across runs</a>
+          </nav>
+        }
       />
-      <div className="page-body">
-        <div className="row" role="group" aria-label="Filter by verdict">
-          {FILTERS.map((f) => (
-            <button key={f.id || 'all'} className={`btn small${filter === f.id ? '' : ' ghost'}`} aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <div className="split findings-split">
-          <Panel title="All findings" hint={list.data ? `${list.data.length} shown` : undefined} flush>
-            {list.loading && !list.data ? (
-              <Loading label="Loading findings" />
-            ) : list.error && !list.data ? (
-              <ErrorState error={list.error} onRetry={list.reload} />
-            ) : !list.data?.length ? (
-              <Empty title={filter ? 'Nothing with this verdict' : 'No findings yet'}>
-                {filter
-                  ? 'Try another filter.'
-                  : 'Findings appear after an agentic run flags a candidate. A run with none has not shown the app is safe.'}
-              </Empty>
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr><th>Verdict</th><th>Finding</th><th>Found by</th></tr>
-                  </thead>
-                  <tbody>
-                    {list.data.map((f) => {
-                      const [tone, label] = VERDICT[f.verdict] ?? ['', f.verdict]
-                      return (
-                        <tr key={f.id} className="clickable" aria-selected={f.id === id} onClick={() => go(`/findings/${f.id}`)}>
-                          <td><Badge tone={tone}>{label}</Badge></td>
-                          <td>
-                            <a href={`#/findings/${f.id}`} onClick={(e) => e.stopPropagation()}>{f.title || 'Untitled finding'}</a>
-                            <span className="sub mono">{f.key ?? f.oracle_ids ?? ''}</span>
-                            <span className="sub">run {f.run_id} · <span className="mono">{short(f.commit_sha)}</span></span>
-                          </td>
-                          <td>{ORIGIN[f.origin ?? ''] ?? f.origin ?? '–'}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Panel>
-          {id ? <FindingPanel id={id} /> : (
-            <Panel><Empty title="Select a finding">Its evidence, replay attempts and the human decision appear here.</Empty></Panel>
-          )}
-        </div>
-      </div>
+      <div className="page-body">{view === 'bugs' ? <BugList query={query} /> : <FindingList query={query} />}</div>
     </>
   )
 }
 
-function FindingPanel({ id }: { id: number }) {
-  const f = useApi(() => api.finding(id), [id])
-  if (f.loading && !f.data) return <Panel><Loading label="Loading finding" /></Panel>
-  if (f.error && !f.data) return <Panel><ErrorState error={f.error} onRetry={f.reload} /></Panel>
-  return <FindingView f={f.data as FindingDetail} onChanged={f.reload} />
-}
-
-function FindingView({ f, onChanged }: { f: FindingDetail; onChanged: () => void }) {
-  const [tone, label] = VERDICT[f.verdict] ?? ['', f.verdict]
-  const [stepsOpen, setStepsOpen] = useState(false)
-  const recorded = f.attempts.filter((a) => !a.missing)
-  const hits = recorded.filter((a) => (a.oracles?.length ?? 0) > 0).length
-  const broke = whatBroke(f.attempts)
-  const StepsIcon = stepsOpen ? ChevronDown : ChevronRight
+function FindingList({ query }: { query: URLSearchParams }) {
+  const verdict = query.get('verdict') ?? ''
+  const runFilter = query.get('run') ?? ''
+  const origin = query.get('origin') ?? ''
+  const list = useApi(() => api.findings(verdict || undefined), [verdict])
+  const all = useMemo(() => list.data ?? [], [list.data])
+  const runs = useMemo(() => [...new Set(all.map((f) => f.run_id))].sort((a, b) => b - a), [all])
+  const origins = useMemo(() => [...new Set(all.map((f) => f.origin ?? ''))].filter(Boolean), [all])
+  const shown = all.filter((f) => (!runFilter || String(f.run_id) === runFilter) && (!origin || f.origin === origin))
+  // read the live URL, not this render's values, so two quick changes never drop one another
+  const set = (k: string, v: string) => {
+    const now = new URLSearchParams(window.location.hash.split('?')[1] ?? '')
+    go(href('findings', { verdict: now.get('verdict'), run: now.get('run'), origin: now.get('origin'), [k]: v }))
+  }
+  const filtered = Boolean(verdict || runFilter || origin)
   return (
-    <div className="stack" aria-label="Finding detail">
-      <Panel>
-        <div className="finding-head">
-          <div className="row">
-            <Badge tone={tone}>{label}</Badge>
-            <span className="muted small">
-              run <a href={`#/runs/${f.run_id}`}>{f.run_id}</a> · <span className="mono">{short(f.commit_sha)}</span> · {when(f.created_at)}
-            </span>
-          </div>
-          <h2 className="finding-title wrap-anywhere">{f.title || 'Untitled finding'}</h2>
-          <dl className="summary">
-            <dt>{broke.length ? 'What broke' : 'Checks fired'}</dt>
-            <dd>
-              {broke.length ? (
-                <ul className="plain">
-                  {broke.map((b) => (
-                    <li key={b.oracle + b.detail}>
-                      <span className="mono">{b.oracle}</span> {b.detail}
-                      {b.seen !== hits && <span className="muted"> · in {b.seen} of {recorded.length} replays</span>}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <span className="muted">None in the recorded replays{f.oracle_ids ? `; the candidate was flagged for ${f.oracle_ids}` : ''}.</span>
-              )}
-            </dd>
-            <dt>Replay outcome</dt>
-            <dd>
-              {recorded.length
-                ? `${hits ? `Break seen in ${hits} of ${recorded.length} replays` : `No break seen in any of ${recorded.length} replays`}, ${f.replay_state === 'none' ? 'all on the live state (no reset)' : 'each from a restarted app'}.`
-                : 'No replay evidence stored for this finding.'}
-            </dd>
-            {f.key && (
-              <>
-                <dt>Check</dt>
-                <dd className="mono wrap-anywhere">{f.key}</dd>
-              </>
-            )}
-          </dl>
-        </div>
-      </Panel>
-
-      <div className="trail" role="group" aria-label="Evidence trail">
-        <div>
-          <span className="label">Discovered by</span>
-          <span className="big">{ORIGIN[f.origin ?? ''] ?? f.origin ?? 'not recorded'}</span>
-          <span className="muted xs">{f.from_step ? `exploration steps ${f.from_step}–${f.to_step}` : 're-check of an earlier finding'}</span>
-        </div>
-        <div>
-          <span className="label">Replays</span>
-          <AttemptDots attempts={f.attempts} total={f.attempts.length || 3} />
-          <span className="muted xs">{f.replay_state === 'none' ? 'on the live state (no reset)' : 'each from a restarted app'}</span>
-        </div>
-        <div>
-          <span className="label">Steps</span>
-          <span className="big">{f.repro.length}</span>
-          <span className="muted xs">{f.repro.filter((s) => s.setup).length ? `${f.repro.filter((s) => s.setup).length} of them setup from earlier lines of attack` : 'replayed in order each attempt'}</span>
-        </div>
+    <>
+      <div className="toolbar">
+        <nav className="segmented" aria-label="Filter by result">
+          {VERDICTS.map((v) => (
+            <a key={v.id || 'all'} href={href('findings', { verdict: v.id, run: runFilter, origin })} aria-current={verdict === v.id ? 'true' : undefined}>{v.label}</a>
+          ))}
+        </nav>
+        <label htmlFor="f-run">Run</label>
+        <select id="f-run" className="select" style={{ width: 'auto' }} value={runFilter} onChange={(e) => set('run', e.target.value)}>
+          <option value="">All runs</option>
+          {runs.map((r) => <option key={r} value={r}>Run {r}</option>)}
+        </select>
+        <label htmlFor="f-origin">Found by</label>
+        <select id="f-origin" className="select" style={{ width: 'auto' }} value={origin} onChange={(e) => set('origin', e.target.value)}>
+          <option value="">Anyone</option>
+          {origins.map((o) => <option key={o} value={o}>{ORIGIN[o] ?? o}</option>)}
+        </select>
+        {filtered && <a className="btn small ghost" href={href('findings')}>Clear filters</a>}
       </div>
-
-      <Limitations f={f} />
-
-      <Panel title="Replay evidence" hint="per attempt, as recorded">
-        {!f.attempts.length ? <Empty title="No replay evidence">Findings recorded before evidence linking have none.</Empty> : (
-          <div className="stack">{f.attempts.map((a) => <AttemptView key={a.attempt} a={a} />)}</div>
-        )}
-        {f.notes.length > 0 && (
-          <div className="stack" style={{ marginTop: 16 }}>
-            <h3>Replay notes</h3>
-            <pre className="code">{f.notes.join('\n')}</pre>
-          </div>
-        )}
-      </Panel>
-
-      <Panel
-        title="Steps replayed"
-        hint={`${f.repro.length} steps; greyed = setup from earlier lines of attack`}
-        action={
-          f.repro.length > 0 && (
-            <button className="btn ghost small" aria-expanded={stepsOpen} aria-controls="finding-steps" onClick={() => setStepsOpen(!stepsOpen)}>
-              <StepsIcon size={14} aria-hidden="true" /> {stepsOpen ? 'Hide steps' : 'Show steps'}
-            </button>
-          )
-        }
-      >
-        {!f.repro.length ? <Empty title="No steps stored" /> : stepsOpen ? (
-          <ol className="steps" id="finding-steps">
-            {f.repro.map((s, i) => (
-              <li key={i} className={s.setup ? 'setup' : undefined}>
-                <span className="n">{i + 1}</span>
-                <div>
-                  <div className="act">{describe(s.action)}</div>
-                  {s.match && <div className="muted xs mono">re-matched: {s.match.method} {s.match.path}</div>}
-                </div>
-              </li>
-            ))}
-          </ol>
+      <Card flush foot={list.data ? `${count(shown.length, 'finding')} shown${shown.length !== all.length ? ` of ${all.length}${verdict ? ' with this result' : ''}` : ''}` : undefined}>
+        {list.loading && !list.data ? (
+          <Loading label="Loading findings" />
+        ) : list.error && !list.data ? (
+          <ErrorState error={list.error} onRetry={list.reload} />
+        ) : !shown.length ? (
+          <Empty title={filtered ? 'No findings match these filters' : 'No findings yet'} action={filtered ? <a className="btn small" href={href('findings')}>Clear filters</a> : undefined}>
+            {filtered ? 'Try another result, run or source.' : 'Findings appear after a run with a model flags a candidate. A run with none has not shown the app is safe.'}
+          </Empty>
         ) : (
-          <p className="outline mono" id="finding-steps">{f.repro.map((s) => outline(s.action)).join('  →  ')}</p>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Finding</th><th>Result</th><th>What fired</th><th>Found by</th><th>Run</th></tr></thead>
+              <tbody>
+                {shown.map((f) => (
+                  <tr key={f.id} className="clickable" onClick={() => go(href(`findings/${f.id}`))}>
+                    <td><a href={href(`findings/${f.id}`)} onClick={(e) => e.stopPropagation()}>{f.title || 'Untitled finding'}</a>{f.key && <span className="sub mono">{f.key}</span>}</td>
+                    <td><VerdictBadge verdict={f.verdict} /></td>
+                    <td className="mono xs">{f.oracle_ids || '–'}</td>
+                    <td className="small">{ORIGIN[f.origin ?? ''] ?? f.origin ?? '–'}</td>
+                    <td className="small"><a href={href(`runs/${f.run_id}/report`)} onClick={(e) => e.stopPropagation()}>Run {f.run_id}</a><span className="sub mono">{short(f.commit_sha)}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </Panel>
-
-      <BugsPanel bugs={f.bugs} onChanged={onChanged} />
-    </div>
+      </Card>
+    </>
   )
 }
 
-/** The distinct checks that fired across the recorded replays, with how many attempts each was seen in. */
-function whatBroke(attempts: Attempt[]): { oracle: string; detail: string; seen: number }[] {
-  const out = new Map<string, { oracle: string; detail: string; seen: number }>()
-  for (const a of attempts) {
-    const seenHere = new Set<string>()
-    for (const o of a.oracles ?? []) {
-      const key = `${o.oracle_id}\u0000${o.detail}`
-      if (seenHere.has(key)) continue
-      seenHere.add(key)
-      const row = out.get(key) ?? { oracle: o.oracle_id, detail: o.detail, seen: 0 }
-      row.seen += 1
-      out.set(key, row)
-    }
-  }
-  return [...out.values()]
-}
-
-/** One step as a short phrase for the folded outline: the action and its main target. */
-function outline(action: Record<string, unknown>): string {
-  const target = action.path ?? action.user ?? action.url ?? action.selector ?? ''
-  return `${action.kind}${target ? ` ${String(target)}` : ''}`
-}
-
-function AttemptDots({ attempts, total }: { attempts: Attempt[]; total: number }) {
+function BugList({ query }: { query: URLSearchParams }) {
+  const status = query.get('status') ?? ''
+  const bugs = useApi(() => api.bugs(status || undefined), [status])
+  const items = bugs.data ?? []
   return (
-    <div className="attempts" aria-label="Replay attempts">
-      {Array.from({ length: total }, (_, i) => {
-        const a = attempts[i]
-        const state = !a || a.missing ? '' : a.completed === false ? 'failed' : (a.oracles?.length ?? 0) > 0 ? 'hit' : 'quiet'
-        const words = !a || a.missing ? 'no evidence' : state === 'failed' ? 'could not replay' : state === 'hit' ? 'break seen' : 'nothing seen'
-        return <span key={i} className={`attempt-dot ${state}`} title={`Attempt ${i + 1}: ${words}`} aria-label={`Attempt ${i + 1}: ${words}`}>{i + 1}</span>
-      })}
-    </div>
-  )
-}
-
-function AttemptView({ a }: { a: Attempt }) {
-  const [open, setOpen] = useState(false)
-  if (a.missing) return <Banner tone="warn" title={`Attempt ${a.attempt}: evidence file missing`}>It was recorded but is no longer on disk.</Banner>
-  const Icon = open ? ChevronDown : ChevronRight
-  return (
-    <div className="stack" style={{ gap: 8 }}>
-      <div className="row">
-        <strong className="small">Attempt {a.attempt}</strong>
-        {a.completed === false ? <Badge tone="warn">Could not replay every step</Badge> : (a.oracles?.length ?? 0) > 0 ? <Badge tone="bad">Break seen</Badge> : <Badge tone="ok">Nothing seen</Badge>}
-        <button className="btn ghost small right" aria-expanded={open} onClick={() => setOpen(!open)}>
-          <Icon size={14} aria-hidden="true" /> {open ? 'Hide' : 'Show'} responses
-        </button>
+    <>
+      <div className="toolbar">
+        <nav className="segmented" aria-label="Filter by status">
+          {STATUSES.map((s) => (
+            <a key={s.id || 'all'} href={href('findings', { view: 'bugs', status: s.id })} aria-current={status === s.id ? 'true' : undefined}>{s.label}</a>
+          ))}
+        </nav>
       </div>
-      {a.oracles?.map((o, i) => <p key={i} className="small"><span className="mono">{o.oracle_id}</span> <span className="muted">{o.detail}</span></p>)}
-      {a.notes?.map((n, i) => <p key={i} className="xs faint">{n}</p>)}
-      {open && (
-        <>
-          <pre className="code nowrap">{(a.responses ?? []).map((r) => `${r.identity.padEnd(5)} ${r.method.padEnd(6)} ${String(r.status ?? '–').padEnd(4)} ${r.path}`).join('\n') || 'no responses recorded'}</pre>
-          {(a.server_log_tail?.length ?? 0) > 0 && (
-            <>
-              <p className="xs faint">Server log tail, for you only: no verdict reads server logs (black box).</p>
-              <pre className="code">{a.server_log_tail!.join('\n')}</pre>
-            </>
-          )}
-        </>
-      )}
-    </div>
+      <Card flush foot={bugs.data ? `${count(items.length, 'bug')}. Sentri opens, fixes and reopens bugs from what it measures; only a person marks one intended.` : undefined}>
+        {bugs.loading && !bugs.data ? (
+          <Loading label="Loading bugs" />
+        ) : bugs.error && !bugs.data ? (
+          <ErrorState error={bugs.error} onRetry={bugs.reload} />
+        ) : !items.length ? (
+          <Empty title={status ? 'No bugs with this status' : 'No bugs tracked'}>{status ? 'Try another status.' : 'Bugs are opened when a baseline check or a finding is confirmed.'}</Empty>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Bug</th><th>Status</th><th>Where</th><th>What was seen</th><th className="num">Came back</th><th>First / last seen</th></tr></thead>
+              <tbody>
+                {items.map((b) => (
+                  <tr key={b.id} className="clickable" onClick={() => go(href(`bugs/${b.id}`))}>
+                    <td><a className="mono" href={href(`bugs/${b.id}`)} onClick={(e) => e.stopPropagation()}>{b.id}</a></td>
+                    <td><BugBadge status={b.status} />{b.needs_review ? <span className="sub">needs review</span> : null}</td>
+                    <td className="mono xs">{b.flow_id} × {b.attack_id}<span className="sub">{b.oracle_id}</span></td>
+                    <td className="small muted wrap-anywhere" style={{ maxWidth: 380 }}>{b.sample_detail ?? '–'}</td>
+                    <td className="num">{b.regressions ? `${num(b.regressions)}×` : '–'}</td>
+                    <td className="mono xs">{short(b.first_commit)} → {short(b.last_seen_commit)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </>
   )
 }
-
-function Limitations({ f }: { f: FindingDetail }) {
-  const items: string[] = []
-  if (f.replay_state === 'none') items.push('Replayed on the live state: the app was not reset between attempts, so they are not independent confirmations.')
-  if (f.replay_state === 'restart') items.push('Each attempt restarted the app; state kept outside its cleaned files (an external database) survives a restart.')
-  if (f.origin === 'code_probe') items.push("Found by one of Sentri's own probes, not by the model's choice of action.")
-  if (f.origin === 'ai_suspicion') items.push('Raised by the model without a measured signal; only the replay verdict counts.')
-  if (f.verdict === 'unconfirmed') items.push('Not reproduced in replay: this is not evidence that the behaviour is correct.')
-  if (f.attempts.some((a) => a.completed === false)) items.push('At least one attempt could not run every step, so it neither confirms nor clears the finding.')
-  if (!items.length) return null
-  return (
-    <Panel title="Limitations">
-      <ul className="small muted" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6 }}>{items.map((t) => <li key={t}>{t}</li>)}</ul>
-    </Panel>
-  )
-}
-
-function BugsPanel({ bugs, onChanged }: { bugs: Bug[]; onChanged: () => void }) {
-  if (!bugs.length) return null
-  return (
-    <Panel title="Bugs in the ledger" hint="a person decides; Sentri never marks a bug intended">
-      <div className="stack">{bugs.map((b) => <BugDecision key={b.id} bug={b} onChanged={onChanged} />)}</div>
-    </Panel>
-  )
-}
-
-export function BugDecision({ bug, onChanged }: { bug: Bug; onChanged: () => void }) {
-  const [tone, label] = BUG_STATUS[bug.status] ?? ['', bug.status]
-  const [note, setNote] = useState('')
-  const [by, setBy] = useState(() => localStorage.getItem('sentri.name') ?? '')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const target = bug.status === 'intended' ? 'open' : 'intended'
-  const submit = async () => {
-    setBusy(true)
-    setErr(null)
-    try {
-      localStorage.setItem('sentri.name', by)
-      await api.setBugStatus(bug.id, target, note, by || 'dashboard')
-      setNote('')
-      onChanged()
-    } catch (e) {
-      setErr((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <div className="stack" style={{ gap: 10 }}>
-      <div className="row"><span className="mono small">{bug.id}</span><Badge tone={tone}>{label}</Badge><span className="mono xs faint">{bug.oracle_id}</span>{bug.regressions > 0 && <Badge tone="bad">regressed {bug.regressions}×</Badge>}</div>
-      {bug.sample_detail && <p className="small muted wrap-anywhere">{bug.sample_detail}</p>}
-      {bug.human_note && <p className="xs faint">Note: {bug.human_note}</p>}
-      <div className="form-grid">
-        <div className="field">
-          <label htmlFor={`note-${bug.id}`}>{target === 'intended' ? 'Why is this intended?' : 'Why reopen it?'}</label>
-          <input id={`note-${bug.id}`} className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={target === 'intended' ? 'Required: the reason, for the record' : 'Optional'} />
-        </div>
-        <div className="field">
-          <label htmlFor={`by-${bug.id}`}>Your name</label>
-          <input id={`by-${bug.id}`} className="input" value={by} onChange={(e) => setBy(e.target.value)} placeholder="Recorded with the decision" />
-        </div>
-      </div>
-      <div className="row">
-        <button className="btn small" disabled={busy || (target === 'intended' && !note.trim())} onClick={submit}>
-          {target === 'intended' ? 'Mark intended' : 'Reopen'}
-        </button>
-        {err && <span className="small" role="alert" style={{ color: 'var(--bad)' }}>{err}</span>}
-      </div>
-    </div>
-  )
-}
-
-function describe(action: Record<string, unknown>): string {
-  const { kind, ...rest } = action
-  const args = Object.entries(rest)
-    .filter(([, v]) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && !v.length))
-    .map(([k, v]) => `${k}=${typeof v === 'string' ? JSON.stringify(v.length > 120 ? v.slice(0, 117) + '…' : v) : JSON.stringify(v)}`)
-  return `${kind}(${args.join(', ')})`
-}
-

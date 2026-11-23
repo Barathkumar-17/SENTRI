@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { CheckCircle2, Play } from 'lucide-react'
 import { api, useApi, type Job, type ModelChoice, type Provider } from '../api'
-import { Banner, ErrorState, Loading, PageHead, Panel, go } from '../ui'
+import { Banner, Card as Panel, ErrorState, Loading, PageHead, go } from '../ui'
 
 /** The whole local workflow: model -> app and contract -> human approval -> run. Real endpoints only. */
 export function NewRun() {
@@ -10,7 +10,7 @@ export function NewRun() {
   const [approved, setApproved] = useState(false)
   return (
     <>
-      <PageHead title="New run" context={<span>Choose a model, point Sentri at your app, approve its contract, then start.</span>} />
+      <PageHead crumbs={[{ label: 'Runs', href: '#/runs' }, { label: 'New run' }]} title="New run" purpose="Three steps: choose the model that plans and explores, point Sentri at your app and approve what it may test, then start. New to Sentri? See Getting started." />
       <div className="page-body stepper">
         <Step n={1} title="Model" done={modelReady}><ModelStep onReady={setModelReady} /></Step>
         <Step n={2} title="App and contract" done={approved}>
