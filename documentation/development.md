@@ -68,3 +68,17 @@ npm run dev        # optional: live reload against `sentri serve` on port 8787
 Commit the rebuilt `static/` folder with the source change. `tests/unit/test_web_app.py` checks that the build
 is served and that the app listens for every event kind the backend emits; `tests/integration/test_web_app_ui.py`
 drives the built app in a browser against a real server.
+
+## Checking Docker mode on a machine with Docker
+
+Docker mode has only been tested against a fake Docker client so far. On a machine with a Docker daemon, run:
+
+```
+python scripts/docker_lifecycle_check.py
+```
+
+It builds and starts `examples/buggy-app` from its Dockerfile, checks readiness and a usable app, a reset, a stop
+that removes the container and frees the port, a container that never opens its port, a cancelled start and a port
+already in use. It only removes containers it started itself. Exit code 0 means all passed, 1 a check failed, 2 that
+no Docker client or daemon was found (nothing was tested). It does not test model-driven exploration in Docker mode.
+
