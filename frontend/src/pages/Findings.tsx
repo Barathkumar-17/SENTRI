@@ -101,7 +101,7 @@ function FindingView({ f, onChanged }: { f: FindingDetail; onChanged: () => void
           </div>
           <h2 className="finding-title wrap-anywhere">{f.title || 'Untitled finding'}</h2>
           <dl className="summary">
-            <dt>What broke</dt>
+            <dt>{broke.length ? 'What broke' : 'Checks fired'}</dt>
             <dd>
               {broke.length ? (
                 <ul className="plain">
@@ -113,13 +113,13 @@ function FindingView({ f, onChanged }: { f: FindingDetail; onChanged: () => void
                   ))}
                 </ul>
               ) : (
-                <span className="muted">No check fired in the recorded replays{f.oracle_ids ? `; the candidate was flagged for ${f.oracle_ids}` : ''}.</span>
+                <span className="muted">None in the recorded replays{f.oracle_ids ? `; the candidate was flagged for ${f.oracle_ids}` : ''}.</span>
               )}
             </dd>
             <dt>Replay outcome</dt>
             <dd>
               {recorded.length
-                ? `Break seen in ${hits} of ${recorded.length} replays, ${f.replay_state === 'none' ? 'all on the live state (no reset)' : 'each from a restarted app'}.`
+                ? `${hits ? `Break seen in ${hits} of ${recorded.length} replays` : `No break seen in any of ${recorded.length} replays`}, ${f.replay_state === 'none' ? 'all on the live state (no reset)' : 'each from a restarted app'}.`
                 : 'No replay evidence stored for this finding.'}
             </dd>
             {f.key && (
