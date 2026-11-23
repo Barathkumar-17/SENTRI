@@ -102,3 +102,32 @@ async def test_a_daily_quota_stops_model_use_instead_of_waiting(monkeypatch):
     result = await budgeted.complete_json("explorer", "s", "u", PayloadSet)
     assert not result.ok and "provider quota" in (result.error or "") and slept == []  # no pointless waiting
     assert not budgeted.available and budgeted.stop_reason.startswith("provider quota exhausted")
+
+
+async def test_a_quota_stop_records_which_limit_and_how_long_the_provider_asked_to_wait(monkeypatch):
+    """Found by the 2026-11-23 flow-shop run: the stop said only 'provider quota exhausted', so a per-minute window
+    could not be told from a daily quota. The limit sits late in Groq's message, past where it was shortened."""
+    import asyncio
+
+    from sentri.llm import BudgetedProvider
+
+    async def no_sleep(seconds):
+        pass
+
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    message = (
+        "Rate limit reached for model `openai/gpt-oss-120b` in organization `org_0000fakeorganizationid00` service "
+        "tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7950, Requested 4200. Please try again in 39.8s."
+    )
+    inner = provider_with(lambda r: httpx.Response(429, json={"error": {"message": message}}))
+    budgeted = BudgetedProvider(inner, 1.0, 5)
+    await budgeted.complete_json("explorer", "s", "u", PayloadSet)
+    assert budgeted.stop_reason == (
+        "provider quota exhausted (rate limit beyond the wait cap): tokens per minute (TPM); retry in 40s"
+    )
+    assert "org_0000" not in budgeted.stop_reason
+
+    daily = {"error": {"message": "Rate limit reached on tokens per day (TPD). Please try again in 7m12.5s."}}
+    budgeted = BudgetedProvider(provider_with(lambda r: httpx.Response(429, json=daily)), 1.0, 5)
+    await budgeted.complete_json("explorer", "s", "u", PayloadSet)
+    assert budgeted.stop_reason.endswith("tokens per day (TPD); retry in 432s")
