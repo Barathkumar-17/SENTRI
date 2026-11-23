@@ -146,6 +146,8 @@ export type Attempt = {
 
 export type FindingDetail = Finding & { bugs: Bug[]; attempts: Attempt[] }
 
+export type BugHistory = { id: number; bug_id: string; ts: string; from_status: string | null; to_status: string; commit_sha: string | null; run_id: number | null; actor: 'system' | 'human'; note: string | null }
+
 export type Step = {
   step: number
   parent_step: number | null
@@ -223,6 +225,7 @@ export const api = {
   events: (runId: number) => request<SentriEvent[]>(`/api/events?run_id=${runId}&limit=2000`),
   findings: (verdict?: string) => request<Finding[]>(`/api/findings${verdict ? `?verdict=${verdict}` : ''}`),
   finding: (id: number) => request<FindingDetail>(`/api/findings/${id}`),
+  bugHistory: (id: string) => request<BugHistory[]>(`/api/bugs/${encodeURIComponent(id)}/history`),
   bugs: (status?: string) => request<Bug[]>(`/api/bugs${status ? `?status=${status}` : ''}`),
   setBugStatus: (id: string, status: 'intended' | 'open', note: string, by: string) =>
     request<Bug>(`/api/bugs/${id}/status`, { method: 'POST', body: JSON.stringify({ status, note, by }) }),
@@ -245,33 +248,29 @@ export type Loadable<T> = { data: T | null; error: ApiError | null; loading: boo
 
 /** Fetch on mount and on `deps` change; `pollMs` keeps it fresh (e.g. while a run is running). */
 export function useApi<T>(load: () => Promise<T>, deps: unknown[], pollMs?: number): Loadable<T> {
-  const [data, setData] = useState<T | null>(null)
-  const [error, setError] = useState<ApiError | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Results are tied to the request that produced them, so a page reused for another id (run 2 -> run 77)
+  // never shows the previous item's data next to the new one's error.
+  const key = JSON.stringify(deps)
+  const [result, setResult] = useState<{ key: string; data: T | null; error: ApiError | null; done: boolean }>({ key, data: null, error: null, done: false })
   const [tick, setTick] = useState(0)
   const reload = useCallback(() => setTick((t) => t + 1), [])
   useEffect(() => {
     let alive = true
     load()
-      .then((d) => {
-        if (alive) {
-          setData(d)
-          setError(null)
-        }
-      })
-      .catch((e: ApiError) => alive && setError(e))
-      .finally(() => alive && setLoading(false))
+      .then((d) => alive && setResult({ key, data: d, error: null, done: true }))
+      .catch((e: ApiError) => alive && setResult((r) => ({ key, data: r.key === key ? r.data : null, error: e, done: true })))
     return () => {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, tick])
+  }, [key, tick])
   useEffect(() => {
     if (!pollMs) return
     const t = setInterval(reload, pollMs)
     return () => clearInterval(t)
   }, [pollMs, reload])
-  return { data, error, loading, reload }
+  const current = result.key === key
+  return { data: current ? result.data : null, error: current ? result.error : null, loading: !current || !result.done, reload }
 }
 
 export type StreamState = 'connecting' | 'open' | 'disconnected'
