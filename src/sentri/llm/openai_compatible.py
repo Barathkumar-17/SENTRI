@@ -24,7 +24,10 @@ _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 _TRY_AGAIN = re.compile(r"try again in (?:(\d+)m)?([\d.]+)(ms|s)", re.IGNORECASE)
 _TRY_AGAIN_LONG = re.compile(r"try again in (?:(\d+)h)?(?:(\d+)m)?([\d.]+)(ms|s)", re.IGNORECASE)
 MAX_RATE_WAITS = 4  # rate-limit retries per call
-MAX_RATE_WAIT_S = 30.0  # longest single wait; the per-call timeout still bounds the total
+MAX_RATE_WAIT_S = 30.0  # longest single wait when the provider does not say which limit it hit
+# A per-minute limit (tokens or requests per minute) frees itself within one window: wait up to one window for it.
+# Daily or hourly quotas, and anything longer, still stop model use at once.
+MAX_WINDOW_WAIT_S = 65.0
 
 
 QUOTA_ERROR = "rate limit beyond the wait cap (provider quota)"
@@ -56,6 +59,17 @@ def quota_limit(text: str) -> str:
     return f"{m.group(1).lower()} per {m.group(2).lower()} ({m.group(3).upper()}); " if m else ""
 
 
+def per_minute(text: str) -> bool:
+    """The provider says the limit it hit is per minute (TPM or RPM)."""
+    m = _LIMIT_KIND.search(text)
+    return bool(m and m.group(2).lower() == "minute")
+
+
+def wait_cap(resp: httpx.Response) -> float:
+    """How long a 429 may be waited out: one window for a stated per-minute limit, else the short cap."""
+    return MAX_WINDOW_WAIT_S if per_minute(resp.text) else MAX_RATE_WAIT_S
+
+
 def rate_limit_wait(resp: httpx.Response) -> float:
     """Seconds to wait before retrying a 429: the Retry-After header, or the "try again in 7.5s" that some
     servers (Groq, OpenAI) put in the message. Capped; 2 s when the server gives no hint."""
@@ -69,7 +83,7 @@ def rate_limit_wait(resp: httpx.Response) -> float:
             wait = (int(minutes) * 60 if minutes else 0) + (value / 1000 if unit == "ms" else value)
         else:
             wait = 2.0
-    return max(0.5, min(wait + 0.5, MAX_RATE_WAIT_S))
+    return max(0.5, min(wait + 0.5, wait_cap(resp)))
 
 
 def _extract_json(text: str) -> str:
@@ -90,6 +104,8 @@ class OpenAICompatibleProvider:
         self.client = httpx.AsyncClient(headers=headers, timeout=timeout_s)
         # Some servers reject json_schema response formats; remember and fall back to json_object.
         self._schema_mode = True
+        # Seconds spent waiting out rate limits, so far this process: the caller's per-call timeout excludes them.
+        self.rate_wait_total = 0.0
 
     @property
     def available(self) -> bool:
@@ -111,6 +127,7 @@ class OpenAICompatibleProvider:
         tokens_in = tokens_out = 0
         last_error = "no response"
         rate_waits = 0
+        waits: list[dict[str, object]] = []
         attempt = 0
         while attempt < 3:
             body: dict[str, object] = {"model": model, "messages": messages, "max_tokens": max_tokens}
@@ -123,7 +140,7 @@ class OpenAICompatibleProvider:
                 body["response_format"] = {"type": "json_object"}
             try:
                 resp = await self._post(body)
-                if resp.status_code == 429 and server_wait(resp) > MAX_RATE_WAIT_S:
+                if resp.status_code == 429 and server_wait(resp) > wait_cap(resp):
                     # A daily or long quota: waiting cannot help within this run. Stop instead of burning time.
                     return LLMResult(
                         ok=False,
@@ -133,21 +150,35 @@ class OpenAICompatibleProvider:
                             f"{resp.text[:160]}"
                         ),
                         retries=rate_waits,
+                        waits=waits,
                     )
                 if resp.status_code == 429 and rate_waits < MAX_RATE_WAITS:
                     rate_waits += 1  # a rate limit is temporary: wait as asked, then the same attempt again
-                    await asyncio.sleep(rate_limit_wait(resp))
+                    pause = rate_limit_wait(resp)
+                    waits.append(
+                        {
+                            "limit": quota_limit(resp.text).rstrip("; ") or "unstated",
+                            "asked_s": round(server_wait(resp), 1),
+                            "waited_s": round(pause, 1),
+                        }
+                    )
+                    self.rate_wait_total += pause  # counted before sleeping: the timeout must not fire mid-wait
+                    await asyncio.sleep(pause)
                     continue
                 if resp.status_code == 400 and self._schema_mode:
                     self._schema_mode = False  # server does not support json_schema; retry with json_object
                     continue
                 if resp.status_code >= 400:
                     return LLMResult(
-                        ok=False, model=model, error=f"http {resp.status_code}: {resp.text[:200]}", retries=rate_waits
+                        ok=False,
+                        model=model,
+                        error=f"http {resp.status_code}: {resp.text[:200]}",
+                        retries=rate_waits,
+                        waits=waits,
                     )
                 data = resp.json()
             except (httpx.HTTPError, ValueError) as exc:
-                return LLMResult(ok=False, model=model, error=f"connection error: {exc}")
+                return LLMResult(ok=False, model=model, error=f"connection error: {exc}", waits=waits)
             usage = data.get("usage") or {}
             tokens_in += int(usage.get("prompt_tokens") or 0)
             tokens_out += int(usage.get("completion_tokens") or 0)
@@ -162,6 +193,7 @@ class OpenAICompatibleProvider:
                     cost_usd(model, tokens_in, tokens_out),
                     model,
                     retries=rate_waits + attempt,
+                    waits=waits,
                 )
             except (KeyError, IndexError, TypeError):
                 last_error = "unexpected response shape"
@@ -179,4 +211,5 @@ class OpenAICompatibleProvider:
             model,
             last_error,
             retries=rate_waits + attempt,
+            waits=waits,
         )

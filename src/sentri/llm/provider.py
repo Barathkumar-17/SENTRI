@@ -6,9 +6,10 @@ Everything a model returns is validated against these schemas. Free text only la
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from pydantic import BaseModel, Field
@@ -92,6 +93,7 @@ class LLMResult[T: BaseModel]:
     model: str | None = None
     error: str | None = None
     retries: int = 0  # retries inside this call (rate-limit waits, re-asks after invalid JSON)
+    waits: list[dict[str, object]] = field(default_factory=list)  # each rate-limit wait: limit, asked_s, waited_s
 
     def __post_init__(self) -> None:
         # Provider errors quote keys, organization and project ids: scrub them before anyone sees the text.
@@ -136,6 +138,7 @@ class RoleUsage:
     cost_usd: float = 0.0  # only priced calls
     unpriced_calls: int = 0  # calls whose price Sentri does not know: total cost is then "unknown"
     seconds: float = 0.0
+    rate_wait_s: float = 0.0  # time spent waiting out the provider's rate limits (inside `seconds`)
 
 
 class BudgetedProvider:
@@ -169,6 +172,7 @@ class BudgetedProvider:
         self.unpriced_calls = 0
         self.refused = 0
         self.stop_reason: str | None = None
+        self.rate_waits: list[dict[str, object]] = []  # every rate-limit wait: role, limit, asked_s, waited_s
         self.quota_exhausted = False
         self.roles: dict[str, RoleUsage] = {}
 
@@ -213,15 +217,17 @@ class BudgetedProvider:
         usage.calls += 1
         started = time.monotonic()
         try:
-            result = await asyncio.wait_for(
-                self.inner.complete_json(role, system, user, schema, max_tokens), timeout=self.timeout_s
-            )
+            result = await self._answer_within_timeout(role, system, user, schema, max_tokens, started)
         except TimeoutError:
             self.failures += 1
             usage.failed += 1
             usage.seconds += time.monotonic() - started
             return LLMResult(ok=False, error=f"timeout after {self.timeout_s:g}s")
         usage.seconds += time.monotonic() - started
+        for w in result.waits:
+            usage.rate_wait_s += float(str(w.get("waited_s", 0.0)))
+            if len(self.rate_waits) < 100:
+                self.rate_waits.append({"role": role, **w})
         priced = result.cost_usd > 0 or price_known(result.model)
         self.spent_usd += result.cost_usd
         self.input_tokens += result.input_tokens
@@ -244,6 +250,26 @@ class BudgetedProvider:
                 self.stop_reason = self.stop_reason or _quota_reason(result.error or "")
         return result
 
+    async def _answer_within_timeout[T: BaseModel](
+        self, role: str, system: str, user: str, schema: type[T], max_tokens: int, started: float
+    ) -> LLMResult[T]:
+        """The per-call timeout bounds how long the provider takes to answer, not how long it asked us to wait out
+        its rate limit: time the provider reports as rate-limit waiting extends the deadline by that much."""
+        waited_before = float(getattr(self.inner, "rate_wait_total", 0.0))
+        task = asyncio.ensure_future(self.inner.complete_json(role, system, user, schema, max_tokens))
+        while True:
+            waited = float(getattr(self.inner, "rate_wait_total", 0.0)) - waited_before
+            remaining = self.timeout_s + waited - (time.monotonic() - started)
+            if remaining <= 0:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await task
+                raise TimeoutError
+            done, _ = await asyncio.wait({task}, timeout=min(remaining, 5.0))
+            if done:
+                result: LLMResult[T] = task.result()
+                return result
+
     def usage(self) -> dict[str, object]:
         """Run-level usage for the ledger, report and API. Cost is None (unknown) if any call was unpriced."""
         return {
@@ -265,5 +291,6 @@ class BudgetedProvider:
                 "per_call_timeout_s": self.timeout_s,
             },
             "stop_reason": self.stop_reason,
+            "rate_waits": list(self.rate_waits),
             "roles": {role: u.__dict__ for role, u in sorted(self.roles.items())},
         }
