@@ -134,6 +134,19 @@ class RunOrchestrator:
 
     # ---- run ----------------------------------------------------------------------------------------
     async def run(self) -> RunResult:
+        """Run once. A run stopped from outside (a cancelled job, Ctrl+C) is recorded as aborted, never left running."""
+        self._live: tuple[int, EventBus, float] | None = None
+        self._finished = False
+        try:
+            return await self._run()
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            if self._live is not None and not self._finished:
+                run_id, bus, started = self._live
+                with contextlib.suppress(Exception):
+                    self._abort(run_id, bus, started, "stopped before it finished (cancelled by the user)")
+            raise
+
+    async def _run(self) -> RunResult:
         c = self.contract
         app_root = self.workdir / (c.app.docker.context if c.app.docker else c.app.cwd)
         # Command mode inherits Sentri's environment, so a changed variable must count as a change.
@@ -146,6 +159,7 @@ class RunOrchestrator:
             self.on_run_created(run_id)
         bus = EventBus(self.ledger, run_id, self.echo)
         started = time.monotonic()
+        self._live = (run_id, bus, started)
         evidence_dir = self.settings.evidence_dir / str(run_id)
 
         cells = self.order(self.build_grid())
@@ -339,6 +353,7 @@ class RunOrchestrator:
         return RunResult(run_id, "aborted", None, error=error)
 
     def _finish(self, run_id: int, status: str, breakdown: ScoreBreakdown | None, started: float) -> None:
+        self._finished = True
         mode = "mixed" if (self.llm_used and self.static_used) else ("llm" if self.llm_used else "fallback")
         self.ledger.finish_run(
             run_id,
