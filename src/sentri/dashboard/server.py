@@ -15,13 +15,14 @@ from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from sentri.config import Settings
 from sentri.dashboard.control_routes import ControlState, register
 from sentri.ledger.ledger import HumanDecision, Ledger
+from sentri.redact import redact, redact_obj
 from sentri.report.agentic import agentic_data
 from sentri.verdict.scorer import compute
 
@@ -65,6 +66,16 @@ LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
+TEXT_EVIDENCE = {".json": "application/json", ".txt": "text/plain", ".log": "text/plain", ".md": "text/markdown"}
+
+
+class RedactedJSONResponse(JSONResponse):
+    """Every JSON answer is scrubbed on the way out, so ledgers written before redaction leak nothing either."""
+
+    def render(self, content: Any) -> bytes:
+        return super().render(redact_obj(content))
+
+
 def create_app(
     db_path: Path,
     evidence_dir: Path,
@@ -80,7 +91,13 @@ def create_app(
       (browsers always send Origin on cross-site POST/PUT/DELETE; local scripts and curl send none);
     - state-changing requests must be JSON (a plain HTML form on another site cannot send that).
     Sentri is a local tool: this server has no accounts and never will."""
-    app = FastAPI(title="Sentri", version="0.1.0")
+    app = FastAPI(title="Sentri", version="0.1.0", default_response_class=RedactedJSONResponse)
+
+    @app.exception_handler(HTTPException)
+    async def scrubbed_http_error(request: Request, exc: HTTPException) -> Response:
+        # error details can quote a provider's answer (keys, account ids): scrub them like any other answer
+        return RedactedJSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
+
     allowed_hosts = LOCAL_HOSTS | set(extra_hosts)
 
     @app.middleware("http")
@@ -311,10 +328,13 @@ def create_app(
         return Response(live_path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
     @app.get("/evidence/{path:path}")
-    def evidence(path: str) -> FileResponse:
+    def evidence(path: str) -> Response:
         target = (evidence_dir / path).resolve()
         if not target.is_relative_to(evidence_dir.resolve()) or not target.is_file():
             raise HTTPException(404, "not found")
+        if target.suffix.lower() in TEXT_EVIDENCE:  # older files may predate redaction: scrub on the way out
+            text = redact(target.read_text(encoding="utf-8", errors="replace"))
+            return Response(text, media_type=TEXT_EVIDENCE[target.suffix.lower()])
         return FileResponse(target)
 
     @app.get("/api/events/stream")
@@ -337,7 +357,7 @@ def create_app(
                             "reason": r["reason"],
                             "data": json.loads(r["data"] or "{}"),
                         }
-                        yield f"id: {r['id']}\nevent: {r['kind']}\ndata: {json.dumps(payload)}\n\n"
+                        yield f"id: {r['id']}\nevent: {r['kind']}\ndata: {json.dumps(redact_obj(payload))}\n\n"
                     if not rows:
                         yield ": keepalive\n\n"
                         await asyncio.sleep(poll_s)

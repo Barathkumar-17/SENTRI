@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from sentri.ledger.ledger import Ledger
+from sentri.redact import redact
 from sentri.report.agentic import agentic_markdown
 
 MARKER = "<!-- sentri-report -->"
@@ -91,6 +92,11 @@ def _fmt_duration(seconds: float | None) -> str:
 
 
 def build_report(ledger: Ledger, run_id: int, base_branch: str | None = "main", evidence_url: str | None = None) -> str:
+    """The markdown report, scrubbed: it is pasted into PRs and CI logs, so no key or account id survives."""
+    return redact(_build_report(ledger, run_id, base_branch, evidence_url))
+
+
+def _build_report(ledger: Ledger, run_id: int, base_branch: str | None, evidence_url: str | None) -> str:
     run = ledger.run(run_id)
     if run is None:
         raise KeyError(f"run {run_id} not found")
