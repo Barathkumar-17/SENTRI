@@ -6,6 +6,7 @@ Everything a model returns is validated against these schemas. Free text only la
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from dataclasses import dataclass
 from typing import Protocol
@@ -73,6 +74,12 @@ class PatchProposal(BaseModel):
 
 
 # ---- provider -----------------------------------------------------------------------------------------
+
+
+def _quota_reason(error: str) -> str:
+    """The stop reason, keeping what the provider said: which limit and how long it asked to wait."""
+    m = re.search(r"provider quota\): ((?:[a-z]+ per [a-z]+ \([A-Z]+\); )?retry in \d+s)", error)
+    return "provider quota exhausted (rate limit beyond the wait cap)" + (f": {m.group(1)}" if m else "")
 
 
 @dataclass
@@ -234,7 +241,7 @@ class BudgetedProvider:
             usage.failed += 1
             if "provider quota" in (result.error or ""):
                 self.quota_exhausted = True  # no further calls this run: they would only be refused again
-                self.stop_reason = self.stop_reason or "provider quota exhausted (rate limit beyond the wait cap)"
+                self.stop_reason = self.stop_reason or _quota_reason(result.error or "")
         return result
 
     def usage(self) -> dict[str, object]:

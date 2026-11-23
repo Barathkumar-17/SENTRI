@@ -46,6 +46,16 @@ def server_wait(resp: httpx.Response) -> float:
     return (int(hours) * 3600 if hours else 0) + (int(minutes) * 60 if minutes else 0) + seconds
 
 
+_LIMIT_KIND = re.compile(r"(requests|tokens) per (minute|day|hour)\s*\((RPM|TPM|RPD|TPD|RPH|TPH)\)", re.IGNORECASE)
+
+
+def quota_limit(text: str) -> str:
+    """Which limit the provider says was hit ("tokens per day (TPD); "), read from the whole message before it is
+    shortened, so a per-minute window and a daily quota are told apart in the record. Empty when not stated."""
+    m = _LIMIT_KIND.search(text)
+    return f"{m.group(1).lower()} per {m.group(2).lower()} ({m.group(3).upper()}); " if m else ""
+
+
 def rate_limit_wait(resp: httpx.Response) -> float:
     """Seconds to wait before retrying a 429: the Retry-After header, or the "try again in 7.5s" that some
     servers (Groq, OpenAI) put in the message. Capped; 2 s when the server gives no hint."""
@@ -118,7 +128,10 @@ class OpenAICompatibleProvider:
                     return LLMResult(
                         ok=False,
                         model=model,
-                        error=f"{QUOTA_ERROR}: retry in {server_wait(resp):.0f}s; {resp.text[:160]}",
+                        error=(
+                            f"{QUOTA_ERROR}: {quota_limit(resp.text)}retry in {server_wait(resp):.0f}s; "
+                            f"{resp.text[:160]}"
+                        ),
                         retries=rate_waits,
                     )
                 if resp.status_code == 429 and rate_waits < MAX_RATE_WAITS:
