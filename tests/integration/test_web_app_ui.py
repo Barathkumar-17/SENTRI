@@ -110,3 +110,58 @@ def test_web_app_renders_a_run_and_records_a_bug_decision(server):
         lg.close()
     assert bug is not None
     assert bug["status"] == "intended" and bug["human_note"] == "double submit is idempotent by design (by reviewer)"
+
+
+def test_a_run_started_in_the_web_app_streams_live_and_can_be_stopped(tmp_path):
+    """No model: a real baseline run on the demo app, started from New run, followed live, stopped from its page."""
+    import os
+
+    from sentri.contract.loader import approve_contract
+    from tests.conftest import BUGGY_APP
+
+    app = tmp_path / "app"
+    shutil.copytree(BUGGY_APP, app)
+    approve_contract(app / "contract.yaml", "tester", app / "approved.yaml")
+    port = _port()
+    env = {**os.environ, "SENTRI_LLM_PROVIDER": "none", "SENTRI_EVIDENCE_DIR": str(tmp_path / "ev")}
+    proc = subprocess.Popen(
+        [str(SENTRI), "serve", "--port", str(port), "--db", str(tmp_path / "l.db")],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=env,
+    )
+    base = f"http://127.0.0.1:{port}"
+    try:
+        for _ in range(100):
+            try:
+                urllib.request.urlopen(f"{base}/api/runs", timeout=1)
+                break
+            except OSError:
+                time.sleep(0.2)
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            errors: list[str] = []
+            page.on("pageerror", lambda e: errors.append(str(e)))
+            page.goto(f"{base}/#/new")
+            page.get_by_label("Approved contract", exact=True).fill(str(app / "approved.yaml"))
+            page.get_by_label("Mode", exact=True).select_option("baseline")
+            page.get_by_role("button", name="Start run").click()
+            page.wait_for_url(f"{base}/#/runs/*", timeout=60000)
+            expect(page.get_by_text("live", exact=True)).to_be_visible(timeout=30000)  # the event stream is open
+            expect(page.get_by_text("app ready in")).to_be_visible(timeout=60000)  # events arrive while it runs
+            page.get_by_role("button", name="Stop run…").click()
+            page.get_by_role("button", name="Stop run", exact=True).click()
+            expect(page.get_by_text("Aborted", exact=True).first).to_be_visible(timeout=60000)
+            expect(page.get_by_text("stopped before it finished (cancelled by the user)")).to_be_visible(timeout=15000)
+            browser.close()
+        assert not errors, errors
+    finally:
+        proc.kill()
+        proc.wait()
+    lg = Ledger(tmp_path / "l.db")
+    try:
+        run = lg.run(1)
+    finally:
+        lg.close()
+    assert run is not None and run["status"] == "aborted" and run["finished_at"]
