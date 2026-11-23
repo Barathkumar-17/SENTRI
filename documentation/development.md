@@ -71,7 +71,8 @@ drives the built app in a browser against a real server.
 
 ## Checking Docker mode on a machine with Docker
 
-Docker mode has only been tested against a fake Docker client so far. On a machine with a Docker daemon, run:
+Unit tests use a fake Docker client; the real lifecycle is checked by a script (it passed 8 of 8 on a GitHub-hosted
+Linux runner through the manual `docker-lifecycle` workflow). On a machine with a Docker daemon, run:
 
 ```
 python scripts/docker_lifecycle_check.py
