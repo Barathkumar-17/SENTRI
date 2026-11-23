@@ -34,7 +34,7 @@ from sentri.agent.actions import (
 )
 from sentri.agent.recon import SKIP_WORDS, AppMap
 from sentri.agent.session import AgentSession
-from sentri.agent.statemap import ExplorationMap, StateNode, action_sig, route_of
+from sentri.agent.statemap import ExplorationMap, StateNode, action_sig, resolve_option_ref, route_of
 from sentri.agent.strategy import Hypothesis, Strategy
 from sentri.llm import BudgetedProvider, load_prompt
 from sentri.llm.untrusted import build_user_prompt
@@ -555,6 +555,10 @@ class Explorer:
                     result.stopped = f"3 unusable or invalid actions in a row: {problem}"
                     break
                 continue
+            if self._node is not None:
+                resolved = resolve_option_ref(action.model_dump(exclude_none=True), self._node.options)
+                if resolved is not None:
+                    action = ACTION_ADAPTER.validate_python(resolved)
             hyp = decision.hypothesis_id or (focus.id if focus else "")
             node_before = self._node
             sig = action_sig(action.model_dump())

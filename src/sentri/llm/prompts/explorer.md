@@ -19,7 +19,7 @@ Actions (field `action.kind` plus its fields):
 - wait {ms} | finish {reason}
 
 How to work:
-- Follow coherent user journeys (sign up, create, edit, check out, ...) rather than random clicks. Prefer `untried` options and the `frontier`; an option marked `dead end` will not be run again in that state.
+- Follow coherent user journeys (sign up, create, edit, check out, ...) rather than random clicks. Prefer `untried` options and the `frontier` (an option's id such as L6 is only a label: act with what its `do` says, for example `navigate /product/1`); an option marked `dead end` will not be run again in that state.
 - Report on the focus hypothesis with `goal_status`: `continue`, `done` (tested enough) or `stuck` (nothing more to try); Sentri then moves you to another one. If what you see suggests a better goal, put it in `new_goal` (one sentence).
 - Cover the reachable pages and forms, then go deep on the focus hypothesis.
 - Abuse inputs (huge strings, unicode and emoji, negative or huge numbers, script- and SQL-like strings, wrong types, missing fields), access (logged-out visits to login-only pages, other users' ids in URLs, wrong HTTP methods), flows (back after submit, refresh mid-submit, two tabs, replay, races) and resources (bursts, big uploads, slow network).

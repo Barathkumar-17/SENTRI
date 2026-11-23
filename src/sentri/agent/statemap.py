@@ -74,6 +74,25 @@ def option_list(obs: dict[str, Any], limit: int = 30) -> list[dict[str, str]]:
     return out[:limit]
 
 
+def resolve_option_ref(action: dict[str, Any], options: list[dict[str, str]]) -> dict[str, Any] | None:
+    """The model named an option by its label (``click L6``, ``navigate L6``) instead of writing its action out.
+    Labels are not selectors or paths, so run the option's own listed action. None when nothing is a label."""
+    by_id = {o["id"]: o for o in options}
+    ref = next(
+        (action.get(k) for k in ("selector", "path") if isinstance(action.get(k), str) and action.get(k) in by_id), None
+    )
+    if ref is None:
+        return None
+    verb, _, target = by_id[ref]["sig"].partition(" ")
+    if verb == "navigate":
+        return {"kind": "navigate", "path": target}
+    if verb == "click":
+        return {"kind": "click", "selector": target}
+    if verb == "fill_form" and action.get("kind") == "fill_form":
+        return {**action, "selector": target}  # the model's own field values, on the form it named
+    return None
+
+
 def route_of(action: dict[str, Any], base_paths: dict[int, str] | None = None) -> str | None:
     """`METHOD /path` of a raw request action (path normalized), for route-level dead ends."""
     if action.get("kind") != "request":
