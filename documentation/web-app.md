@@ -2,26 +2,36 @@
 
 `sentri ui` starts a local server at `http://127.0.0.1:8787` and opens the web app. `sentri serve` starts the
 same server without opening a browser. The web app is built into the Python package, so it needs no Node.
-It is laid out for desktop browsers; there is no phone layout.
+It is laid out for desktop and laptop browsers, including a window split beside your editor (about 900 px and
+wider); there is no phone layout.
 
 ## Screens
 
-- **Home** (the landing page): how to use Sentri from the web app in six steps, with links to each screen,
-  and a link to the latest run. The menu is a bar across the top; the current screen is highlighted.
-  Pages are flat sections divided by thin lines on a dark-gray background.
-- **Runs**: every run in this machine's ledger, newest first: status, readiness out of 100 with what it was
-  built from (for example "3 of 10 applicable checks passed"; *insufficient coverage* when nothing applicable
-  was tested, never a pass), confirmed findings, exploration and model use. Readiness counts only what the run
-  tested; it is not a safety rating.
-- **Run**: the outcome (readiness, findings, exploration, model use), why it stopped (for example a provider
-  quota), and tabs for the activity log (live while the run is going), findings, exploration steps with who
-  chose each one (the model, a code probe or a fallback), the baseline grid, model use per role and coverage.
-- **Findings**: every finding across runs; each opens with what broke (the checks that fired, as recorded) and
-  the replay outcome, then where it came from, its three replays (each from a
-  restarted app), the steps replayed, per-attempt evidence (what fired, the responses seen, the server log tail
-  shown to you only) and its limitations.
-- **Ledger**: runs side by side (readiness, agentic impact, checks, exploration, model use) and every bug with
-  its status. Marking a bug *intended* needs a reason and is recorded with your name; Sentri never does it.
+The menu along the top has Home, Runs, Findings and New run; Getting started is always one click away at the
+top right. Every page and filter has its own link, so reload, Back and bookmarks work.
+
+- **Home**: before the first run, a getting-started guide (install, how Sentri reaches your app, keeping
+  credentials out of files, first run). After that, a dashboard: the latest run's outcome with its readiness,
+  exploration and completion, open bugs that need a decision, recent confirmed findings and recent runs.
+- **Getting started**: the same guide, at any time.
+- **Runs**: every run, newest first, with readiness out of 100 and what it was built from (*insufficient
+  coverage* when nothing applicable was tested, never a pass), confirmed findings, baseline checks,
+  exploration and model use. Each row opens the run or its report.
+- **Run**: progress (each phase, or live counts while running), why it stopped (for example a token limit or a
+  provider quota), the activity log (live while the run is going), the exploration steps with who chose each
+  one, and model use. The report is the next step.
+- **Report** (`#/runs/<id>/report`): one run's analysis from the recorded data, no model involved. What broke
+  (findings confirmed by replay, failed baseline checks with their bugs, regressions, candidates that did not
+  reproduce), what was tested (exploration, the model's attack ideas, the baseline grid), coverage limits, and
+  suggested next steps. The suggestions come from fixed rules over the record and are labelled as suggestions.
+- **Findings**: every finding, filterable by result, run and who found it (the filters live in the link). Each
+  opens its own page (`#/findings/<id>`): the outcome (what broke, the three replays, who found it), the replay
+  evidence of every attempt (what fired, the responses, the server log tail shown to you only), limitations,
+  the technical record (check, steps) and the decision. Fixtures recorded by Sentri's test harness are labelled.
+- **Bugs across runs** (in Findings): every bug Sentri tracks with its status. Each opens its own page
+  (`#/bugs/<id>`) with every status change across runs and commits, who made it, and the decision. Marking a bug
+  *intended* needs a reason and is recorded with your name; Sentri never does it. (This replaces the former
+  Ledger screen; old `#/ledger` links land here.)
 - **New run**: choose a model, point at your app folder or URL, draft or paste a contract, validate, approve,
   and start the run.
 

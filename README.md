@@ -95,12 +95,12 @@ sentri run --contract contract.yaml --llm-provider auto --out report.md
 
 ## Web app (local)
 
-`sentri ui` starts a local server and opens it in your desktop browser. The Home page walks through the six
-steps: choose a model, point Sentri at your app, draft and approve a contract, start a run and follow it live,
-read each finding with its replay evidence, then compare runs across commits and mark a bug intended (with a
-reason). The same API is listed at `/docs` on the server for scripts. Everything stays on your machine. The
-server answers only on localhost and refuses actions sent by other websites. See
-[the web app guide](documentation/web-app.md).
+`sentri ui` starts a local server and opens it in your desktop browser. Before your first run its Home page
+is a getting-started guide; afterwards it shows the latest outcome and what needs a decision. Start a run and
+follow it live, read each run's report (what was tested, what broke, coverage limits, next steps), open any
+finding for its replay evidence, and track bugs across runs, marking one intended with a reason. The same API is
+listed at `/docs` on the server for scripts. Everything stays on your machine. The server answers only on
+localhost and refuses actions sent by other websites. See [the web app guide](documentation/web-app.md).
 
 ## Choosing a model
 
