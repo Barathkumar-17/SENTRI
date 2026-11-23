@@ -1,0 +1,60 @@
+name: docker-lifecycle
+
+# Manual only. No model, no secrets: this proves Sentri's Docker lifecycle (build, start, readiness, reset, stop,
+# failed and cancelled starts, port conflicts, no leaked containers) on a real Docker daemon. It does not prove
+# model-driven exploration inside Docker mode.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Docker daemon
+        run: |
+          docker version
+          docker info
+      - name: Lifecycle check
+        run: |
+          mkdir -p diagnostics
+          set +e
+          python scripts/docker_lifecycle_check.py 2>&1 | tee diagnostics/lifecycle-output.txt
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "lifecycle check exit status: $code" | tee -a diagnostics/lifecycle-output.txt
+          {
+            echo "### Docker lifecycle check"
+            echo "Exit status: \`$code\` (0 = all checks passed, 1 = a check failed, 2 = blocked, nothing tested)"
+            echo '```'
+            cat diagnostics/lifecycle-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" = "2" ]; then
+            echo "::error::BLOCKED: no usable Docker daemon, so nothing was tested. This is not a pass."
+          fi
+          exit "$code"
+      - name: Collect diagnostics
+        if: failure()
+        run: |
+          mkdir -p diagnostics
+          docker version > diagnostics/docker-version.txt 2>&1 || true
+          docker info > diagnostics/docker-info.txt 2>&1 || true
+          docker ps -a --no-trunc > diagnostics/containers.txt 2>&1 || true
+          docker images > diagnostics/images.txt 2>&1 || true
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-lifecycle-diagnostics
+          path: diagnostics/
+          if-no-files-found: warn
