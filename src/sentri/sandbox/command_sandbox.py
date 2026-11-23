@@ -101,6 +101,9 @@ class CommandSandbox(ResponseErrors):
             tail = "\n".join(line.text for line in self.logs.tail(20))
             await self.stop()
             raise SandboxError(f"{exc}\n--- app log tail ---\n{tail}") from None
+        except BaseException:
+            await self.stop()  # a cancelled start (a stopped run) must not leave the app process running
+            raise
 
     def _clean(self) -> None:
         """Delete the contract's app.clean files (e.g. a SQLite database) for a clean, seeded state."""

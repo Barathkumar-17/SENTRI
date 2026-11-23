@@ -14,7 +14,14 @@ from urllib.parse import urlsplit
 
 from sentri.contract.models import AppConfig
 from sentri.evidence.models import LogLine
-from sentri.sandbox.base import LogBuffer, ResponseErrors, SandboxError, wait_for_health, wait_for_port
+from sentri.sandbox.base import (
+    LogBuffer,
+    ResponseErrors,
+    SandboxError,
+    wait_for_health,
+    wait_for_port,
+    wait_for_port_closed,
+)
 
 log = logging.getLogger(__name__)
 
@@ -61,13 +68,18 @@ class DockerSandbox(ResponseErrors):
 
     def _run(self) -> None:
         container_port = self.spec.container_port or self.app.port
-        self._container = self._docker().containers.run(
-            self.image_tag,
-            detach=True,
-            ports={f"{container_port}/tcp": self.port},
-            environment=self.env,
-            labels={"sentri": "target"},
-        )
+        try:
+            self._container = self._docker().containers.run(
+                self.image_tag,
+                detach=True,
+                ports={f"{container_port}/tcp": self.port},
+                environment=self.env,
+                labels={"sentri": "target"},
+            )
+        except SandboxError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - e.g. the host port is already allocated
+            raise SandboxError(f"docker run failed: {exc}") from None
         self._log_thread = threading.Thread(target=self._pump_logs, args=(self._container,), daemon=True)
         self._log_thread.start()
 
@@ -90,9 +102,17 @@ class DockerSandbox(ResponseErrors):
             raise SandboxError(f"{exc}\n--- container log tail ---\n{tail}") from None
 
     async def start(self) -> None:
+        if not await wait_for_port_closed(self._host, self.port, timeout_s=5):
+            raise SandboxError(f"port {self.port} is already in use by another process")
         await asyncio.to_thread(self._build)
-        await asyncio.to_thread(self._run)
-        await self._wait_ready()
+        try:
+            await asyncio.to_thread(self._run)
+            await self._wait_ready()
+        except BaseException:
+            # Callers only stop a sandbox that started: a container that never became ready (or a start that was
+            # cancelled) must not be left running and holding the port.
+            await self._remove()
+            raise
 
     async def reset(self) -> None:
         if self.app.reset == "command":
