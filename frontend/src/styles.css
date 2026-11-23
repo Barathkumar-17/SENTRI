@@ -153,6 +153,8 @@ ul, ol { margin: 0; }
 .btn:hover { background: var(--surface-3); border-color: #4a4a4a; color: var(--text); }
 .btn.primary { background: var(--green-fill); border-color: var(--green-border); color: #ffffff; }
 .btn.primary:hover { background: var(--green-fill-hover); border-color: var(--green); }
+.btn.danger { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
+.btn.danger:hover { background: rgba(248, 113, 113, 0.18); border-color: var(--bad); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn.ghost:hover { background: var(--surface-2); color: var(--text); }
 .btn.small { height: 28px; padding: 0 var(--s3); font-size: var(--fs-meta); }
@@ -287,7 +289,7 @@ ul.bullets li::marker { color: var(--text-3); }
 /* ---- progress: the phases of a run -------------------------------------------------------------------- */
 .phases { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s3); }
 .phase { display: grid; gap: 2px; padding: var(--s3); border-radius: var(--r); background: var(--surface-2); border: 1px solid var(--line-soft); }
-.phase .name { font-size: var(--fs-meta); color: var(--text-3); text-transform: capitalize; }
+.phase .name { font-size: var(--fs-meta); color: var(--text-3); }
 .phase .state-text { font-size: var(--fs-sm); color: var(--text); overflow-wrap: anywhere; }
 .phase.done { border-color: var(--ok-line); }
 .phase.skipped .state-text { color: var(--text-2); }

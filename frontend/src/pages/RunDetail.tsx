@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight } from 'lucide-react'
-import { api, useApi, useEventStream, type Run, type SentriEvent } from '../api'
+import { ArrowRight, Square } from 'lucide-react'
+import { api, useApi, useEventStream, type Job, type Loadable, type Run, type SentriEvent } from '../api'
 import {
   Badge, Banner, Card, Empty, ErrorState, Loading, ORIGIN, PageHead, RunStatus, Tabs, cost, count, duration, href, num,
   quotaStopped, short, when,
@@ -14,6 +14,7 @@ type Tab = 'activity' | 'exploration' | 'usage'
 export function RunDetail({ id }: { id: number }) {
   const run = useApi(() => api.run(id), [id], 4000)
   const [tab, setTab] = useState<Tab>('activity')
+  const jobs = useApi(api.jobs, [], 3000)
   const crumbs = [{ label: 'Runs', href: '#/runs' }, { label: `Run ${id}` }]
   if (run.loading && !run.data) return <Frame crumbs={crumbs} id={id}><Loading label="Loading run" /></Frame>
   if (run.error && !run.data) return <Frame crumbs={crumbs} id={id}><ErrorState error={run.error} onRetry={run.reload} what="run" /></Frame>
@@ -41,7 +42,8 @@ export function RunDetail({ id }: { id: number }) {
         }
       />
       <div className="page-body">
-        {run.error && <Banner tone="bad" title="Lost contact with the Sentri server">{run.error.message} Showing the last data received.</Banner>}
+        {run.error && run.error.status !== 0 && <Banner tone="bad" title="Could not refresh this run">{run.error.message} Showing the last data received.</Banner>}
+        {live && <StopControl jobs={jobs} runId={r.id} onStopped={run.reload} />}
         <Ending run={r} />
         <Progress run={r} />
         <Tabs<Tab>
@@ -54,7 +56,7 @@ export function RunDetail({ id }: { id: number }) {
             { id: 'usage', label: 'Model use', count: r.usage?.calls },
           ]}
         />
-        {tab === 'activity' && <Activity run={r} />}
+        {tab === 'activity' && <Activity run={r} liveView={Boolean(jobs.data?.some((j) => j.run_id === r.id && (j.status === 'running' || j.status === 'queued')))} />}
         {tab === 'exploration' && <Exploration id={id} />}
         {tab === 'usage' && <UsagePanel run={r} />}
       </div>
@@ -71,12 +73,63 @@ function Frame({ id, crumbs, children }: { id: number; crumbs: { label: string; 
   )
 }
 
+/** Stop a run started from this web app (its job), after a confirmation. A CLI run is stopped where it runs. */
+function StopControl({ jobs, runId, onStopped }: { jobs: Loadable<Job[]>; runId: number; onStopped: () => void }) {
+  const job = jobs.data?.find((j) => j.run_id === runId && (j.status === 'running' || j.status === 'queued'))
+  const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  if (!jobs.data || jobs.error) return null // unknown while the server is unreachable
+  if (!job) {
+    return (
+      <Banner tone="info" title="Started outside this web app">
+        This run was started from the command line (or another Sentri server), so stop it there: press Ctrl+C in its terminal. It is then recorded as aborted.
+      </Banner>
+    )
+  }
+  const stop = async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      await api.cancelJob(job.id)
+      setConfirm(false)
+      onStopped()
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="banner info" role="group" aria-label="Stop this run">
+      <Square size={14} aria-hidden="true" />
+      <div className="row" style={{ flex: 1 }}>
+        <span>
+          <strong style={{ display: 'inline' }}>Running from this web app.</strong>{' '}
+          {confirm ? 'Stop it now? What ran so far is kept and the run is recorded as aborted.' : 'You can stop it at any time; what ran so far is kept.'}
+        </span>
+        <span className="row right" style={{ gap: 8 }}>
+          {confirm ? (
+            <>
+              <button className="btn small" onClick={() => setConfirm(false)} disabled={busy}>Keep running</button>
+              <button className="btn small danger" onClick={stop} disabled={busy}>{busy ? 'Stopping…' : 'Stop run'}</button>
+            </>
+          ) : (
+            <button className="btn small" onClick={() => setConfirm(true)}>Stop run…</button>
+          )}
+        </span>
+        {err && <span className="small" role="alert" style={{ color: 'var(--bad)' }}>{err}</span>}
+      </div>
+    </div>
+  )
+}
+
 /** How the run ended, when that is not simply "finished": aborted, model use stopped early, live-state replays. */
 function Ending({ run }: { run: Run }) {
   const stop = quotaStopped(run)
   return (
     <>
-      {run.status === 'aborted' && <Banner tone="bad" title="The run was aborted">See the activity below for the reason (for example, the app did not start or a flow could not complete).</Banner>}
+      {run.status === 'aborted' && <Banner tone="bad" title="The run was aborted">The reason is the last entry in the activity below (for example, the app did not start, a flow could not complete, or someone stopped the run).</Banner>}
       {stop && (
         <Banner tone="warn" title="Model use stopped before exploration finished">
           <span className="mono">{stop}</span>. Only what ran before the stop is reported; it is not a full test.
@@ -106,7 +159,7 @@ function Progress({ run }: { run: Run }) {
             const cls = /quota|limit|budget|stopped/.test(state) ? 'stopped' : /^done/.test(state) ? 'done' : /skipped|not run|no baseline/.test(state) ? 'skipped' : ''
             return (
               <li key={name} className={`phase ${cls}`}>
-                <span className="name">{name}</span>
+                <span className="name">{name[0].toUpperCase() + name.slice(1)}</span>
                 <span className="state-text">{state}</span>
               </li>
             )
@@ -127,9 +180,11 @@ function Progress({ run }: { run: Run }) {
   )
 }
 
-function Activity({ run }: { run: Run }) {
+function Activity({ run, liveView }: { run: Run; liveView: boolean }) {
   const live = run.status === 'running'
-  const history = useApi(() => api.events(run.id), [run.id])
+  const [shotFailed, setShotFailed] = useState(false)
+  // reload when the status changes, so the closing event (finished, aborted, stopped) is always shown
+  const history = useApi(() => api.events(run.id), [run.id, run.status])
   const [extra, setExtra] = useState<SentriEvent[]>([])
   const stream = useEventStream(run.id, live, (e) => setExtra((xs) => (xs.some((x) => x.id === e.id) ? xs : [...xs, e])))
   const events = useMemo(() => {
@@ -143,7 +198,7 @@ function Activity({ run }: { run: Run }) {
     return () => clearInterval(t)
   }, [live])
   return (
-    <div className={live ? 'grid-2' : 'stack'}>
+    <div className={live && liveView ? 'grid-2' : 'stack'}>
       <Card
         title="Activity"
         hint={live ? <span className="row" style={{ gap: 6 }}><span className={`dot ${stream === 'open' ? 'on' : stream === 'disconnected' ? 'off' : ''}`} aria-hidden="true" />{stream === 'open' ? 'live' : stream === 'connecting' ? 'connecting…' : 'disconnected'}</span> : count(events.length, 'event')}
@@ -170,9 +225,17 @@ function Activity({ run }: { run: Run }) {
           </ol>
         )}
       </Card>
-      {live && (
+      {live && liveView && (
         <Card title="Live view" hint="the browser Sentri is driving, every 2 s">
-          <img className="live-shot" src={`/api/live/screenshot.jpg?n=${shot}`} alt="Current page in the browser Sentri is driving" />
+          {shotFailed && <p className="muted small" style={{ marginBottom: 8 }}>No picture right now: the browser is between pages or the server is unreachable. It retries every 2 s.</p>}
+          <img
+            className="live-shot"
+            src={`/api/live/screenshot.jpg?n=${shot}`}
+            alt="Current page in the browser Sentri is driving"
+            onLoad={() => setShotFailed(false)}
+            onError={() => setShotFailed(true)}
+            style={shotFailed ? { display: 'none' } : undefined}
+          />
         </Card>
       )}
     </div>
