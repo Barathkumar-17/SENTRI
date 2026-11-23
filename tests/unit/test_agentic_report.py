@@ -260,10 +260,10 @@ def test_findings_api_lists_across_runs_and_shows_replay_evidence(tmp_path):
         create_app(tmp_path / "f.db", tmp_path / "e", tmp_path / "live.jpg"), base_url="http://127.0.0.1"
     )
     (listed,) = client.get("/api/findings").json()
-    assert (
-        listed["title"] == "Crash on /x" and listed["key"] == "http_500 POST /x" and listed["commit_sha"] == "abc1234"
-    )
-    assert listed["origin"] == "ai" and listed["replay_state"] == "restart" and listed["notes"] == ["note 1"]
+    assert listed["title"] == "HTTP 500 on POST /x"
+    assert listed["key"] == "http_500 POST /x" and listed["commit_sha"] == "abc1234"
+    assert listed["origin"] == "ai" and listed["replay_state"] == "restart"
+    assert listed["notes"] == ["Hypothesis tested (the model's wording, not a measurement): Crash on /x", "note 1"]
     detail = client.get(f"/api/findings/{listed['id']}").json()
     first, second = detail["attempts"]
     assert first["completed"] and [o["oracle_id"] for o in first["oracles"]] == ["http_500"]

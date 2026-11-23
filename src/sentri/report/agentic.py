@@ -16,6 +16,7 @@ ORIGIN_LABEL = {
     "ai_suspicion": "model suspicion",
     "code_probe": "Sentri probe",
     "code_fallback": "code fallback step",
+    "harness": "validation harness (fixed input, not autonomous discovery)",
 }
 
 

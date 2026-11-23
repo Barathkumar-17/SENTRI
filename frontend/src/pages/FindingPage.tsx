@@ -171,6 +171,7 @@ function Limitations({ f }: { f: FindingDetail }) {
   if (f.replay_state === 'none') items.push('Replayed on the live state: the app was not reset between attempts, so they are not independent confirmations.')
   if (f.replay_state === 'restart') items.push('Each attempt restarted the app; state kept outside its cleaned files (an external database) survives a restart.')
   if (f.origin === 'code_probe') items.push("Found by one of Sentri's own probes, not by the model's choice of action.")
+  if (f.origin === 'harness') items.push('Fixed input from a validation harness: this checks the pipeline and is not an autonomous discovery.')
   if (f.origin === 'ai_suspicion') items.push('Raised by the model without a measured signal; only the replay verdict counts.')
   if (f.verdict === 'unconfirmed') items.push('Not reproduced in replay: this is not evidence that the behaviour is correct.')
   if (f.attempts.some((a) => a.completed === false)) items.push('At least one attempt could not run every step, so it neither confirms nor clears the finding.')

@@ -306,6 +306,24 @@ async def confirm(
     return decide_replays("agentic", final_key, results), final_key, notes
 
 
+_HTTP_ERROR = re.compile(r"^(?P<route>.+) -> (?P<status>\d{3})$")
+
+
+def measured_title(candidate_title: str | None, verdict: CheckVerdict, status: str) -> str | None:
+    """A confirmed finding is titled by what the oracles measured, never by the model's hypothesis wording.
+
+    "A new user can complete a purchase" says what the model set out to test; the finding is "HTTP 500 on POST
+    /checkout/confirm". Unconfirmed findings keep the candidate's wording: nothing was measured to describe."""
+    if status not in ("fail", "flaky") or not verdict.hits:
+        return candidate_title
+    parts = []
+    for hit in verdict.hits[:3]:
+        match = _HTTP_ERROR.match(hit.detail) if hit.oracle_id == "http_500" else None
+        parts.append(f"HTTP {match['status']} on {match['route']}" if match else f"{hit.oracle_id}: {hit.detail}")
+    suffix = f" (+{len(verdict.hits) - 3} more)" if len(verdict.hits) > 3 else ""
+    return "; ".join(parts) + suffix
+
+
 def record(
     ledger: Ledger,
     run_id: int,
@@ -370,11 +388,15 @@ def record(
         )
         events, _ = ledger.record_check_result(run_id, check_id, "agentic", key, commit, verdict)
         status = "pass"
+    title = measured_title(candidate.get("title"), verdict, status)
+    notes = list(notes or [])
+    if title != candidate.get("title") and candidate.get("title"):
+        notes.insert(0, f"Hypothesis tested (the model's wording, not a measurement): {candidate['title']}")
     ledger.add_finding(
         run_id,
         {
             "hypothesis_id": candidate.get("hypothesis_id"),
-            "title": candidate.get("title"),
+            "title": title,
             "oracle_ids": sorted({h.oracle_id for h in verdict.hits}),
             "repro": candidate["repro"],
             "from_step": candidate.get("from_step"),
@@ -385,7 +407,7 @@ def record(
             "origin": candidate.get("origin") or "ai",
             "replay_state": replay_state,
             "evidence": list(evidence or []),
-            "notes": list(notes or [])[:20],
+            "notes": notes[:20],
         },
     )
     return check_id, events
