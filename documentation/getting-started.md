@@ -65,8 +65,9 @@ If your app is mostly an API, or its interface is drawn on a canvas (Flutter web
 sentri ui
 ```
 
-This starts the local server and opens it. The web screens are in progress; for now use the CLI. The server
-already provides the API the screens will use (see [Local web app and API](web-app.md)).
+This starts the local server and opens the web app in your desktop browser. Its Home page walks through a run
+step by step: choose a model, point at your app, approve a contract, start, then read findings and compare runs
+(see [Local web app and API](web-app.md)). Everything the web app does, the CLI does too.
 
 ## Where results live
 

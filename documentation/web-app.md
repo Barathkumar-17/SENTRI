@@ -8,6 +8,7 @@ It is laid out for desktop browsers; there is no phone layout.
 
 - **Home** (the landing page): how to use Sentri from the web app in six steps, with links to each screen,
   and a link to the latest run. The menu is a bar across the top; the current screen is highlighted.
+  Pages are flat sections divided by thin lines on a dark-gray background.
 - **Runs**: every run in this machine's ledger, newest first: status, readiness out of 100 with what it was
   built from (for example "3 of 10 applicable checks passed"; *insufficient coverage* when nothing applicable
   was tested, never a pass), confirmed findings, exploration and model use. Readiness counts only what the run
@@ -30,8 +31,6 @@ If the server stops, the app says so and reconnects on its own when it is back.
 
 Everything the screens do goes through this API, so a script can do the same; the full list is at
 `http://127.0.0.1:8787/docs`.
-
-## The API, step by step
 
 | Step | Endpoint |
 |---|---|
@@ -58,3 +57,11 @@ websites open in the same browser:
 - state-changing requests must be JSON, which a plain HTML form on another site cannot send.
 
 `sentri serve --host 0.0.0.0` binds beyond localhost; only do that on a network you trust.
+
+## What the web app never shows
+
+API keys (from environment variables, CI secrets or typed into the web app) and provider account ids (organization and project ids that providers quote in error messages) are scrubbed from everything Sentri stores or shows. Every answer from the server is scrubbed on the way out (JSON, the live event stream, text evidence
+files and error messages), so a ledger written before this protection existed shows nothing secret either. A key
+you type into the web app is kept in memory for the session only and never sent back. The tester's black-box
+rule holds here too: inspecting a project folder returns file paths and start-command suggestions, never file
+contents, and the web app has no route to the source-aware fixer.

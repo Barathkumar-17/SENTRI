@@ -3,7 +3,8 @@
 Sentri attacks your running web app like a hostile or careless user, so it breaks in testing instead of in a live demo.
 
 **Core rules:** the AI proposes attacks; plain code decides pass or fail. And Sentri tests as a **black box**: it
-learns about your app only by using it, never from its source, README, database or logs.
+learns about your app only by using it, never from its source, README, database or logs. The rule holds at
+every level: the engine, the CLI and the web app.
 
 - Runs your app in a throwaway sandbox (Docker container, or a plain local process).
 - **Recon:** explores the app first (every reachable page, form and link, logged out and logged in, plus the
@@ -94,10 +95,12 @@ sentri run --contract contract.yaml --llm-provider auto --out report.md
 
 ## Web app (local)
 
-`sentri ui` starts a local server and opens it in your browser: choose a model, draft and approve a contract,
-start a run and follow it live, read each finding with its replay evidence, compare runs across commits and
-mark a bug intended (with a reason). The same API is listed at `/docs` on the server for scripts. Everything
-stays on your machine. The server answers only on localhost and refuses actions sent by other websites.
+`sentri ui` starts a local server and opens it in your desktop browser. The Home page walks through the six
+steps: choose a model, point Sentri at your app, draft and approve a contract, start a run and follow it live,
+read each finding with its replay evidence, then compare runs across commits and mark a bug intended (with a
+reason). The same API is listed at `/docs` on the server for scripts. Everything stays on your machine. The
+server answers only on localhost and refuses actions sent by other websites. See
+[the web app guide](documentation/web-app.md).
 
 ## Choosing a model
 
@@ -276,7 +279,10 @@ regressions, and a link to the evidence. It is report-only by default; add `fail
 - Every browser request is fenced to the app's own origin: links, form posts, popups, scripts and redirects
   (including the app's own open redirects) to other sites are blocked, and test-account tokens are only ever
   sent to the app.
-- Page text, logs and READMEs reach the model only as fenced, untrusted APP DATA it is told never to obey; and
-  whatever it answers is validated and judged by plain code anyway.
+- Page text and responses reach the model only as fenced, untrusted APP DATA it is told never to obey (source,
+  READMEs, databases and server logs never reach it); whatever it answers is validated and judged by plain
+  code anyway.
 - A human approves the contract, decides whether a failure is intended, and merges every fix.
-- API keys come from environment variables and are scrubbed from the ledger, evidence files and prompts.
+- API keys (from environment variables, CI secrets or typed into the web app) and provider account ids (organization and project ids that providers quote in error messages) are scrubbed from everything Sentri stores or shows: the activity feed, the ledger, evidence files, reports, log lines, prompts, and the web app's
+  answers and live stream. Ledgers written by older versions are scrubbed when shown. Only the steps a replay
+  must re-send are stored exactly, in the local ledger.

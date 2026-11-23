@@ -20,6 +20,8 @@
 | Setup-heavy apps | Apps that need several services, keys or special environments may not start in the sandbox. |
 | Web only | Desktop and mobile apps are out of scope (their APIs are not). |
 | Duplicate counts | The baseline duplicates check needs a list selector, an expected count or a database count. |
-| Web screens | The local server's web screens are in progress; use the CLI. The API they will use works today. |
+| Desktop browsers only | The web app has no phone layout. |
+| Redaction is pattern-based | Keys are scrubbed by their exact values (environment, CI, typed into the web app) and by known shapes (`sk-`, `gsk_`, `AIza`, JWTs, bearer tokens, provider account ids). A secret in an unknown shape that is not configured anywhere can still appear in recorded app responses. |
+| Replay steps are stored exactly | What a replay must re-send (including the text typed into test accounts' forms) is kept unscrubbed in the local ledger, so replays work; keep `.sentri/` out of git and shared drives. |
 | Model speed and size | CLI providers start a process per model call (seconds per step). Small local models are untested for driving exploration. |
 | Slow DNS on some Macs | If `sentri doctor` reports slow local DNS, Python dev servers start slowly; map `127.0.0.1` to `localhost` in `/etc/hosts`. |

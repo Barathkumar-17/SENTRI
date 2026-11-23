@@ -6,6 +6,8 @@
 allow and the goals you give. It never uses your source code, README, database or server logs to choose a test or
 to decide a verdict. (Starting and restarting the app for you is allowed; that is lifecycle, not insight. The
 optional fixer reads source code, but only when you run it, and nothing from it flows back into testing.)
+The same holds in the CLI and the web app: when you point the web app at a project folder it reads only enough
+to suggest a start command, and shows that to you, not to the tester.
 
 **The AI proposes and acts. Plain code decides.** The model writes the attack strategy, drives the exploration
 and chooses inputs. It never decides whether something is a bug. Every verdict comes from deterministic code

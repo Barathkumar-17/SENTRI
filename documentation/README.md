@@ -11,7 +11,7 @@ an audience. An AI agent explores the app and decides what to try; plain code de
 | [Models](models.md) | Choose a model: none, Claude Code, Codex CLI, Gemini CLI, Ollama, or an API key |
 | [Verdicts, bugs and the score](verdicts-and-ledger.md) | Read results: the oracles, flaky vs fail, the bug ledger, regressions, the readiness score |
 | [Command line](cli.md) | Every command, option, environment variable and exit code |
-| [Local web app and API](web-app.md) | The local server: screens in progress, the API they will use, and how it stays safe |
+| [Local web app and API](web-app.md) | The web app's screens, the API behind them, and how it stays safe and leaks nothing |
 | [CI with GitHub Actions](ci.md) | Run Sentri on every pull request with your own model settings |
 | [Fixer](fixer.md) | Let Sentri propose a fix as a draft pull request behind a plain-code gate |
 | [Development](development.md) | Repository layout, tests, the demo app, and how to contribute |

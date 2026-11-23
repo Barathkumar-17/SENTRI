@@ -86,3 +86,9 @@ rating. The report prints the formula with the real numbers and the split, for e
 `Baseline suite: 75 · Agentic impact: -15 (1 data exposure)`, and each finding's cost in the findings table.
 
 **A pass means "survived these attacks", nothing more.** See [Limitations](limitations.md).
+
+## What the ledger keeps
+
+The ledger (`.sentri/ledger.db`) stays on your machine. Narrative fields (the activity feed, model thoughts,
+errors, finding titles and notes, model-use and coverage records) are scrubbed of keys and provider account ids
+before they are written. The steps a replay re-sends are stored exactly, so a replay can repeat them.

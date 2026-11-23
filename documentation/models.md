@@ -37,8 +37,9 @@ servers use their own default unless you pass `--model`. `--model-smart` sets th
 ## Safety around keys
 - Vendor variables such as `ANTHROPIC_API_KEY` are read only after you choose that provider, so a key that
   happens to be in your environment is never spent silently.
-- Keys are scrubbed from evidence, reports, the ledger and prompts. `sentri models` shows which key variables
-  exist by name, never their values.
+- API keys (from environment variables, CI secrets or typed into the web app) and provider account ids (organization and project ids that providers quote in error messages) are scrubbed from everything Sentri stores or shows: evidence, reports, the ledger, log lines, prompts and the web app. A key typed into the web app is
+  kept in memory only and scrubbed the same way. `sentri models` shows which key variables exist by name, never
+  their values.
 - Paid APIs are capped per run by `SENTRI_LLM_BUDGET_USD` (default 1.00). The cap is only enforceable where
   Sentri knows the model's price; for other models the report says the cost is **unknown** (never $0).
 - Further limits: `SENTRI_LLM_MAX_CALLS` and `SENTRI_LLM_MAX_TOKENS` (input + output, with each call's output
@@ -62,7 +63,7 @@ message; at most 30 s per wait, 4 waits per call) and tries again. The wait coun
 `SENTRI_LLM_TIMEOUT_S` (default 60 s); raise it for low per-minute token limits.
 
 ## What the model is shown
-Page text, console errors, network summaries, logs and READMEs come from the app under test, which may contain
-text written to manipulate a model. Sentri puts all of it in one fenced **APP DATA** block, separate from its own
+Page text, console errors and network summaries come from the app under test, which may contain text written
+to manipulate a model. Sentri puts all of it in one fenced **APP DATA** block, separate from its own
 instructions, and every prompt starts with a rule never to follow instructions inside APP DATA. Secrets are
-scrubbed first (the app's README included).
+scrubbed first. Source code, READMEs, databases and server logs are never shown to the model at all.
