@@ -57,10 +57,14 @@ def test_web_app_renders_a_run_and_records_a_bug_decision(server):
         errors: list[str] = []
         page.on("pageerror", lambda e: errors.append(str(e)))
 
-        page.goto(f"{base}/")  # Home is the landing page: how to use Sentri, plus the latest real run
+        page.goto(f"{base}/")  # Home: the latest run's outcome, with the way to its report
         expect(page.get_by_role("link", name="Home")).to_have_attribute("aria-current", "page")
-        expect(page.get_by_role("heading", name="How to use Sentri")).to_be_visible()
-        expect(page.get_by_role("main").get_by_role("link", name=f"Run {run}", exact=True)).to_be_visible()
+        expect(page.get_by_role("heading", name=f"Latest run · Run {run}")).to_be_visible()
+        page.get_by_role("link", name="Open report").click()
+        expect(page).to_have_url(f"{base}/#/runs/{run}/report")
+        expect(page.get_by_role("heading", name=f"Report · Run {run}")).to_be_visible()
+        expect(page.get_by_role("heading", name="What broke")).to_be_visible()
+        expect(page.get_by_text("Suggested next steps")).to_be_visible()
 
         page.goto(f"{base}/#/runs")
         expect(page.get_by_role("link", name=f"Run {run}", exact=True)).to_be_visible()
@@ -73,16 +77,29 @@ def test_web_app_renders_a_run_and_records_a_bug_decision(server):
         expect(page.get_by_role("heading", name=f"Run {run}")).to_be_visible()
         expect(page.get_by_text("signup:double_submit: FAIL")).to_be_visible()
 
+        # the old Ledger link lands on the bugs view; filters live in the URL and survive reload and back
         page.goto(f"{base}/#/ledger")
-        page.get_by_role("tab", name="Bugs").click()
-        page.get_by_role("button", name="BUG-001").focus()
-        page.keyboard.press("Enter")  # keyboard reaches the decision form
+        expect(page).to_have_url(f"{base}/#/findings?view=bugs")
+        page.get_by_role("link", name="Open", exact=True).click()
+        expect(page).to_have_url(f"{base}/#/findings?view=bugs&status=open")
+        page.reload()
+        expect(page.get_by_role("link", name="Open", exact=True)).to_have_attribute("aria-current", "true")
+        page.get_by_role("link", name="BUG-001").focus()
+        page.keyboard.press("Enter")  # keyboard reaches the bug's own page
+        expect(page).to_have_url(f"{base}/#/bugs/BUG-001")
+        expect(page.get_by_role("heading", name="Across runs")).to_be_visible()
+        page.go_back()
+        expect(page).to_have_url(f"{base}/#/findings?view=bugs&status=open")
+        page.goto(f"{base}/#/bugs/BUG-001")  # a direct link works too
         mark = page.get_by_role("button", name="Mark intended")
         expect(mark).to_be_disabled()  # a reason is required
         page.get_by_label("Why is this intended?").fill("double submit is idempotent by design")
         page.get_by_label("Your name").fill("reviewer")
         mark.click()
-        expect(page.get_by_text("Intended").first).to_be_visible()
+        expect(page.get_by_text("by a person")).to_be_visible()  # the decision is in the bug's history
+
+        page.goto(f"{base}/#/findings/999")  # a finding that does not exist says so
+        expect(page.get_by_text("This finding does not exist")).to_be_visible()
         browser.close()
     assert not errors, errors
 
