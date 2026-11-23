@@ -14,6 +14,7 @@ import httpx
 from pydantic import BaseModel, Field
 
 from sentri.config import Settings
+from sentri.redact import register_secret
 
 OLLAMA_URL = "http://localhost:11434"
 LMSTUDIO_URL = "http://localhost:1234"
@@ -147,6 +148,7 @@ class ModelSelection(BaseModel):
         # The user picked this provider, so its standard key variable may be used if no key was typed in.
         env_key = os.environ.get(preset.key_env) if preset.key_env else None
         settings.api_key = self.api_key or settings.api_key or env_key or None
+        register_secret(settings.api_key)
         if preset.kind == "openai_compatible":
             settings.llm_base_url = self.base_url or preset.base_url
             if not settings.llm_base_url:

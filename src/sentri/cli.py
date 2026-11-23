@@ -25,6 +25,7 @@ from sentri.config import Settings
 from sentri.contract.loader import ContractError, approve_contract, load_contract
 from sentri.ledger import HumanDecision, Ledger
 from sentri.llm import LLMConfigError, describe_provider, make_provider
+from sentri.redact import install_log_redaction, register_secret
 
 app = typer.Typer(
     help="Sentri: attacks a running web app like a hostile user. Plain code decides pass/fail.",
@@ -102,6 +103,7 @@ def _setup_logging(verbose: bool) -> None:
     )
     if not verbose:
         logging.getLogger("sentri.feed").setLevel(logging.WARNING)
+    install_log_redaction()
 
 
 def _version_callback(value: bool) -> None:
@@ -140,6 +142,7 @@ OllamaOpt = Annotated[
 
 
 def _provider(settings: Settings, enabled: bool = True):  # type: ignore[no-untyped-def]
+    register_secret(settings.api_key)
     try:
         return make_provider(settings, enabled)
     except LLMConfigError as exc:

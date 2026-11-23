@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from sentri.redact import register_secret
+
 
 def _env_float(name: str, default: float) -> float:
     raw = os.environ.get(name)
@@ -48,6 +50,7 @@ class Settings:
     live_view: bool = False
 
     def __post_init__(self) -> None:
+        register_secret(self.api_key)  # scrubbed from every event, log line, report and API response
         if self.ollama_model:
             self.use_ollama(self.ollama_model)
 
