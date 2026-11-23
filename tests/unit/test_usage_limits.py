@@ -75,3 +75,28 @@ def test_usage_line_reports_unknown_cost_and_stop_reason():
     assert "2 calls (strategist 1, explorer 1)" in line and "2387 input + 1226 output" in line
     assert "cost unknown" in line and "stopped: provider quota exhausted" in line
     assert usage_line({"calls": 0}) == ""
+
+
+async def test_a_call_refused_for_the_token_cap_ends_model_use_for_the_run():
+    """Found by the 2026-11-23 flow-shop run: the refused call left the provider 'available', so the explorer ran two
+    code fallback steps and called the stop 'model failed 3 times in a row'."""
+    from pydantic import BaseModel
+
+    from sentri.llm import BudgetedProvider, LLMResult
+
+    class Out(BaseModel):
+        ok: bool = True
+
+    class Inner:
+        name = "inner"
+        available = True
+
+        async def complete_json(self, role, system, user, schema, max_tokens=4000):
+            return LLMResult(True, Out(), input_tokens=900, output_tokens=50)
+
+    budgeted = BudgetedProvider(Inner(), 1.0, 5.0, max_tokens=1500)
+    assert (await budgeted.complete_json("explorer", "s", "u", Out, 500)).ok
+    assert budgeted.available  # 950 of 1500 used: a small call could still fit
+    refused = await budgeted.complete_json("explorer", "s", "u" * 4000, Out, 900)  # needs ~1900: does not fit
+    assert not refused.ok and "token limit 1500 reached" in (refused.error or "")
+    assert not budgeted.available and budgeted.stop_reason == "token limit 1500 reached"

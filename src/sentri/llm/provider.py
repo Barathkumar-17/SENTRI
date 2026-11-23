@@ -191,6 +191,8 @@ class BudgetedProvider:
     def available(self) -> bool:
         if not self.inner.available:
             return False
+        if self.stop_reason is not None:
+            return False  # a limit already ended model use (e.g. a call was refused for not fitting the cap)
         reason = self._limit_reason()
         if reason is not None:
             self.stop_reason = self.stop_reason or reason

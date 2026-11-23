@@ -373,3 +373,34 @@ def test_identical_parameters_are_refused_sooner_than_input_variants():
     _tries(mem, 1, params='{"body": "a=2"}')
     why = mem.check("anon", "POST /cart/add", '{"body": "a=3"}')
     assert why is not None and "with different parameters" in why  # but variants that change nothing are bounded
+
+
+async def test_when_a_limit_refuses_the_next_call_exploration_ends_with_that_reason_and_no_fallback_steps():
+    """Found by the 2026-11-23 flow-shop run: token-cap refusals ran code fallback steps and were reported as the
+    model failing."""
+
+    class Capped:
+        name = "capped"
+        available = True
+
+        def __init__(self):
+            self.n = 0
+
+        async def complete_json(self, role, system, user, schema, max_tokens=4000):
+            self.n += 1
+            return LLMResult(True, _navigate("/product/1", "anon_cart"), input_tokens=1400, output_tokens=100)
+
+    session = WallSession()
+    steps: list[dict] = []
+    explorer = Explorer(
+        session,
+        BudgetedProvider(Capped(), 1.0, 60.0, max_tokens=3200),  # one call fits, the second is refused
+        STRATEGY.model_copy(deep=True),
+        AppMap(base_url="http://127.0.0.1", has_login_flow=True),
+        ExploreBudget(max_steps=10),
+        steps.append,
+    )
+    result = await explorer.run()
+    assert result.stopped == "model use stopped: token limit 3200 reached"
+    assert result.fallbacks == 0 and all(s["origin"] == "ai" for s in steps)
+    assert len(steps) == 1  # nothing ran after the cap
