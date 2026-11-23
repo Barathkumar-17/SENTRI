@@ -6,8 +6,8 @@ It is laid out for desktop browsers; there is no phone layout.
 
 ## Screens
 
-- **Home** (the landing page): how to use Sentri from the web app, step by step, what the tester can and
-  cannot see, how to read a result, and the latest run in this ledger.
+- **Home** (the landing page): how to use Sentri from the web app in six steps, with links to each screen,
+  and a link to the latest run. The menu is a bar across the top; the current screen is highlighted.
 - **Runs**: every run in this machine's ledger, newest first: status, readiness out of 100 with what it was
   built from (for example "3 of 10 applicable checks passed"; *insufficient coverage* when nothing applicable
   was tested, never a pass), confirmed findings, exploration and model use. Readiness counts only what the run
