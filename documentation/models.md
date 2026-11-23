@@ -59,8 +59,13 @@ In the baseline suite an unusable answer falls back to built-in inputs.
 
 **Rate limits** (HTTP 429, common on free API tiers such as Groq's) are not unusable answers: the
 OpenAI-compatible provider waits as long as the server asks (`Retry-After`, or "try again in 7.5s" in the
-message; at most 30 s per wait, 4 waits per call) and tries again. The wait counts toward the per-call timeout
-`SENTRI_LLM_TIMEOUT_S` (default 60 s); raise it for low per-minute token limits.
+message) and tries again, at most 4 waits per call. When the provider says the limit is per minute (tokens or
+requests per minute), it waits up to one window (65 s), since such a limit frees itself; otherwise at most 30 s.
+A daily or hourly quota, or any longer wait, stops model use for the rest of the run at once, and the stop
+reason says which limit the provider named and how long it asked to wait. Time spent waiting out a rate limit
+does not count toward the per-call timeout `SENTRI_LLM_TIMEOUT_S` (default 60 s), which bounds how long the
+provider takes to answer; it does count toward the exploration time. Every wait (role, limit, asked, waited) is
+recorded with the run's model use.
 
 ## What the model is shown
 Page text, console errors and network summaries come from the app under test, which may contain text written
