@@ -248,3 +248,99 @@ def test_prompts_are_compact_json_with_every_value_kept():
     task_part = prompt.split("\n", 1)[1].split("\n\n<<<APP DATA", 1)[0]
     data_part = prompt.split(">>>\n", 1)[1].rsplit("\n<<<END", 1)[0]
     assert json.loads(task_part) == task and json.loads(data_part) == view
+
+
+async def test_the_full_schema_with_every_constraint_reaches_the_model_exactly_once_in_either_mode():
+    """No redundant copies and no lost constraints: json_schema mode carries the schema only in response_format; the
+    text fallback writes the same schema once into the rules."""
+    from sentri.agent.explorer import Decision
+    from sentri.llm import BudgetedProvider
+
+    expected = Decision.model_json_schema()
+    assert any("maxLength" in json.dumps(v) for v in expected["properties"].values())  # there are constraints to lose
+
+    seen: list[dict] = []
+
+    def schema_mode(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"action": {"kind": "finish"}}'}}]})
+
+    await BudgetedProvider(provider_with(schema_mode), 1.0, 5).complete_json("explorer", "RULES", "u", Decision)
+    body = seen[0]
+    assert body["response_format"]["json_schema"]["schema"] == expected  # whole, unmodified
+    assert json.dumps(expected) not in json.dumps(body["messages"])  # and not a second time in the text
+
+    seen.clear()
+
+    def text_mode(request):
+        sent = json.loads(request.content)
+        seen.append(sent)
+        if sent["response_format"]["type"] == "json_schema":
+            return httpx.Response(400, json={"error": {"message": "unsupported"}})
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"action": {"kind": "finish"}}'}}]})
+
+    await BudgetedProvider(provider_with(text_mode), 1.0, 5).complete_json("explorer", "RULES", "u", Decision)
+    fallback = seen[-1]
+    assert fallback["response_format"] == {"type": "json_object"}
+    assert fallback["messages"][0]["content"].count(json.dumps(expected)) == 1  # written out once, unmodified
+    assert fallback["messages"][0]["content"].startswith("RULES")
+
+
+async def test_rate_limit_waiting_counts_toward_the_runs_total_time_but_not_the_call_timeout():
+    """Waits are outside the per-call execution timeout (the call is not killed) yet inside the exploration clock."""
+    import asyncio
+
+    from sentri.agent.explorer import ActionSpec, Decision, ExploreBudget, Explorer
+    from sentri.agent.recon import AppMap
+    from sentri.agent.session import ActionResult, Mark
+    from sentri.agent.strategy import Hypothesis, Strategy
+    from sentri.evidence.agent_models import AgentEvidence
+    from sentri.evidence.models import Evidence
+    from sentri.llm import BudgetedProvider, LLMResult
+
+    class Waiting:
+        name = "waiting"
+        available = True
+        rate_wait_total = 0.0
+
+        async def complete_json(self, role, system, user, schema, max_tokens=4000):
+            self.rate_wait_total += 0.4  # the provider asked for a 0.4 s wait, then answered
+            await asyncio.sleep(0.4)
+            return LLMResult(True, Decision(hypothesis_id="h", action=ActionSpec(kind="navigate", path="/")))
+
+    class Session:
+        current, base_url, requests = "anon", "http://127.0.0.1", []
+
+        def mark(self):
+            return Mark(0, 0, 0)
+
+        async def observe(self):
+            return {
+                "identity": "anon",
+                "url": "http://127.0.0.1/",
+                "title": "t",
+                "text": "x",
+                "links": [],
+                "forms": [],
+                "buttons": [],
+                "recent_requests": [],
+            }
+
+        async def execute(self, action):
+            return ActionResult(True, None, "http://127.0.0.1/", [], action)
+
+        def agent_evidence_since(self, mark, count_probes=(), health_probes=()):
+            return AgentEvidence(base=Evidence())
+
+    provider = BudgetedProvider(Waiting(), 1.0, 0.2)  # per-call timeout 0.2 s < the 0.4 s wait: not killed
+    explorer = Explorer(
+        Session(),
+        provider,
+        Strategy(hypotheses=[Hypothesis(id="h", title="t", targets=["/"])]),
+        AppMap(base_url="http://127.0.0.1"),
+        ExploreBudget(max_steps=10, max_seconds=0.6),
+        lambda s: None,
+    )
+    result = await explorer.run()
+    assert provider.failures == 0 and provider.calls >= 1  # the wait was not a timeout
+    assert result.stopped == "time budget used"  # but it was spent from the run's own clock
