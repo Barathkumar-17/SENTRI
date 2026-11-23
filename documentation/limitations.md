@@ -25,4 +25,4 @@
 | Replay steps are stored exactly | What a replay must re-send (including the text typed into test accounts' forms) is kept unscrubbed in the local ledger, so replays work; keep `.sentri/` out of git and shared drives. |
 | Model speed and size | CLI providers start a process per model call (seconds per step). Small local models are untested for driving exploration. |
 | Slow DNS on some Macs | If `sentri doctor` reports slow local DNS, Python dev servers start slowly; map `127.0.0.1` to `localhost` in `/etc/hosts`. |
-| Docker mode is unverified | The Docker sandbox is tested only with a fake Docker client (build, run and readiness failures, teardown); no release has been checked against a real Docker daemon yet. Command mode and URL mode are what has been run end to end. |
+| Docker mode: lifecycle only | The Docker sandbox's lifecycle (build, start, readiness, reset, stop, failed and cancelled starts, port conflicts, leaked containers) passes `scripts/docker_lifecycle_check.py` on a real Docker daemon. A model-driven run inside Docker mode has not been done; command mode and URL mode are what has been run end to end with a model. |

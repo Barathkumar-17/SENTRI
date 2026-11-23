@@ -30,6 +30,25 @@ every level: the engine, the CLI and the web app.
 - Optionally proposes fixes for crash bugs (it needs a stack trace) as draft pull requests that must pass a
   fixed gate first. Agentic findings are fixed by hand; the next run re-checks them.
 
+## How it is built
+
+```
+ your running app  <--HTTP / real browser-->  Sentri engine
+                                               recon (code only) -> strategy (model) -> exploration (model proposes)
+                                                                                              |
+                                                          candidates replayed 3x from a restarted app
+                                                                                              |
+                                        plain-code oracles decide pass / fail -> bug ledger (SQLite) -> report
+```
+
+- **Trust boundary:** the model never decides a verdict. The verdict, ledger and report code does not import the
+  model, attacker, planner or fixer packages (a test enforces this). A bug is marked *intended* by humans only.
+- **Black box:** the model sees pages, requests and responses of the running app, never its source, README,
+  database or server logs (a test enforces this). The optional source-aware fixer is a separate, explicitly
+  invoked mode whose output is labelled source-assisted.
+- **Where it runs:** a Python engine and CLI, an optional GitHub Action, and a local web app (FastAPI backend, React
+  frontend, desktop browsers) that only listens on localhost. There is no hosted service and no account.
+
 ## Why not ZAP, Burp, Playwright fuzzing or Nuclei?
 
 They are good tools; Sentri answers a different question.
@@ -76,7 +95,24 @@ sentri run --contract examples/buggy-app/approved.yaml --llm-provider claude_cod
 ```
 
 **No model = no agent, baseline suite only.** Without `--llm-provider` (or `--ollama`) Sentri skips recon,
-strategy and exploration and runs only the six fixed attacks.
+strategy and exploration and runs only the six fixed attacks. This is the reproducible first run: it needs no
+account and no key, and the demo app's planted bugs show up in the report.
+
+```bash
+sentri run --contract examples/buggy-app/approved.yaml --out report.md      # no model, baseline suite only
+```
+
+**Docker mode.** With Docker installed and running, Sentri can build and run the app in a throwaway container
+instead of a local process (the container is removed afterwards):
+
+```bash
+sentri contract approve examples/buggy-app/contract.docker.yaml --as "<your name>" --out examples/buggy-app/approved.docker.yaml
+sentri run --contract examples/buggy-app/approved.docker.yaml --out report.md
+python scripts/docker_lifecycle_check.py    # no model: build, start, reset, stop, failed and cancelled starts, leaks
+```
+
+The lifecycle script exits 0 when every check passed, 1 when one failed and 2 when there is no usable Docker
+(nothing was tested). It is also available as the manual `docker-lifecycle` GitHub workflow.
 
 What a real run finds, how long it takes and what it costs: [example report](documentation/example-report.md).
 
@@ -131,6 +167,22 @@ pass `--model`. Each flag has an environment variable: `SENTRI_LLM_PROVIDER`, `S
 `SENTRI_LLM_API_KEY`, `SENTRI_MODEL_FAST` (`--model`), `SENTRI_MODEL_SMART` (`--model-smart`, used by the
 fixer). `sentri doctor` shows which model will be used and whether it is reachable. Paid APIs are capped per
 run by `SENTRI_LLM_BUDGET_USD` (default 1.00).
+
+Keys are read from the environment, never from a file Sentri ships. Placeholders for an API provider:
+
+```bash
+export SENTRI_LLM_PROVIDER=openai_compatible
+export SENTRI_LLM_BASE_URL=https://api.example.com/v1     # your provider's OpenAI-compatible endpoint
+export SENTRI_LLM_API_KEY=<your-key>                      # a placeholder: put your own key here, never in git
+export SENTRI_MODEL_FAST=<model-id>
+```
+
+**Cost and quota bounds.** A run stops, and says why in its report, when any limit is reached:
+`SENTRI_LLM_MAX_TOKENS` and `SENTRI_LLM_MAX_CALLS` (0 = no limit), `SENTRI_LLM_BUDGET_USD` (paid APIs),
+`SENTRI_EXPLORE_STEPS` (default 60) and `SENTRI_EXPLORE_MINUTES` (default 10). A provider's own per-minute limit
+is waited out (up to about a minute); a daily quota or a longer wait ends the run with that reason instead of
+retrying. The report records the tokens used, the calls made and any pause or retry. Local models and signed-in
+agent CLIs have no per-token price, but they still count against the token and step limits above.
 
 ## The contract
 
@@ -222,6 +274,27 @@ A pass means "survived these attacks", nothing more. Sentri does not check busin
 | `sentri fix BUG-001` | Optional: propose a patch for a baseline crash bug (needs a stack trace), run the gate, open a draft PR |
 
 Exit codes: 0 finished, 1 gate (`--fail-under`, `--fail-on-regression`), 2 contract or config error, 3 app failed to start, 4 infrastructure missing.
+
+## Status and limitations
+
+Sentri is an MVP. What has been checked, and on what:
+
+- **Validated on fixture apps only** (`examples/buggy-app`, with planted bugs, and `examples/flow-shop`, a small
+  shop with hidden failures that is kept apart from the tool). It has not been shown to work reliably on arbitrary
+  apps, and nothing here is a measured detection rate.
+- **Autonomous discovery, command mode:** one recorded run on flow-shop with a model (`claude-sonnet-5-5` through
+  Claude Code, 60k tokens, 25 steps) found an HTTP 500 on the order-confirmation request, and the finding was
+  replayed 3 of 3 times from a restarted app. Runs with other models and budgets were stopped by provider limits and
+  say so in their reports. One run is an existence proof, not a reliability figure.
+- **Replay and verdict pipeline:** checked separately with fixed, harness-supplied inputs (a known leak is
+  confirmed 3 of 3 from three distinct app processes, a control is not reproduced). Those findings are labelled
+  `harness`, never as discoveries by the model.
+- **Docker lifecycle:** the no-model lifecycle check (build, start, readiness, reset, stop, failed and cancelled
+  starts, port conflict, no leaked containers) passed 8 of 8 on a real Docker 29.4.2 daemon (GitHub-hosted Linux
+  runner, manual `docker-lifecycle` workflow). Model-driven exploration inside Docker mode has **not** been run:
+  that needs Docker and model access on the same machine.
+- **Not covered:** business logic, security scanning, desktop and mobile apps, phone layouts for the web app,
+  and any hosted or multi-user setup. The full list is in [limitations](documentation/limitations.md).
 
 ## License
 
