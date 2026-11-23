@@ -19,7 +19,9 @@ top right. Every page and filter has its own link, so reload, Back and bookmarks
   exploration and model use. Each row opens the run or its report.
 - **Run**: progress (each phase, or live counts while running), why it stopped (for example a token limit or a
   provider quota), the activity log (live while the run is going), the exploration steps with who chose each
-  one, and model use. The report is the next step.
+  one, and model use. The report is the next step. A run started from the web app can be stopped here (with a
+  confirmation); what ran so far is kept and the run is recorded as aborted. A run started with `sentri run`
+  is stopped in its terminal with Ctrl+C, and is recorded as aborted the same way.
 - **Report** (`#/runs/<id>/report`): one run's analysis from the recorded data, no model involved. What broke
   (findings confirmed by replay, failed baseline checks with their bugs, regressions, candidates that did not
   reproduce), what was tested (exploration, the model's attack ideas, the baseline grid), coverage limits, and
@@ -35,7 +37,9 @@ top right. Every page and filter has its own link, so reload, Back and bookmarks
 - **New run**: choose a model, point at your app folder or URL, draft or paste a contract, validate, approve,
   and start the run.
 
-If the server stops, the app says so and reconnects on its own when it is back.
+If the server stops, the app says so and reconnects on its own when it is back; a live activity log picks up
+where it left off, without losing or repeating events. The live picture of the browser Sentri drives is shown
+only for runs this server started.
 
 ## The API, step by step
 
