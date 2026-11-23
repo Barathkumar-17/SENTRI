@@ -13,7 +13,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sentri.ledger.db import connect
+from sentri.redact import redact, redact_obj
 from sentri.verdict.engine import CheckVerdict, OracleHit
+
+
+def _scrub(text: str | None) -> str | None:
+    """Narrative text (model thoughts, errors, notes) may quote provider errors: keys and account ids go."""
+    return redact(text) if text else text
 
 
 def now() -> str:
@@ -106,8 +112,8 @@ class Ledger:
                 llm_cost_usd,
                 llm_mode,
                 json.dumps(breakdown),
-                json.dumps(usage, default=str) if usage is not None else None,
-                json.dumps(coverage, default=str) if coverage is not None else None,
+                json.dumps(redact_obj(usage), default=str) if usage is not None else None,
+                json.dumps(redact_obj(coverage), default=str) if coverage is not None else None,
                 run_id,
             ),
         )
@@ -453,13 +459,13 @@ class Ledger:
                 step.get("parent_step"),
                 step.get("hypothesis_id"),
                 step.get("identity"),
-                step.get("thought"),
-                json.dumps(step.get("action")),
-                step.get("action_text"),
+                _scrub(step.get("thought")),
+                json.dumps(step.get("action")),  # exact: replays re-send it
+                _scrub(step.get("action_text")),
                 int(bool(step.get("ok"))),
-                step.get("error"),
+                _scrub(step.get("error")),
                 step.get("url_after"),
-                json.dumps(step.get("signals", [])),
+                json.dumps(redact_obj(step.get("signals", []))),
                 now(),
                 step.get("origin"),
             ),
@@ -485,7 +491,7 @@ class Ledger:
             (
                 run_id,
                 finding.get("hypothesis_id"),
-                finding.get("title"),
+                _scrub(finding.get("title")),
                 ",".join(finding.get("oracle_ids", [])),
                 json.dumps(finding.get("repro", [])),
                 finding.get("from_step"),
@@ -497,7 +503,7 @@ class Ledger:
                 finding.get("origin"),
                 finding.get("replay_state"),
                 json.dumps(finding.get("evidence") or []),
-                json.dumps(finding.get("notes") or []),
+                json.dumps(redact_obj(finding.get("notes") or [])),
             ),
         )
         self.conn.commit()
@@ -554,7 +560,7 @@ class Ledger:
     def add_event(self, run_id: int | None, kind: str, message: str, reason: str | None, data: dict[str, Any]) -> int:
         cur = self.conn.execute(
             "INSERT INTO events (run_id, ts, kind, message, reason, data) VALUES (?,?,?,?,?,?)",
-            (run_id, now(), kind, message, reason, json.dumps(data, default=str)),
+            (run_id, now(), kind, redact(message), _scrub(reason), json.dumps(redact_obj(data), default=str)),
         )
         self.conn.commit()
         return int(cur.lastrowid or 0)

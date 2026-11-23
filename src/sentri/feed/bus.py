@@ -10,6 +10,7 @@ from collections.abc import Callable
 from typing import Any
 
 from sentri.ledger.ledger import Ledger
+from sentri.redact import redact, redact_obj
 
 log = logging.getLogger("sentri.feed")
 
@@ -27,6 +28,10 @@ class EventBus:
         self._listeners.append(fn)
 
     def emit(self, kind: str, message: str, reason: str | None = None, **data: Any) -> int:
+        # Provider errors quote keys and account ids; nothing leaves the bus unscrubbed.
+        message = redact(message)
+        reason = redact(reason) if reason else reason
+        data = redact_obj(data)
         event_id = self.ledger.add_event(self.run_id, kind, message, reason, data)
         if self.echo is not None:
             self.echo(kind, message, reason)

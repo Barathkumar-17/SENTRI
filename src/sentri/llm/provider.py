@@ -13,6 +13,7 @@ from typing import Protocol
 from pydantic import BaseModel, Field
 
 from sentri.llm.prices import price_known
+from sentri.redact import redact
 
 # ---- schemas the model must fill ----------------------------------------------------------------------
 
@@ -84,6 +85,11 @@ class LLMResult[T: BaseModel]:
     model: str | None = None
     error: str | None = None
     retries: int = 0  # retries inside this call (rate-limit waits, re-asks after invalid JSON)
+
+    def __post_init__(self) -> None:
+        # Provider errors quote keys, organization and project ids: scrub them before anyone sees the text.
+        if self.error:
+            self.error = redact(self.error)
 
 
 class LLMProvider(Protocol):
