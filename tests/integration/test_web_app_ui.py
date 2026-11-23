@@ -57,6 +57,11 @@ def test_web_app_renders_a_run_and_records_a_bug_decision(server):
         errors: list[str] = []
         page.on("pageerror", lambda e: errors.append(str(e)))
 
+        page.goto(f"{base}/")  # Home is the landing page: how to use Sentri, plus the latest real run
+        expect(page.get_by_role("link", name="Home")).to_have_attribute("aria-current", "page")
+        expect(page.get_by_role("heading", name="How to use Sentri")).to_be_visible()
+        expect(page.get_by_role("link", name=f"Latest: Run {run}")).to_be_visible()
+
         page.goto(f"{base}/#/runs")
         expect(page.get_by_role("link", name=f"Run {run}", exact=True)).to_be_visible()
         # readiness carries its scale and what it was built from, visibly (not only on hover)
