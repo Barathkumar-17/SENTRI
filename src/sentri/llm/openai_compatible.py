@@ -119,11 +119,19 @@ class OpenAICompatibleProvider:
     ) -> LLMResult[T]:
         model = self.models.get(role) or self.models["default"]
         json_schema = schema.model_json_schema()
-        system_full = (
+        schema_text = (
             f"{system}\n\nReply with a single JSON object only, no prose, matching this JSON Schema:\n"
-            f"{json.dumps(json_schema)}"
+            + json.dumps(json_schema)
         )
-        messages = [{"role": "system", "content": system_full}, {"role": "user", "content": user}]
+
+        def system_for_mode() -> str:
+            # With json_schema the server already gives the model the schema (measured: sending it in the rules too
+            # was ~3.8k characters per call, twice). Only the json_object fallback needs it written out.
+            if self._schema_mode:
+                return f"{system}\n\nReply with a single JSON object only, no prose, matching the response schema."
+            return schema_text
+
+        messages = [{"role": "system", "content": system_for_mode()}, {"role": "user", "content": user}]
         tokens_in = tokens_out = 0
         last_error = "no response"
         rate_waits = 0
@@ -167,6 +175,7 @@ class OpenAICompatibleProvider:
                     continue
                 if resp.status_code == 400 and self._schema_mode:
                     self._schema_mode = False  # server does not support json_schema; retry with json_object
+                    messages = [{"role": "system", "content": system_for_mode()}, *messages[1:]]
                     continue
                 if resp.status_code >= 400:
                     return LLMResult(

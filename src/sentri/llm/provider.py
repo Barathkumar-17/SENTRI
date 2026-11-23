@@ -292,5 +292,11 @@ class BudgetedProvider:
             },
             "stop_reason": self.stop_reason,
             "rate_waits": list(self.rate_waits),
+            # which structured-output mode the server accepted (json_schema: the schema travels once, in the request)
+            "response_format": (
+                None
+                if not hasattr(self.inner, "_schema_mode")
+                else ("json_schema" if self.inner._schema_mode else "json_object")
+            ),
             "roles": {role: u.__dict__ for role, u in sorted(self.roles.items())},
         }
