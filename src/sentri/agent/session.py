@@ -150,6 +150,7 @@ class AgentSession:
         self.timeout_ms = timeout_ms
         self.contexts: dict[str, BrowserContext] = {}
         self.tabs: dict[str, list[Page]] = {}
+        self.login_failed: dict[str, str] = {}  # identity -> why its login did not succeed (never retried this run)
         self.current = "anon"
         self.tab_index = 0
         self.requests: list[ObservedRequest] = []
@@ -208,19 +209,31 @@ class AgentSession:
     async def _context(self, who: str) -> BrowserContext:
         if who in self.contexts:
             return self.contexts[who]
+        if who in self.login_failed:
+            raise ActionRefused(f"login as {who} failed earlier in this run ({self.login_failed[who]}); not retried")
+        if who in ("a", "b") and self.login_fn is None:
+            raise ActionRefused("this contract has no login, so only the anon identity exists")
         ctx = await self.browser.new_context(fence_origin=self.base_url)
-        self.contexts[who] = ctx
         page = await ctx.new_page()
         self._attach(page, who)
-        self.tabs[who] = [page]
         if who in ("a", "b"):
-            if self.login_fn is None:
-                raise ActionRefused("this contract has no login, so only the anon identity exists")
-            headers = await self.login_fn(page, who)
+            assert self.login_fn is not None
+            try:
+                headers = await self.login_fn(page, who)
+            except Exception as exc:  # noqa: BLE001 - a failed login must never pass as a working identity
+                # Never keep a half-logged-in context: a later switch would silently act logged out.
+                self.login_failed[who] = str(exc)[:200]
+                with contextlib.suppress(Exception):
+                    await ctx.close()
+                raise ActionRefused(f"login as {who} failed: {self.login_failed[who]}") from None
             if headers:
                 self.identity_headers[who] = headers
                 await set_identity_headers(ctx, headers)
+            self.contexts[who] = ctx
+            self.tabs[who] = [page]
         else:
+            self.contexts[who] = ctx
+            self.tabs[who] = [page]
             await page.goto(self.base_url + "/", wait_until="load", timeout=self.timeout_ms)
         return ctx
 
