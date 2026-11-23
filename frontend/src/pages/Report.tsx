@@ -90,7 +90,7 @@ function Summary({ run, findings, grid }: { run: Run; findings: Finding[]; grid:
             <span className="note">{run.coverage?.replay_state === 'none' ? 'URL mode: the app was not reset between replays' : 'each replay attempt starts clean'}</span>
           </div>
         </div>
-        {b?.formula && <p className="formula">{b.formula}</p>}
+        {b?.formula && !insufficient(b) && <p className="formula">{b.formula}</p>}
         <p className="footnote">{READINESS_NOTE}</p>
       </div>
     </Card>
@@ -204,7 +204,7 @@ function Tested({ run, grid, agentic }: { run: Run; grid: Grid; agentic: Agentic
       </div>
       <Card title="Baseline suite" hint="each attacked flow × six fixed attacks, 3 attempts" flush>
         {!grid.cells.length ? (
-          <Empty title="Not run">{phases.baseline ?? 'The contract has no attacked flows, or the run used agentic mode only.'} Without it there is no readiness score.</Empty>
+          <Empty title="Not run">{phases.baseline ? `${phases.baseline[0].toUpperCase()}${phases.baseline.slice(1)}.` : 'The contract has no attacked flows, or the run used agentic mode only.'} Without it there is no readiness score.</Empty>
         ) : (
           <div className="table-wrap">
             <table className="matrix">

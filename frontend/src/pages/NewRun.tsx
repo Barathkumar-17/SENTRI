@@ -10,7 +10,7 @@ export function NewRun() {
   const [approved, setApproved] = useState(false)
   return (
     <>
-      <PageHead crumbs={[{ label: 'Runs', href: '#/runs' }, { label: 'New run' }]} title="New run" purpose="Three steps: choose the model that plans and explores, point Sentri at your app and approve what it may test, then start. New to Sentri? See Getting started." />
+      <PageHead crumbs={[{ label: 'Runs', href: '#/runs' }, { label: 'New run' }]} title="New run" purpose={<>Three steps: choose the model that plans and explores, point Sentri at your app and approve what it may test, then start. New to Sentri? See <a href="#/start">Getting started</a>.</>} />
       <div className="page-body stepper">
         <Step n={1} title="Model" done={modelReady}><ModelStep onReady={setModelReady} /></Step>
         <Step n={2} title="App and contract" done={approved}>

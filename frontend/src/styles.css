@@ -167,6 +167,7 @@ ul, ol { margin: 0; }
 .card-body { padding: var(--s4) var(--s5); }
 .card-body.flush { padding: 0; }
 .card-body > .state { padding: 0; }
+.card-body.flush > .state { padding: var(--s4) var(--s5); }
 .card-foot { padding: var(--s3) var(--s5); border-top: 1px solid var(--line-soft); color: var(--text-3); font-size: var(--fs-sm); }
 .card.quiet { background: transparent; box-shadow: none; }
 .card.decision { border-color: var(--green-border); background: #172520; }
