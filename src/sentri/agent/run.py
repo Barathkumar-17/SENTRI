@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from sentri.agent.explorer import ExploreBudget, Explorer
-from sentri.agent.identities import make_login
+from sentri.agent.identities import make_login, start_authenticated
 from sentri.agent.recon import Recon
 from sentri.agent.replay import ReplayEnv, agentic_oracle_config, confirm, record
 from sentri.agent.session import AgentSession
@@ -39,6 +39,7 @@ class AgenticResult:
     fallbacks: int = 0
     invalid: int = 0
     stalls: int = 0
+    start_as: str | None = None  # the test account exploration began as (verified), else None = logged out
     stats: dict[str, Any] = field(default_factory=dict)  # explorer coverage (states, actions, origins)
     notes: list[str] = field(default_factory=list)
 
@@ -151,6 +152,19 @@ async def run_agentic(
 
     try:
         await session.start()
+        if contract.auth is not None and contract.auth.start_as:
+            # Setup precondition, after the last reset (a reset would wipe the account): not an agent action.
+            pages = sorted(p.path for p in app_map.pages if p.requires_login and p.auth_evidence)
+            ok, detail = await start_authenticated(session, contract.auth.start_as, pages)
+            out.start_as = contract.auth.start_as if ok else None
+            bus.emit(
+                "setup",
+                f"exploration start: {detail}" if ok else f"exploration start NOT authenticated: {detail}",
+                start_as=contract.auth.start_as,
+                verified=ok,
+            )
+            if not ok:
+                out.notes.append(f"start_as {contract.auth.start_as} not verified: {detail}")
         explored = await Explorer(
             session,
             provider,

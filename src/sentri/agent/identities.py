@@ -103,3 +103,37 @@ def make_login(contract: Contract, tmp_dir: Path, run_tag: str) -> LoginFn | Non
         return None
 
     return login_flow
+
+
+async def start_authenticated(session: Any, who: str, pages: list[str]) -> tuple[bool, str]:
+    """Begin exploration as test account `who`, verified against real app state, never a cookie or a label.
+
+    Logs in through the ordinary identity mechanism, then opens login-only pages that recon proved (anon was
+    redirected or refused while a user got the page): the account is authenticated only if the server really serves
+    one of them to this session (same path, no login form). On any failure the session is returned to the logged-out
+    identity so a run never believes it is logged in when it is not. Returns (ok, one-line detail without secrets)."""
+    if not pages:
+        await session.execute_switch("anon")
+        return False, "recon proved no login-only page, so a login cannot be verified; exploration starts logged out"
+    try:
+        await session.execute_switch(who)
+    except Exception as exc:  # noqa: BLE001 - a login that did not succeed must not pass as authenticated
+        await session.execute_switch("anon")
+        return False, f"login as {who} failed ({str(exc)[:120]}); exploration starts logged out"
+    page = session.page
+    base = session.base_url
+    tried = []
+    for path in pages[:3]:
+        try:
+            await page.goto(base + path, wait_until="load", timeout=session.timeout_ms)
+        except PlaywrightError as exc:
+            tried.append(f"{path}: {exc.message.splitlines()[0][:60]}")
+            continue
+        here = page.url.removeprefix(base).split("?")[0].split("#")[0] or "/"
+        has_login_form = await page.locator("input[type=password]").count() > 0
+        if here.rstrip("/") == path.rstrip("/") and not has_login_form:
+            await page.goto(base + "/", wait_until="load", timeout=session.timeout_ms)
+            return True, f"as {who}: login-only page {path} is served to this session (anon is redirected there)"
+        tried.append(f"{path}: ended on {here or '/'}")
+    await session.execute_switch("anon")
+    return False, f"as {who}: no login-only page was served to this session ({'; '.join(tried)}); starting logged out"

@@ -267,6 +267,7 @@ class RunOrchestrator:
                         "inconclusive": agentic.inconclusive,
                         "rechecked": agentic.rechecked,
                         "exploration_stop": agentic.exploration_stop,
+                        "start_as": agentic.start_as,
                         **agentic.stats,
                         "notes": agentic.notes[:10],
                     }

@@ -238,6 +238,10 @@ class ApiAuth(_Strict):
 class AuthConfig(_Strict):
     login_flow: str | None = None  # a browser flow that logs in
     api: ApiAuth | None = None  # or token login over HTTP
+    # A neutral test precondition: begin the agent's exploration already logged in as this test account (set up by
+    # the same login as any identity switch, right after the last app reset, and verified against a login-only page).
+    # It does not prove the agent can log in by itself; the agent still chooses what to do and may switch identity.
+    start_as: Literal["a", "b"] | None = None
 
     @model_validator(mode="after")
     def _one(self) -> AuthConfig:
