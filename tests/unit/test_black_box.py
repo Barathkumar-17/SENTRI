@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -103,3 +104,48 @@ def test_external_sandbox_waits_for_the_url_and_never_resets():
     dead = ExternalSandbox(parse_contract(_contract({"base_url": "http://127.0.0.1:9", "startup_timeout_s": 1})).app)
     with pytest.raises(SandboxError, match="does not start the app"):
         asyncio.run(dead.start())
+
+
+# ---- the same rule at the wrapper (web app) and CLI level ------------------------------------------------------
+WRAPPER_FORBIDDEN = ("read_readme", "README.md", "logs_since", "duplicate_db", "sqlite3", "sentri.fixer")
+
+
+def _function_source(path: Path, name: str) -> str:
+    source = path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    node = next(n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name)
+    return ast.get_source_segment(source, node) or ""
+
+
+def test_the_web_app_never_reaches_the_source_aware_fixer():
+    for module in ("sentri.dashboard.server", "sentri.dashboard.control_routes", "sentri.control.projects"):
+        reached = transitive_imports(module)
+        assert not any(name.startswith("sentri.fixer") for name in reached), module
+
+
+@pytest.mark.parametrize(
+    ("path", "function"),
+    [
+        ("dashboard/control_routes.py", "plan"),
+        ("dashboard/control_routes.py", "start_run"),
+        ("cli.py", "plan"),
+        ("cli.py", "run_cmd"),
+    ],
+)
+def test_wrapper_and_cli_testing_entry_points_stay_black_box(path, function):
+    body = _function_source(SRC / path, function)
+    for forbidden in WRAPPER_FORBIDDEN:
+        assert forbidden not in body, f"{path}:{function} uses {forbidden}"
+
+
+def test_inspecting_a_project_folder_returns_no_file_contents(tmp_path):
+    from sentri.control.projects import inspect_project
+
+    marker = "SECRET-README-MARKER-41"
+    (tmp_path / "README.md").write_text(f"# app\n{marker}\n", encoding="utf-8")
+    (tmp_path / "package.json").write_text(
+        json.dumps({"scripts": {"start": "node server.js"}, "x": marker}), encoding="utf-8"
+    )
+    result = inspect_project(tmp_path)
+    assert marker not in repr(result)  # paths and start suggestions only; the person sees them, the tester never does
+    assert result["readme"] == str(tmp_path / "README.md")
