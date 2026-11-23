@@ -19,8 +19,8 @@ const NAV = [
 function Mark() {
   return (
     <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="8" fill="#151d2f" stroke="#27365a" />
-      <path d="M21.5 10.5c-1.2-1.4-3.1-2.2-5.4-2.2-3.4 0-5.8 1.8-5.8 4.4 0 5.4 11.2 3.4 11.2 8.6 0 2.7-2.6 4.4-6 4.4-2.6 0-4.7-1-5.9-2.6" fill="none" stroke="#f2f4f8" strokeWidth="2.4" strokeLinecap="round" />
+      <rect width="32" height="32" rx="8" fill="#242424" stroke="#393939" />
+      <path d="M21.5 10.5c-1.2-1.4-3.1-2.2-5.4-2.2-3.4 0-5.8 1.8-5.8 4.4 0 5.4 11.2 3.4 11.2 8.6 0 2.7-2.6 4.4-6 4.4-2.6 0-4.7-1-5.9-2.6" fill="none" stroke="#fafafa" strokeWidth="2.4" strokeLinecap="round" />
     </svg>
   )
 }
@@ -49,7 +49,7 @@ export default function App() {
       </nav>
       <main className="main" id="main">
         {jobs.error && jobs.error.status === 0 && (
-          <div style={{ padding: '16px 32px 0' }}>
+          <div className="page-banner">
             <Banner tone="bad" title="Disconnected from the Sentri server">Start it again with <code>sentri ui</code>; this page reconnects on its own.</Banner>
           </div>
         )}
