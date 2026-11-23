@@ -104,6 +104,16 @@ The loop is hardened in code:
 - each hypothesis gets 10 steps, more while it keeps reaching new page states (up to 20); repeating the same
   action three times with no change moves the focus to the next hypothesis at once;
 - the model can only end exploration early once every hypothesis has had its turn.
+- Sentri remembers every attempt for the whole run, across pages and across hypothesis changes, by who acted and
+  what the request or page actually was. Two identical attempts with the same outcome (or three with different
+  inputs) and nothing changed in the app since are not run a third time: a different experiment, another account,
+  or one stated reason for a deliberate repeat is needed. A new identity or a successful change reopens it.
+- when a step is stopped by login (a 401/403 answer, or a login form the step did not mean to open) the model is
+  told what was observed and which accounts it could use; it decides what to do. Sentri never logs it in for it;
+- steps that add nothing new (no new state, no new outcome, no signal) in a row, whatever the hypothesis, trigger a
+  warning and then end the run with the honest reason "no progress" instead of using up the budget;
+- an option number (L3, F1, B2) means what it meant in the page just shown; one that is not offered now is refused at
+  once rather than clicked.
 
 To test privacy, each identity has a unique **canary** string, and **Sentri itself** adds it to free text the
 agent types and to JSON bodies it sends as user `a` or `b`. Typed fields such as email, number or password,
