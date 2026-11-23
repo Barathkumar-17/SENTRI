@@ -113,7 +113,10 @@ async def main() -> int:
             await bad.start()
             record("readiness failure is reported", False, "start() returned for an app that never listens")
         except SandboxError as exc:
-            record("readiness failure is reported with a reason", "did not open in time" in str(exc), str(exc)[:80])
+            # A real daemon publishes the host port before the app listens, so the port check passes and the health
+            # check reports the reset connection; a fake client never opens the port. Either is a clear reason.
+            reason = "did not open in time" in str(exc) or "health check" in str(exc)
+            record("readiness failure is reported with a reason", reason, str(exc)[:80])
         await asyncio.sleep(1)
         record("readiness failure leaves no container behind", not leaked(), f"leaked={len(leaked())}")
 
