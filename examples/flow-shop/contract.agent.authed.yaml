@@ -1,0 +1,36 @@
+# flow-shop, agent-only validation contract, STARTING AS A VERIFIED LOGGED-IN TEST ACCOUNT (auth.start_as).
+# A neutral test precondition: it does not show that an agent can log in by itself. Same as contract.agent.yaml otherwise.
+# flow-shop, agent-only validation contract. Deliberately minimal and neutral:
+# how Sentri starts the app, how a test identity logs in (setup: fresh generated accounts, nothing stored),
+# and one plain goal. No baseline flows, no routes, no hints. The agent must find its way from what it sees.
+version: 1
+
+app:
+  run: "{python} app.py"
+  cwd: "."
+  port: 5088
+  base_url: "http://127.0.0.1:5088"
+  startup_timeout_s: 60
+  health_path: "/"
+  reset: restart            # state is in memory only: each attempt and replay starts from a fresh process
+
+auth:
+  login_flow: login
+  start_as: a             # exploration begins logged in as test account a, verified against a login-only page
+
+goals:
+  - "Complete a purchase"
+
+flows:
+  - id: login
+    attack: false
+    start: "/signup"
+    steps:
+      - fill: {selector: "input[name=email]", value: "{email}"}
+      - fill: {selector: "input[name=password]", value: "{password}"}
+      - click: "#signup-btn"
+      - wait_for: {selector: "#login-btn"}
+      - fill: {selector: "input[name=email]", value: "{email}"}
+      - fill: {selector: "input[name=password]", value: "{password}"}
+      - click: "#login-btn"
+    success: {text_visible: "Shop"}

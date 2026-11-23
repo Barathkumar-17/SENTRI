@@ -101,6 +101,15 @@ Exactly one of `login_flow` (the id of a browser flow) or `api` (token login, ab
 reach that a signed-in user can) then do not run; the run feed says so at the start. Add `login_flow` or `api`
 to get them.
 
+`start_as: a` (or `b`, optional) is a neutral **test precondition**: the agent's exploration begins already logged
+in as that test account. Sentri logs it in through the same login as any identity switch, right after the last app
+reset (so the reset cannot wipe it), and verifies it against real app state: recon must have proved a login-only page
+(logged out was redirected or refused), and the server must actually serve that page to this session. If the login
+fails, the session is not recognised, or recon proved no such page, the run says so (a `setup` event and a note)
+and starts logged out instead of pretending. It does not show that the agent can log in by itself; the agent still
+chooses everything it does and may switch to the logged-out user or the other account. Without it, exploration
+starts logged out. See `examples/flow-shop/contract.agent.authed.yaml`.
+
 ### `flows[]`
 | Field | Meaning |
 |---|---|
