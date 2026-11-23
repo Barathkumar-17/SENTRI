@@ -273,7 +273,10 @@ async def test_a_provider_quota_ends_exploration_without_a_fallback_step():
     model = Quota()
     result, steps, session, _ = await _explore(model)
     assert session.executed == [] and steps == []
-    assert result.stopped == "model use stopped: provider quota exhausted (rate limit beyond the wait cap)"
+    # the stop keeps what the provider asked for, so a daily quota is told from a per-minute window
+    assert (
+        result.stopped == "model use stopped: provider quota exhausted (rate limit beyond the wait cap): retry in 1728s"
+    )
     assert len(model.prompts) == 1  # one refused call, no retry of a quota refusal
 
 
