@@ -203,3 +203,48 @@ async def test_the_per_call_timeout_excludes_rate_limit_waiting_but_still_catche
     slow = BudgetedProvider(Slow(waited=0.0, work=0.7), 1.0, 0.3)
     result = await slow.complete_json("explorer", "s", "u", PayloadSet)
     assert not result.ok and "timeout" in (result.error or "")
+
+
+async def test_the_answer_schema_travels_once_and_the_fallback_writes_it_out():
+    """Measured on flow-shop: the ~3.8k-character schema went in the rules text and in response_format."""
+    from sentri.llm import BudgetedProvider
+
+    seen: list[dict] = []
+
+    def schema_ok(request):
+        seen.append(json.loads(request.content))
+        return reply('{"payloads": []}')
+
+    budgeted = BudgetedProvider(provider_with(schema_ok), 1.0, 5)
+    assert (await budgeted.complete_json("attacker", "RULES", "u", PayloadSet)).ok
+    body = seen[0]
+    assert body["response_format"]["type"] == "json_schema" and '"properties"' in json.dumps(body["response_format"])
+    assert '"properties"' not in body["messages"][0]["content"]  # not repeated in the rules
+    assert budgeted.usage()["response_format"] == "json_schema"
+
+    seen.clear()
+
+    def rejects_schema(request):
+        sent = json.loads(request.content)
+        seen.append(sent)
+        if sent["response_format"]["type"] == "json_schema":
+            return httpx.Response(400, json={"error": {"message": "json_schema not supported"}})
+        return reply('{"payloads": []}')
+
+    budgeted = BudgetedProvider(provider_with(rejects_schema), 1.0, 5)
+    assert (await budgeted.complete_json("attacker", "RULES", "u", PayloadSet)).ok
+    assert seen[-1]["response_format"]["type"] == "json_object"
+    assert '"properties"' in seen[-1]["messages"][0]["content"]  # written out where the server cannot enforce it
+    assert budgeted.usage()["response_format"] == "json_object"
+
+
+def test_prompts_are_compact_json_with_every_value_kept():
+    from sentri.llm.untrusted import build_user_prompt
+
+    task = {"goal": "Complete a purchase", "steps_left": 3}
+    view = {"options": [{"id": "L1", "do": "navigate /cart"}], "text": "Shop"}
+    prompt = build_user_prompt(task, view, nonce="n1")
+    assert '\n "' not in prompt  # no indentation
+    task_part = prompt.split("\n", 1)[1].split("\n\n<<<APP DATA", 1)[0]
+    data_part = prompt.split(">>>\n", 1)[1].rsplit("\n<<<END", 1)[0]
+    assert json.loads(task_part) == task and json.loads(data_part) == view
