@@ -183,6 +183,7 @@ function Tested({ run, grid, agentic }: { run: Run; grid: Grid; agentic: Agentic
           {ag ? (
             <dl className="kv">
               <dt>Recon</dt><dd>{num(ag.pages)} pages, {num(ag.endpoints)} endpoints</dd>
+              <dt>Started as</dt><dd>{ag.start_as ? `test account ${ag.start_as}, logged in by setup and verified (a test precondition, not the agent logging in)` : 'logged out'}</dd>
               <dt>Steps</dt><dd>{num(ag.steps)}{ag.ai_steps != null ? ` (${num(ag.ai_steps)} chosen by the model, ${num(ag.code_probe_steps)} Sentri probes, ${num(ag.fallback_steps)} fallbacks)` : ''}</dd>
               {ag.distinct_states != null && <><dt>Distinct states</dt><dd>{num(ag.distinct_states)}{ag.states_by_identity ? ` (${Object.entries(ag.states_by_identity).map(([k, v]) => `${k} ${v}`).join(', ')})` : ''}</dd></>}
               <dt>Candidates</dt><dd>{num(ag.candidates)} replayed: {num(ag.confirmed)} confirmed, {num(ag.unconfirmed)} not reproduced, {num(ag.inconclusive)} inconclusive</dd>

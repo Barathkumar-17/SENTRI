@@ -32,6 +32,7 @@ export type AgenticCoverage = {
   pages?: number
   endpoints?: number
   hypotheses?: number
+  start_as?: string | null
   steps?: number
   ai_steps?: number
   code_probe_steps?: number
