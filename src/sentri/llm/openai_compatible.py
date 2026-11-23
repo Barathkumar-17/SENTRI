@@ -29,6 +29,10 @@ MAX_RATE_WAIT_S = 30.0  # longest single wait when the provider does not say whi
 # A per-minute limit (tokens or requests per minute) frees itself within one window: wait up to one window for it.
 # Daily or hourly quotas, and anything longer, still stop model use at once.
 MAX_WINDOW_WAIT_S = 65.0
+# A provider that is briefly overloaded answers 500/502/503/504 ("high demand, try again later"): retry a couple of
+# times with a short pause instead of losing the whole call. Client errors (400/401/403/404) are never retried.
+SERVER_BUSY = (500, 502, 503, 504)
+SERVER_RETRY_PAUSES_S = (4.0, 12.0)
 
 
 QUOTA_ERROR = "rate limit beyond the wait cap (provider quota)"
@@ -138,6 +142,7 @@ class OpenAICompatibleProvider:
         tokens_in = tokens_out = 0
         last_error = "no response"
         rate_waits = 0
+        server_busy = 0
         waits: list[dict[str, object]] = []
         attempt = 0
         while attempt < 3:
@@ -160,7 +165,7 @@ class OpenAICompatibleProvider:
                             f"{QUOTA_ERROR}: {quota_limit(resp.text)}retry in {server_wait(resp):.0f}s; "
                             f"{resp.text[:160]}"
                         ),
-                        retries=rate_waits,
+                        retries=rate_waits + server_busy,
                         waits=waits,
                     )
                 if resp.status_code == 429 and rate_waits < MAX_RATE_WAITS:
@@ -189,12 +194,19 @@ class OpenAICompatibleProvider:
                     self.downgrade_reason = redact(resp.text)[:200]  # why, for the run's record
                     messages = [{"role": "system", "content": system_for_mode()}, *messages[1:]]
                     continue
+                if resp.status_code in SERVER_BUSY and server_busy < len(SERVER_RETRY_PAUSES_S):
+                    pause = SERVER_RETRY_PAUSES_S[server_busy]
+                    server_busy += 1
+                    waits.append({"limit": f"server busy (HTTP {resp.status_code})", "asked_s": 0.0, "waited_s": pause})
+                    self.rate_wait_total += pause  # waiting, not answering: outside the per-call timeout
+                    await asyncio.sleep(pause)
+                    continue
                 if resp.status_code >= 400:
                     return LLMResult(
                         ok=False,
                         model=model,
                         error=f"http {resp.status_code}: {resp.text[:200]}",
-                        retries=rate_waits,
+                        retries=rate_waits + server_busy,
                         waits=waits,
                     )
                 data = resp.json()
@@ -213,7 +225,7 @@ class OpenAICompatibleProvider:
                     tokens_out,
                     cost_usd(model, tokens_in, tokens_out),
                     model,
-                    retries=rate_waits + attempt,
+                    retries=rate_waits + server_busy + attempt,
                     waits=waits,
                 )
             except (KeyError, IndexError, TypeError):
@@ -231,6 +243,6 @@ class OpenAICompatibleProvider:
             cost_usd(model, tokens_in, tokens_out),
             model,
             last_error,
-            retries=rate_waits + attempt,
+            retries=rate_waits + server_busy + attempt,
             waits=waits,
         )

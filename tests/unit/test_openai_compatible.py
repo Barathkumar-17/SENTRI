@@ -386,3 +386,37 @@ async def test_a_validation_400_is_a_bad_answer_not_a_downgrade_and_a_real_downg
     usage = budgeted.usage()
     assert usage["response_format"] == "json_object"
     assert "not supported" in usage["response_format_reason"] and "org_0000" not in usage["response_format_reason"]
+
+
+async def test_a_briefly_overloaded_provider_is_retried_and_each_pause_is_recorded(monkeypatch):
+    """Found by the 2026-11-23 Gemini run: one HTTP 503 ('high demand, try again later') on the first call lost the
+    whole agentic phase. 5xx is retried twice with short pauses; client errors are not."""
+    import asyncio
+
+    from sentri.llm import BudgetedProvider
+
+    slept: list[float] = []
+
+    async def no_sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    busy = httpx.Response(503, json={"error": {"message": "This model is currently experiencing high demand."}})
+    answers = iter([busy, busy, reply('{"payloads": []}')])
+    budgeted = BudgetedProvider(provider_with(lambda r: next(answers)), 1.0, 5)
+    result = await budgeted.complete_json("strategist", "s", "u", PayloadSet)
+    assert result.ok and slept == [4.0, 12.0] and result.retries == 2
+    assert [w["limit"] for w in budgeted.usage()["rate_waits"]] == ["server busy (HTTP 503)"] * 2
+
+    # still overloaded after the allowance: the call fails with the provider's answer, never forever
+    slept.clear()
+    budgeted = BudgetedProvider(provider_with(lambda r: busy), 1.0, 5)
+    result = await budgeted.complete_json("strategist", "s", "u", PayloadSet)
+    assert not result.ok and "http 503" in (result.error or "") and slept == [4.0, 12.0]
+
+    # a client error is a real answer: not retried
+    slept.clear()
+    gone = httpx.Response(404, json={"error": {"message": "model not found"}})
+    budgeted = BudgetedProvider(provider_with(lambda r: gone), 1.0, 5)
+    result = await budgeted.complete_json("strategist", "s", "u", PayloadSet)
+    assert not result.ok and "http 404" in (result.error or "") and slept == []

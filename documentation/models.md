@@ -65,7 +65,9 @@ A daily or hourly quota, or any longer wait, stops model use for the rest of the
 reason says which limit the provider named and how long it asked to wait. Time spent waiting out a rate limit
 does not count toward the per-call timeout `SENTRI_LLM_TIMEOUT_S` (default 60 s), which bounds how long the
 provider takes to answer; it does count toward the exploration time. Every wait (role, limit, asked, waited) is
-recorded with the run's model use.
+recorded with the run's model use. A provider that is briefly overloaded (HTTP 500, 502, 503 or 504, such as "high demand, try again later") is
+retried twice with short pauses (4 s, then 12 s), recorded the same way; other errors (for example an unknown model)
+are not retried.
 
 ## What the model is shown
 Page text, console errors and network summaries come from the app under test, which may contain text written
