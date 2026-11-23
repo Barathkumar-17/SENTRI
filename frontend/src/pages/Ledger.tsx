@@ -75,7 +75,7 @@ function BugList({ bugs }: { bugs: ReturnType<typeof useApi<import('../api').Bug
     <Panel title="Bugs" hint="open, flaky, fixed and intended; regressions counted across commits" flush>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Bug</th><th>Status</th><th>Where</th><th className="hide-narrow">Detail</th><th className="num">Regressions</th><th className="hide-narrow">Last seen</th></tr></thead>
+          <thead><tr><th>Bug</th><th>Status</th><th>Where</th><th>Detail</th><th className="num">Regressions</th><th>Last seen</th></tr></thead>
           <tbody>
             {bugs.data.map((b) => {
               const [tone, label] = BUG_STATUS[b.status] ?? ['', b.status]
@@ -89,9 +89,9 @@ function BugList({ bugs }: { bugs: ReturnType<typeof useApi<import('../api').Bug
                     </td>
                     <td><Badge tone={tone}>{label}</Badge>{b.needs_review ? <span className="sub">needs review</span> : null}</td>
                     <td className="mono xs">{b.flow_id} × {b.attack_id}<span className="sub">{b.oracle_id}</span></td>
-                    <td className="hide-narrow small muted wrap-anywhere">{b.sample_detail ?? '–'}</td>
+                    <td className="small muted wrap-anywhere">{b.sample_detail ?? '–'}</td>
                     <td className="num">{num(b.regressions)}</td>
-                    <td className="hide-narrow mono">{short(b.last_seen_commit)}</td>
+                    <td className="mono">{short(b.last_seen_commit)}</td>
                   </tr>
                   {open === b.id && (
                     <tr><td colSpan={6}><BugDecision bug={b} onChanged={bugs.reload} /></td></tr>

@@ -44,7 +44,7 @@ export function Findings({ id }: { id?: number }) {
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Verdict</th><th>Finding</th><th className="hide-narrow">Found by</th></tr>
+                    <tr><th>Verdict</th><th>Finding</th><th>Found by</th></tr>
                   </thead>
                   <tbody>
                     {list.data.map((f) => {
@@ -57,7 +57,7 @@ export function Findings({ id }: { id?: number }) {
                             <span className="sub mono">{f.key ?? f.oracle_ids ?? ''}</span>
                             <span className="sub">run {f.run_id} · <span className="mono">{short(f.commit_sha)}</span></span>
                           </td>
-                          <td className="hide-narrow">{ORIGIN[f.origin ?? ''] ?? f.origin ?? '–'}</td>
+                          <td>{ORIGIN[f.origin ?? ''] ?? f.origin ?? '–'}</td>
                         </tr>
                       )
                     })}

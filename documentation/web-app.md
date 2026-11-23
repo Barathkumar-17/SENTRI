@@ -2,6 +2,7 @@
 
 `sentri ui` starts a local server at `http://127.0.0.1:8787` and opens the web app. `sentri serve` starts the
 same server without opening a browser. The web app is built into the Python package, so it needs no Node.
+It is laid out for desktop browsers; there is no phone layout.
 
 ## Screens
 

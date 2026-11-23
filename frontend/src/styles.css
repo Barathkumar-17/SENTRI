@@ -172,8 +172,6 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .score .mono { font-size: var(--fs-md); font-weight: 600; color: var(--text); }
 .score .of { color: var(--text-3); font-size: var(--fs-xs); }
 .footnote.panel-foot { margin: 0; padding: var(--s3) var(--s5) var(--s4); border-top: 1px solid var(--line-soft); max-width: none; }
-.show-narrow, td .sub.show-narrow { display: none; }
-.show-narrow .badge { margin-top: var(--s1); }
 .footnote { margin: var(--s3) 0 0; max-width: 78ch; color: var(--text-2); font-size: var(--fs-sm); }
 td .sub { display: block; color: var(--text-3); font-size: var(--fs-xs); margin-top: 2px; }
 
@@ -310,26 +308,13 @@ ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s1
 .dot.on { background: var(--ok); box-shadow: 0 0 0 3px rgba(70, 192, 138, 0.18); }
 .dot.off { background: var(--bad); }
 
-/* ---- narrow layouts ------------------------------------------------------------------------------- */
+/* ---- narrow windows --------------------------------------------------------------------------------- */
 @media (max-width: 960px) {
   .split { grid-template-columns: minmax(0, 1fr); }
   .trail { grid-template-columns: minmax(0, 1fr); }
   .summary { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .summary dd + dt { margin-top: var(--s2); }
   .trail > div + div { border-left: 0; border-top: 1px solid var(--line); }
-}
-@media (max-width: 760px) {
-  .shell { grid-template-columns: minmax(0, 1fr); }
-  .rail { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; padding: var(--s3); border-right: 0; border-bottom: 1px solid var(--line-soft); }
-  .brand { padding: var(--s1) var(--s2); }
-  .rail-foot { display: none; }
-  .nav-link { padding: 6px var(--s3); }
-  .page-head { padding: var(--s5) var(--s4) var(--s4); }
-  .page-body { padding: var(--s4) var(--s4) var(--s8); }
-  th, td { padding: 8px var(--s3); }
-  .hide-narrow { display: none; }
-  .show-narrow, td .sub.show-narrow { display: block; }
-  td .sub.hide-narrow { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

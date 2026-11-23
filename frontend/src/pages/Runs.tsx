@@ -44,12 +44,12 @@ export function RunsTable({ runs }: { runs: Run[] }) {
         <thead>
           <tr>
             <th>Run</th>
-            <th className="hide-narrow">Status</th>
+            <th>Status</th>
             <th aria-describedby="readiness-note">Readiness</th>
-            <th className="num hide-narrow">Found</th>
-            <th className="hide-narrow">Exploration</th>
-            <th className="hide-narrow">Model use</th>
-            <th className="num hide-narrow">Duration</th>
+            <th className="num">Found</th>
+            <th>Exploration</th>
+            <th>Model use</th>
+            <th className="num">Duration</th>
           </tr>
         </thead>
         <tbody>
@@ -65,14 +65,9 @@ export function RunsTable({ runs }: { runs: Run[] }) {
                   <span className="sub">
                     <span className="mono">{short(r.commit_sha)}</span> · {r.branch ?? 'local'}
                   </span>
-                  <span className="sub hide-narrow">{when(r.started_at)}</span>
-                  <span className="sub show-narrow">
-                    <RunStatus run={r} />
-                    {stop && <span className="sub">{/^(stopped|model use)/.test(stop) ? stop : `stopped: ${stop}`}</span>}
-                    {ag && <span className="sub">{num(ag.confirmed)} confirmed of {count(ag.candidates ?? 0, 'candidate')}</span>}
-                  </span>
+                  <span className="sub">{when(r.started_at)}</span>
                 </td>
-                <td className="hide-narrow">
+                <td>
                   <RunStatus run={r} />
                   {stop && <span className="sub">{/^(stopped|model use)/.test(stop) ? stop : `stopped: ${stop}`}</span>}
                 </td>
@@ -80,7 +75,7 @@ export function RunsTable({ runs }: { runs: Run[] }) {
                   <Readiness breakdown={r.breakdown} />
                   <span className="sub">{readinessBasis(r.breakdown)}</span>
                 </td>
-                <td className="num hide-narrow">
+                <td className="num">
                   {ag ? (
                     <>
                       {num(ag.confirmed)}
@@ -90,10 +85,10 @@ export function RunsTable({ runs }: { runs: Run[] }) {
                     <span className="faint">–</span>
                   )}
                 </td>
-                <td className="hide-narrow">
+                <td>
                   {ag ? (
                     <>
-                      {num(ag.steps)} steps{ag.distinct_states != null && <> · {num(ag.distinct_states)} states</>}
+                      {count(ag.steps ?? 0, 'step')}{ag.distinct_states != null && <> · {count(ag.distinct_states, 'state')}</>}
                       <span className="sub">
                         {ag.ai_steps != null ? `${num(ag.ai_steps)} chosen by the model` : (ag.exploration_stop ?? 'no exploration record')}
                       </span>
@@ -102,7 +97,7 @@ export function RunsTable({ runs }: { runs: Run[] }) {
                     <Badge tone="outline">Baseline only</Badge>
                   )}
                 </td>
-                <td className="hide-narrow">
+                <td>
                   {r.usage ? (
                     <>
                       {num(r.usage.calls)} calls
@@ -112,7 +107,7 @@ export function RunsTable({ runs }: { runs: Run[] }) {
                     <span className="faint">–</span>
                   )}
                 </td>
-                <td className="num hide-narrow">{duration(r.duration_s)}</td>
+                <td className="num">{duration(r.duration_s)}</td>
               </tr>
             )
           })}
