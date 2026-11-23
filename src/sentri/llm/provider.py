@@ -294,6 +294,7 @@ class BudgetedProvider:
             },
             "stop_reason": self.stop_reason,
             "rate_waits": list(self.rate_waits),
+            "response_format_reason": getattr(self.inner, "downgrade_reason", None),
             # which structured-output mode the server accepted (json_schema: the schema travels once, in the request)
             "response_format": (
                 None

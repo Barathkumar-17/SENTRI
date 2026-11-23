@@ -344,3 +344,45 @@ async def test_rate_limit_waiting_counts_toward_the_runs_total_time_but_not_the_
     result = await explorer.run()
     assert provider.failures == 0 and provider.calls >= 1  # the wait was not a timeout
     assert result.stopped == "time budget used"  # but it was spent from the run's own clock
+
+
+async def test_a_validation_400_is_a_bad_answer_not_a_downgrade_and_a_real_downgrade_records_why():
+    """Found by the 2026-11-23 live run: the run ended in json_object mode with no record of why. Groq reports a model
+    output that fails its JSON check as HTTP 400 json_validate_failed; that must not read as "schema unsupported"."""
+    from sentri.llm import BudgetedProvider
+
+    seen: list[str] = []
+    answers = iter(
+        [
+            httpx.Response(
+                400, json={"error": {"message": "Failed to generate JSON.", "code": "json_validate_failed"}}
+            ),
+            reply('{"payloads": []}'),
+        ]
+    )
+
+    def handler(request):
+        seen.append(json.loads(request.content)["response_format"]["type"])
+        return next(answers)
+
+    budgeted = BudgetedProvider(provider_with(handler), 1.0, 5)
+    result = await budgeted.complete_json("attacker", "RULES", "u", PayloadSet)
+    assert result.ok and seen == ["json_schema", "json_schema"]  # re-asked in the same mode
+    assert budgeted.usage()["response_format"] == "json_schema" and budgeted.usage()["response_format_reason"] is None
+
+    def unsupported(request):
+        sent = json.loads(request.content)
+        if sent["response_format"]["type"] == "json_schema":
+            return httpx.Response(
+                400,
+                json={
+                    "error": {"message": "response_format json_schema is not supported by org_0000fakeorganizationid00"}
+                },
+            )
+        return reply('{"payloads": []}')
+
+    budgeted = BudgetedProvider(provider_with(unsupported), 1.0, 5)
+    assert (await budgeted.complete_json("attacker", "RULES", "u", PayloadSet)).ok
+    usage = budgeted.usage()
+    assert usage["response_format"] == "json_object"
+    assert "not supported" in usage["response_format_reason"] and "org_0000" not in usage["response_format_reason"]

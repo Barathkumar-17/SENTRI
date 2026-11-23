@@ -17,6 +17,7 @@ from pydantic import BaseModel, ValidationError
 
 from sentri.llm.prices import cost_usd
 from sentri.llm.provider import LLMResult
+from sentri.redact import redact
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ def server_wait(resp: httpx.Response) -> float:
     return (int(hours) * 3600 if hours else 0) + (int(minutes) * 60 if minutes else 0) + seconds
 
 
+_VALIDATION_FAILED = re.compile(r"json_validate_failed|failed_generation|failed to generate json", re.IGNORECASE)
 _LIMIT_KIND = re.compile(r"(requests|tokens) per (minute|day|hour)\s*\((RPM|TPM|RPD|TPD|RPH|TPH)\)", re.IGNORECASE)
 
 
@@ -106,6 +108,7 @@ class OpenAICompatibleProvider:
         self._schema_mode = True
         # Seconds spent waiting out rate limits, so far this process: the caller's per-call timeout excludes them.
         self.rate_wait_total = 0.0
+        self.downgrade_reason: str | None = None  # why json_schema mode was given up, if it was
 
     @property
     def available(self) -> bool:
@@ -173,8 +176,17 @@ class OpenAICompatibleProvider:
                     self.rate_wait_total += pause  # counted before sleeping: the timeout must not fire mid-wait
                     await asyncio.sleep(pause)
                     continue
+                if resp.status_code == 400 and _VALIDATION_FAILED.search(resp.text):
+                    # The model's own output failed the provider's JSON check (Groq: json_validate_failed). That is
+                    # a bad answer to re-ask, not a sign the server lacks json_schema: do not downgrade the mode.
+                    last_error = "the provider rejected the model's output as invalid JSON"
+                    if attempt < 2:
+                        messages = [*messages, {"role": "user", "content": "That was not valid. Reply with JSON only."}]
+                    attempt += 1
+                    continue
                 if resp.status_code == 400 and self._schema_mode:
                     self._schema_mode = False  # server does not support json_schema; retry with json_object
+                    self.downgrade_reason = redact(resp.text)[:200]  # why, for the run's record
                     messages = [{"role": "system", "content": system_for_mode()}, *messages[1:]]
                     continue
                 if resp.status_code >= 400:
