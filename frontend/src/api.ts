@@ -307,7 +307,7 @@ export function useEventStream(runId: number, enabled: boolean, onEvent: (e: Sen
 }
 
 export const KNOWN_EVENT_KINDS = [
-  'run_started', 'sandbox_starting', 'sandbox_ready', 'preflight', 'phase', 'recon', 'strategy', 'recheck',
+  'run_started', 'sandbox_starting', 'sandbox_ready', 'preflight', 'phase', 'recon', 'setup', 'strategy', 'recheck',
   'explore_step', 'candidate', 'finding', 'focus', 'llm_fallback', 'agentic_finished', 'agentic_skipped',
   'check_started', 'action', 'attempt_finished', 'check_finished', 'check_reused', 'probe_queued',
   'bug_opened', 'bug_fixed', 'regression', 'bug_needs_review', 'timing', 'llm_usage', 'warning',
