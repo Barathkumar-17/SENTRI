@@ -301,3 +301,36 @@ async def test_body_variants_of_a_request_that_always_answers_the_same_become_a_
     assert len(session.executed) == 3  # three different bodies, all 302 and no change: the rest are refused
     refused = [s for s in steps if (s["error"] or "").startswith("not run: known dead end")]
     assert refused and "POST /create answered (302,) 3x here with no change" in refused[0]["error"]
+
+
+class LabelUser:
+    """Fake model that names options by their labels, as a real one did (live Groq run, step 1: click(selector='L6')),
+    then uses a form label for fill_form, then finishes."""
+
+    name = "label-user"
+    available = True
+
+    def __init__(self):
+        self.replies = [
+            ActionSpec(kind="click", selector="L1"),  # a link's label used as a selector
+            ActionSpec(kind="fill_form", selector="F1", fields=[FieldSpec(selector="#qty", text="2")]),
+            ActionSpec(kind="finish", reason="done"),
+        ]
+
+    async def complete_json(self, role, system, user, schema, max_tokens=4000):
+        return LLMResult(True, Decision(hypothesis_id="checkout", action=self.replies.pop(0)))
+
+
+async def test_an_option_named_by_its_label_runs_that_options_action():
+    from sentri.agent.statemap import resolve_option_ref
+
+    result, steps, session, _ = await _explore(LabelUser())
+    assert session.executed[0].kind == "navigate" and session.executed[0].path == "/cart"  # L1 on home = /cart
+    form = session.executed[1]
+    assert form.kind == "fill_form" and form.selector == "#cart" and form.fields[0].text == "2"  # model's values kept
+    assert steps[0]["ok"] and steps[0]["origin"] == "ai"
+    # anything that is not a current label is left exactly as the model wrote it
+    options = [{"id": "L1", "sig": "navigate /cart", "do": "navigate /cart"}]
+    assert resolve_option_ref({"kind": "click", "selector": "#buy"}, options) is None
+    assert resolve_option_ref({"kind": "click", "selector": "L9"}, options) is None
+    assert resolve_option_ref({"kind": "click", "selector": "L1"}, []) is None
