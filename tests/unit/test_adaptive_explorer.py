@@ -337,3 +337,19 @@ async def test_an_option_named_by_its_label_runs_that_options_action():
     assert resolve_option_ref({"kind": "click", "selector": "#buy"}, options) is None
     assert resolve_option_ref({"kind": "click", "selector": "L9"}, options) is None
     assert resolve_option_ref({"kind": "click", "selector": "L1"}, []) is None
+
+
+async def test_each_explorer_call_records_its_prompt_section_sizes_and_never_content():
+    model = OptionFollower()
+    result, _, _, _ = await _explore(model)
+    sizes = result.stats["prompt_sizes"]
+    assert len(sizes) == len(model.prompts)  # one record per explorer call
+    first = sizes[0]
+    assert {"rules_chars", "schema_chars", "task", "app_data", "prompt_chars", "indent_chars"} <= set(first)
+    assert {"hypotheses", "user_goals"} <= set(first["task"]) and {"state", "options"} <= set(first["app_data"])
+    assert first["prompt_chars"] == len(model.prompts[0])
+
+    def numbers_only(value):
+        return all(numbers_only(v) for v in value.values()) if isinstance(value, dict) else isinstance(value, int)
+
+    assert all(numbers_only(s) for s in sizes)  # sizes, never the page text or the model's input

@@ -239,6 +239,7 @@ class Explorer:
         self._code_steps: list[Decision] = []
         self.map = ExplorationMap()
         self._node: StateNode | None = None
+        self.prompt_sizes: list[dict[str, Any]] = []  # per explorer call: section sizes in characters, no content
         self._is_new = True
         self._text_changed = True
         self._detail: str | None = None  # what a `look` asked for, shown once
@@ -282,7 +283,32 @@ class Explorer:
         task["hypotheses"] = [
             {"id": h["id"], "title": h["title"], "targets": h.get("targets", [])} for h in task["hypotheses"]
         ]
-        return build_user_prompt(task, self._compact_view(observation))
+        view = self._compact_view(observation)
+        prompt = build_user_prompt(task, view)
+        self._measure_prompt(step, task, view, prompt)
+        return prompt
+
+    def _measure_prompt(self, step: int, task: dict[str, Any], view: dict[str, Any], prompt: str) -> None:
+        """Sizes only, never content: how many characters each part of an explorer call takes (the fixed rules and
+        answer schema, each task and APP DATA section, and what pretty-printing adds), to find measured waste."""
+        if len(self.prompt_sizes) >= 60:
+            return
+
+        def size(value: Any, indent: int | None = 1) -> int:
+            return len(json.dumps(value, indent=indent, default=str, ensure_ascii=False))
+
+        compact = size(task, None) + size(view, None)
+        self.prompt_sizes.append(
+            {
+                "step": step,
+                "rules_chars": len(load_prompt("explorer")),
+                "schema_chars": len(json.dumps(Decision.model_json_schema())),
+                "task": {k: size(v) for k, v in task.items()},
+                "app_data": {k: size(v) for k, v in view.items()},
+                "prompt_chars": len(prompt),
+                "indent_chars": size(task) + size(view) - compact,
+            }
+        )
 
     def _compact_view(self, obs: dict[str, Any]) -> dict[str, Any]:
         """What the model needs to decide, not the whole page: the state it is in, what changed, the options with
@@ -738,7 +764,7 @@ class Explorer:
         else:
             result.stopped = "step budget used"
         result.stalls = self.stalls
-        result.stats = {**self.map.stats(), **self.counts, "stalls": self.stalls}
+        result.stats = {**self.map.stats(), **self.counts, "stalls": self.stalls, "prompt_sizes": self.prompt_sizes}
         return result
 
     def _goal_update(self, decision: Decision, step: int) -> None:
