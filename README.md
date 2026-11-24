@@ -291,8 +291,13 @@ Sentri is an MVP. What has been checked, and on what:
   `harness`, never as discoveries by the model.
 - **Docker lifecycle:** the no-model lifecycle check (build, start, readiness, reset, stop, failed and cancelled
   starts, port conflict, no leaked containers) passed 8 of 8 on a real Docker 29.4.2 daemon (GitHub-hosted Linux
-  runner, manual `docker-lifecycle` workflow). Model-driven exploration inside Docker mode has **not** been run:
-  that needs Docker and model access on the same machine.
+  runner, manual `docker-lifecycle` workflow), and again on a local Docker 29.1.3 daemon. **Docker + model:** one
+  bounded run on flow-shop (2026-11-24, commit 254f76c, Ubuntu 26.04, `claude-sonnet-5-5` through Claude Code,
+  limits 60k tokens, 25 steps, 15 minutes; used 54,672 tokens, 15 steps, 2m02s) ran in a real container, started
+  as a logged-in test account (`auth.start_as: a`). It found the HTTP 500 on `POST /checkout/confirm` (replayed
+  3 of 3) and did not confirm a second suspicion. The container, flow-shop's Dockerfile and a bind-all-interfaces
+  change to the fixture were set up outside the repository for that run. One run on one fixture is not a
+  reliability figure.
 - **Not covered:** business logic, security scanning, desktop and mobile apps, phone layouts for the web app,
   and any hosted or multi-user setup. The full list is in [limitations](documentation/limitations.md).
 
