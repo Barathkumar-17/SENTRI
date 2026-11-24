@@ -26,6 +26,8 @@ htmlcov/
 # Temporary contracts written by the integration tests
 examples/buggy-app/.contract-*.yaml
 /examples/buggy-app/approved.yaml
+/examples/flow-shop/approved*.yaml
+/examples/buggy-app/approved*.yaml
 
 # Apps downloaded by examples/proof/fetch_apps.py (third-party code, not committed)
 examples/proof/*/app/
