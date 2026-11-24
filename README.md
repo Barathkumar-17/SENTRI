@@ -109,6 +109,7 @@ instead of a local process (the container is removed afterwards):
 sentri contract approve examples/buggy-app/contract.docker.yaml --as "<your name>" --out examples/buggy-app/approved.docker.yaml
 sentri run --contract examples/buggy-app/approved.docker.yaml --out report.md
 python scripts/docker_lifecycle_check.py    # no model: build, start, reset, stop, failed and cancelled starts, leaks
+# flow-shop Docker + model run (bounded): documentation/getting-started.md
 ```
 
 The lifecycle script exits 0 when every check passed, 1 when one failed and 2 when there is no usable Docker
@@ -289,15 +290,22 @@ Sentri is an MVP. What has been checked, and on what:
 - **Replay and verdict pipeline:** checked separately with fixed, harness-supplied inputs (a known leak is
   confirmed 3 of 3 from three distinct app processes, a control is not reproduced). Those findings are labelled
   `harness`, never as discoveries by the model.
-- **Docker lifecycle:** the no-model lifecycle check (build, start, readiness, reset, stop, failed and cancelled
+- **Docker lifecycle (no model):** the lifecycle check (build, start, readiness, reset, stop, failed and cancelled
   starts, port conflict, no leaked containers) passed 8 of 8 on a real Docker 29.4.2 daemon (GitHub-hosted Linux
-  runner, manual `docker-lifecycle` workflow), and again on a local Docker 29.1.3 daemon. **Docker + model:** one
-  bounded run on flow-shop (2026-11-24, commit 254f76c, Ubuntu 26.04, `claude-sonnet-5-5` through Claude Code,
-  limits 60k tokens, 25 steps, 15 minutes; used 54,672 tokens, 15 steps, 2m02s) ran in a real container, started
-  as a logged-in test account (`auth.start_as: a`). It found the HTTP 500 on `POST /checkout/confirm` (replayed
-  3 of 3) and did not confirm a second suspicion. The container, flow-shop's Dockerfile and a bind-all-interfaces
-  change to the fixture were set up outside the repository for that run. One run on one fixture is not a
-  reliability figure.
+  runner, manual `docker-lifecycle` workflow) and again on a local Docker 29.1.3 daemon. This checks the sandbox
+  only; no model is involved.
+- **Docker + model (one run, one fixture):** on flow-shop (2026-11-24, tested code 254f76c, Ubuntu 26.04,
+  `claude-sonnet-5-5` through a signed-in Claude Code, limits 60,000 tokens, 25 steps, 15 minutes) the model-driven
+  exploration ran in a real container, started as a logged-in test account (`auth.start_as: a`). It used 54,672
+  tokens, 15 steps and 2m02s, confirmed one HTTP 500 on the order-confirmation request (replayed 3 of 3) and did
+  not confirm a second suspicion. The contract has no baseline flows, so readiness read "insufficient coverage"
+  with no score. The $0.30 shown in the report is the model's own estimate, not a verified charge. The recipe is
+  in the repository (`examples/flow-shop/Dockerfile`, `contract.docker.yaml`; steps in
+  [getting started](documentation/getting-started.md#docker--model-run-on-the-flow-shop-fixture)); the recipe files
+  were added after that run and were checked without a model (start, reset, stop, cleanup). One run on one fixture
+  is not a reliability figure.
+- **Known Docker limitation:** the container port is published on all host interfaces, not only localhost
+  (see [limitations](documentation/limitations.md)).
 - **Not covered:** business logic, security scanning, desktop and mobile apps, phone layouts for the web app,
   and any hosted or multi-user setup. The full list is in [limitations](documentation/limitations.md).
 
