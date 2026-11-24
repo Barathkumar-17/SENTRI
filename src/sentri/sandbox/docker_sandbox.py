@@ -72,7 +72,7 @@ class DockerSandbox(ResponseErrors):
             self._container = self._docker().containers.run(
                 self.image_tag,
                 detach=True,
-                ports={f"{container_port}/tcp": self.port},
+                ports={f"{container_port}/tcp": ("127.0.0.1", self.port)},  # host side: localhost only
                 environment=self.env,
                 labels={"sentri": "target"},
             )

@@ -51,9 +51,8 @@ is used). Run everything from the repository root.
 - **Bind address:** `app.py` listens on `127.0.0.1`, which cannot be reached through a published container port, so
   the Dockerfile rewrites that one `host=` argument to `0.0.0.0` *inside the image only*. Routes and behaviour are
   unchanged and the tracked file is not edited.
-- **Host port:** Sentri publishes the container port with Docker's default, which listens on **all host
-  interfaces** (`0.0.0.0:5088`), not only localhost, for as long as the container runs. See
-  [limitations](limitations.md). Run it on a machine or network you trust.
+- **Host port:** Sentri publishes the container port on the host's `127.0.0.1` only, so the app is not reachable from
+  other machines. Inside the container the app listens on all interfaces, which is what makes the mapping work.
 - **Test accounts:** nothing is provisioned by hand. The contract's `login` flow signs up fresh random accounts `a`
   and `b` on every start; `auth.start_as: a` begins exploration logged in as `a`. State is in memory, so each
   attempt and replay starts from a fresh container.

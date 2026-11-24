@@ -42,6 +42,7 @@ class _Containers:
         if self.client.run_error:
             raise self.client.run_error
         c = _Container()
+        self.client.run_kwargs.append(kw)
         self.client.started.append(c)
         return c
 
@@ -59,6 +60,7 @@ class _Client:
     def __init__(self, build_error=None, run_error=None):
         self.build_error, self.run_error = build_error, run_error
         self.started: list[_Container] = []
+        self.run_kwargs: list[dict] = []
         self.containers = _Containers(self)
         self.images = _Images(self)
 
@@ -165,3 +167,13 @@ async def test_without_a_docker_daemon_the_error_says_so(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "docker", _Docker)
     with pytest.raises(SandboxError, match="Docker is not available: Error while fetching server API version"):
         await sb.start()
+
+
+async def test_the_container_port_is_published_on_the_host_loopback_only(tmp_path):
+    client = _Client()
+    port = _free_port()
+    sb = _sandbox(tmp_path, client, startup_timeout_s=0.6, port=port)
+    with pytest.raises(SandboxError):  # nothing listens, but the run call is all this test needs
+        await sb.start()
+    # (host ip, host port): a bare port number would publish on every host interface (0.0.0.0 and ::)
+    assert client.run_kwargs[0]["ports"] == {f"{port}/tcp": ("127.0.0.1", port)}

@@ -304,8 +304,9 @@ Sentri is an MVP. What has been checked, and on what:
   [getting started](documentation/getting-started.md#docker--model-run-on-the-flow-shop-fixture)); the recipe files
   were added after that run and were checked without a model (start, reset, stop, cleanup). One run on one fixture
   is not a reliability figure.
-- **Known Docker limitation:** the container port is published on all host interfaces, not only localhost
-  (see [limitations](documentation/limitations.md)).
+- **Docker host port:** Sentri publishes the container port on the host's `127.0.0.1` only (before this fix it was
+  published on all host interfaces). Checked without a model: a unit test of the mapping and `docker inspect` of a
+  real flow-shop container, which showed only `127.0.0.1:5088` and no wildcard address.
 - **Not covered:** business logic, security scanning, desktop and mobile apps, phone layouts for the web app,
   and any hosted or multi-user setup. The full list is in [limitations](documentation/limitations.md).
 
