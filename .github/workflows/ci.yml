@@ -1,11 +1,9 @@
 name: CI
-# Manual only: GitHub Actions minutes are limited, so CI runs when someone starts it
-# (Actions tab > CI > Run workflow, or `gh workflow run CI`), e.g. before a release.
+# Runs on every push to main, and on demand (Actions tab > CI > Run workflow, or `gh workflow run CI`).
 on:
   push:
     branches: [main]
   workflow_dispatch:
-  
 
 jobs:
   checks:
