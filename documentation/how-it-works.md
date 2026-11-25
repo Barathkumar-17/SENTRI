@@ -186,3 +186,33 @@ reasoning and is never parsed for a decision. Only a human can mark a bug as *in
 | `report` | `report.md` and the attack tree |
 | `fixer` | Optional patch proposal and gate |
 | `cli` | The `sentri` command |
+
+## Safety
+
+- **Only run Sentri on apps you own or have permission to test.** It behaves like a hostile user on purpose.
+- Only the sandboxed copy of your app is attacked, never a live system.
+- Every browser request is fenced to the app's own origin: links, form posts, popups, scripts and redirects
+  (including the app's own open redirects) to other sites are blocked, and test-account tokens are only ever
+  sent to the app.
+- Page text and responses reach the model only as fenced, untrusted APP DATA it is told never to obey (source,
+  READMEs, databases and server logs never reach it); whatever it answers is validated and judged by plain
+  code anyway.
+- A human approves the contract, decides whether a failure is intended, and merges every fix.
+- API keys (from environment variables, CI secrets or typed into the web app) and provider account ids
+  (organization and project ids that providers quote in error messages) are scrubbed from everything Sentri
+  stores or shows: the activity feed, the ledger, evidence files, reports, log lines, prompts, and the web app's
+  answers and live stream. Ledgers written by older versions are scrubbed when shown. Only the steps a replay
+  must re-send are stored exactly, in the local ledger.
+
+## Compared with ZAP, Burp, Playwright scripts and Nuclei
+
+They are good tools; Sentri answers a different question.
+
+| Tool | What it is best at | Where Sentri differs |
+|---|---|---|
+| OWASP ZAP, Burp Suite | Proxy-based scanning and expert manual testing of known vulnerability classes (injection, headers, TLS, ...) | Sentri drives the app as users would, logged out and as two separate accounts, through multi-step flows, and asks "does it break or leak": crashes, duplicates, races, state corruption, one user reading another's records. It does not replace a security scan. |
+| Playwright tests or fuzzing scripts | Exact, repeatable checks you write and maintain | Sentri writes the plan itself from recon, explores beyond the paths you scripted, and turns every confirmed break into a replayable repro and a ledger entry that is re-checked on every later commit. |
+| Nuclei | Fast template matching for known CVEs and misconfigurations across many hosts | Sentri has no CVE templates; it tests your app's own logic and flows in a sandbox, one app at a time. |
+
+Use Sentri next to them: a scanner for known vulnerability classes, Sentri for "what happens when real (and
+hostile) users get their hands on this build".
