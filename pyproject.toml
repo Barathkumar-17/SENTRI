@@ -8,14 +8,33 @@ version = "0.1.0"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
+description = "Attacks a running web app like a hostile user; plain code decides pass or fail."
+requires-python = ">=3.12"
+authors = [{ name = "Barathkumar M P", email = "barathkumar2k7@gmail.com" }]
+keywords = [
+  "testing",
+  "web-testing",
+  "black-box-testing",
+  "playwright",
+  "llm",
+  "ai-agents",
+  "fuzzing",
+  "regression-testing",
+  "ci",
+]
 classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Testing",
+  "Topic :: Software Development :: Quality Assurance",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Operating System :: OS Independent",
 ]
-description = "Attacks a running web app like a hostile user; plain code decides pass or fail."
-requires-python = ">=3.12"
 dependencies = [
   "anthropic>=2.12.0",
   "playwright>=1.65.2",
@@ -43,6 +62,13 @@ dev = [
 
 [project.scripts]
 sentri = "sentri.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/Barathkumar-17/SENTRI"
+Repository = "https://github.com/Barathkumar-17/SENTRI"
+Issues = "https://github.com/Barathkumar-17/SENTRI/issues"
+Documentation = "https://github.com/Barathkumar-17/SENTRI/tree/main/documentation"
+Changelog = "https://github.com/Barathkumar-17/SENTRI/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sentri"]
