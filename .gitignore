@@ -1,5 +1,5 @@
-# Internal build references (used to build Sentri with AI) stay out of version control.
-# User-facing docs such as README.md are committed.
+# Private notes and local tooling files stay out of version control.
+# User-facing docs (README.md, documentation/) are committed.
 /docs/
 /sentri-documentation.md.txt
 /CLAUDE.md
@@ -39,7 +39,7 @@ examples/proof/*/app/
 .env
 .env.*
 
-# AI design references (impeccable): internal, not committed
+# Local design notes: not committed
 PRODUCT.md
 DESIGN.md
 DESIGN.json
