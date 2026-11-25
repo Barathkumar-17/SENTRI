@@ -25,7 +25,7 @@ flowchart LR
     A[Your app in a sandbox<br/>Docker or local process] --> B[Recon<br/>pages, forms, API map]
     B --> C[Strategy<br/>model plans app-specific attacks]
     C --> D[Exploration<br/>model drives browser and HTTP]
-    D --> E[Replay 3x<br/>from a restarted app]
+    D --> E[Replay 3x<br/>from the first step]
     E --> F[11 deterministic oracles<br/>plain code decides]
     F --> G[(SQLite bug ledger)]
     G --> H[Readiness score<br/>and report]
@@ -33,14 +33,14 @@ flowchart LR
 
 1. **Sandbox.** Sentri starts your app in a throwaway Docker container, or as a local process when Docker is not
    available, and resets it between attempts.
-2. **Recon (code only).** It crawls every reachable page, form and link, logged out and as two test users, reads
-   the OpenAPI spec when there is one, and maps which pages and endpoints need login.
+2. **Recon (code only).** It crawls every reachable page, form and link, logged out and as a signed-in test
+   user, reads the OpenAPI spec when there is one, and maps which pages and endpoints need login.
 3. **Strategy (model).** A model reads that map and plans attacks for *this* app. Hypotheses that do not point
    at real pages or endpoints are dropped.
 4. **Exploration (model proposes).** The model drives a real browser and raw HTTP requests step by step and
    picks each next move from what happened.
-5. **Replay 3x.** Every suspected break is replayed three times, from the first step of the session, each from a
-   restarted app.
+5. **Replay 3x.** Every suspected break is replayed three times from the first step of the session, each from a
+   restarted app (an app you only give as a URL is replayed on its live state, and the report says so).
 6. **11 deterministic oracles** judge each replay: HTTP 5xx, stack traces in responses, browser console errors,
    duplicate records, hangs, logged-out access to protected data, one user seeing another's data, unescaped
    reflected input (XSS), state changes accepted without their CSRF token, duplicates from replays or races,
@@ -76,7 +76,7 @@ sentri setup        # downloads the Chromium build Playwright drives
 sentri doctor       # checks Python, Chromium, Docker, git and model settings
 ```
 
-`sentri doctor` prints one row per check; Docker and the LLM are optional:
+`sentri doctor` prints one row per check (trimmed here); Docker and the LLM are optional:
 
 ```text
 │ Python    │ ok       │ 3.13.18 on Linux x86_64                 │
@@ -103,7 +103,23 @@ Then run the baseline suite (no model needed):
 sentri run --contract examples/buggy-app/approved.yaml --out report.md
 ```
 
-QUICKSTART_RUN_OUTPUT
+It runs 24 checks (4 flows x 6 attacks), each 3 times from a restarted app; this took about 4 minutes on a Linux
+test machine. The end of the output:
+
+```text
+signup:empty_input: FAIL - POST /api/signup -> 500 [3/3]; ...
+signup:double_submit: FAIL - list_selector: 2 created, expected 1 [3/3]
+...
+comment:empty_input: FLAKY - ...
+...
+run 1 finished: readiness 61
+model: 0 calls, 0 input + 0 output tokens, $0.0000
+report written to report.md
+readiness: 61   score = 100 x (11 + 0.5 x 1) / 19 = 61
+```
+
+The result: 7 failing checks, 1 flaky, 11 passing and 5 not applicable, 13 bugs in the ledger. This matches the
+demo app's planted bugs in [`expected_grid.yaml`](examples/buggy-app/expected_grid.yaml) cell for cell.
 
 Open `report.md`, or list the bugs with `sentri bug list`. To let a model explore, add a provider, for example
 `--llm-provider claude_code` (a signed-in Claude Code) or `--ollama qwen2.5:7b` (a local model). See
