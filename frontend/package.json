@@ -2,6 +2,14 @@
   "name": "frontend",
   "private": true,
   "version": "0.0.0",
+  "description": "Local web app for Sentri (React + Vite); its build is served by the sentri dashboard",
+  "license": "MIT",
+  "author": "Barathkumar M P",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Barathkumar-17/SENTRI.git",
+    "directory": "frontend"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
