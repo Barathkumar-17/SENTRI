@@ -43,7 +43,7 @@ tests/integration  browser and demo-app tests (pytest -m integration)
 examples/          demo app, contracts, CI example
 scripts/           smoke test
 action.yml         the GitHub Action
-.github/workflows  CI for this repository (run manually)
+.github/workflows  CI for this repository (on push to main, or run manually)
 ```
 
 ## Conventions
