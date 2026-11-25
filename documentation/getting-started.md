@@ -41,7 +41,7 @@ Open `report.md`, or run `sentri bug list`.
 
 ### Docker + model run on the flow-shop fixture
 
-Reproduces the bounded run recorded in the [README](../README.md#status-and-limitations). It needs Docker with a
+Reproduces the bounded run recorded in the [example report](example-report.md#further-recorded-runs-claude-code-on-flow-shop-docker-lifecycle). It needs Docker with a
 running daemon that your user can reach without sudo (`docker info`), the install from step 1 (`pip install -e
 ".[dev]"`, `sentri setup`) and, for the model step, a signed-in Claude Code (`sentri models` should list it; no API key
 is used). Run everything from the repository root.

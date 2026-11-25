@@ -130,3 +130,36 @@ passed; the strategist call then succeeded and the first explorer call was refus
 readiness "insufficient coverage". No AI-selected step ran, so nothing was discovered. Details:
 [`examples/proof/flow-shop-live-55db884/`](../examples/proof/flow-shop-live-55db884/README.md). The run exposed one
 engine inefficiency (a fallback step after model use had stopped), fixed in `85aab6f` with a regression test.
+
+## Further recorded runs: Claude Code on flow-shop, Docker lifecycle
+
+These results were first recorded in the README's status section and are kept here in full.
+
+**Command mode.** One recorded run on flow-shop with a model (`claude-sonnet-5-5` through Claude Code, 60k tokens,
+25 steps) found an HTTP 500 on the order-confirmation request, and the finding was replayed 3 of 3 times from a
+restarted app. Runs with other models and budgets were stopped by provider limits and say so in their reports. One
+run is an existence proof, not a reliability figure.
+
+**Replay and verdict pipeline.** Checked separately with fixed, harness-supplied inputs: a known leak is confirmed
+3 of 3 from three distinct app processes, and a control is not reproduced. Those findings are labelled `harness`,
+never as discoveries by the model.
+
+**Docker lifecycle (no model).** The lifecycle check (build, start, readiness, reset, stop, failed and cancelled
+starts, port conflict, no leaked containers) passed 8 of 8 on a real Docker 29.4.2 daemon (GitHub-hosted Linux
+runner, manual `docker-lifecycle` workflow) and again on a local Docker 29.1.3 daemon. This checks the sandbox
+only; no model is involved.
+
+**Docker + model (one run, one fixture).** On flow-shop (2026-11-24, tested code 254f76c, Ubuntu 26.04,
+`claude-sonnet-5-5` through a signed-in Claude Code, limits 60,000 tokens, 25 steps, 15 minutes) the model-driven
+exploration ran in a real container, started as a logged-in test account (`auth.start_as: a`). It used 54,672
+tokens, 15 steps and 2m02s, confirmed one HTTP 500 on the order-confirmation request (replayed 3 of 3) and did not
+confirm a second suspicion. The contract has no baseline flows, so readiness read "insufficient coverage" with no
+score. The $0.30 shown in the report is the model's own estimate, not a verified charge. The recipe is in the
+repository (`examples/flow-shop/Dockerfile`, `contract.docker.yaml`; steps in
+[getting started](getting-started.md#docker--model-run-on-the-flow-shop-fixture)); the recipe files were added after
+that run and were checked without a model (start, reset, stop, cleanup). One run on one fixture is not a
+reliability figure.
+
+**Docker host port.** Sentri publishes the container port on the host's `127.0.0.1` only (before this fix it was
+published on all host interfaces). Checked without a model: a unit test of the mapping and `docker inspect` of a
+real flow-shop container, which showed only `127.0.0.1:5088` and no wildcard address.
