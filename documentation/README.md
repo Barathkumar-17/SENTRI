@@ -5,8 +5,8 @@ an audience. An AI agent explores the app and decides what to try; plain code de
 
 | Read this | When you want to |
 |---|---|
-| [Getting started](getting-started.md) | Install Sentri and run it on the demo app, then on your own app |
-| [How Sentri works](how-it-works.md) | Understand the phases, the agent, the verdicts and the trust boundary |
+| [Getting started](getting-started.md) | Install Sentri, run it on the demo app, then on your own app; troubleshooting |
+| [How Sentri works](how-it-works.md) | Understand the phases, the agent, the verdicts, the trust boundary, safety, and how Sentri compares with other tools |
 | [The contract](contract.md) | Write or review `contract.yaml`, the human-approved description of your app |
 | [Models](models.md) | Choose a model: none, Claude Code, Codex CLI, Gemini CLI, Ollama, or an API key |
 | [Verdicts, bugs and the score](verdicts-and-ledger.md) | Read results: the oracles, flaky vs fail, the bug ledger, regressions, the readiness score |
@@ -16,7 +16,7 @@ an audience. An AI agent explores the app and decides what to try; plain code de
 | [Fixer](fixer.md) | Let Sentri propose a fix as a draft pull request behind a plain-code gate |
 | [Development](development.md) | Repository layout, tests, the demo app, and how to contribute |
 | [Limitations](limitations.md) | What Sentri does not catch, and known rough edges |
-| [Example report](example-report.md) | Real runs against open-source apps: findings, time and cost |
+| [Example report](example-report.md) | Recorded runs against open-source apps and the fixture apps: findings, time and cost |
 
 ## In one picture
 
