@@ -23,8 +23,8 @@ top right. Every page and filter has its own link, so reload, Back and bookmarks
   confirmation); what ran so far is kept and the run is recorded as aborted. A run started with `sentri run`
   is stopped in its terminal with Ctrl+C, and is recorded as aborted the same way.
 - **Report** (`#/runs/<id>/report`): one run's analysis from the recorded data, no model involved. What broke
-  (findings confirmed by replay, failed baseline checks with their bugs, regressions, candidates that did not
-  reproduce), what was tested (exploration, the model's attack ideas, the baseline grid), coverage limits, and
+  (findings confirmed by replay, failed and flaky baseline checks with their bugs, counted apart as in `report.md`,
+  regressions, candidates that did not reproduce), what was tested (exploration, the model's attack ideas, the baseline grid), coverage limits, and
   suggested next steps. The suggestions come from fixed rules over the record and are labelled as suggestions.
 - **Findings**: every finding, filterable by result, run and who found it (the filters live in the link). Each
   opens its own page (`#/findings/<id>`): the outcome (what broke, the three replays, who found it), the replay

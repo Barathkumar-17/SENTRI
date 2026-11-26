@@ -157,13 +157,18 @@ export const READINESS_NOTE =
   'Readiness is the share of applicable baseline checks that passed (flaky counts half) on a 0–100 scale, minus 5 per regression and points for each finding confirmed by replay. It counts only what this run tested and is not a safety rating.'
 
 /** One plain sentence for how a run came out: confirmed findings and failed baseline checks, never a pass for untested ground. */
-export function outcomeLine(run: Run, confirmedFindings?: number, failedChecks?: number): string {
+export function outcomeLine(run: Run, confirmedFindings?: number, failedChecks?: number, flakyChecks?: number): string {
   if (run.status === 'running') return 'Still running; what is shown so far is incomplete.'
   if (run.status === 'aborted') return 'The run was aborted before it finished; only what ran before is recorded.'
   const confirmed = confirmedFindings ?? run.coverage?.agentic?.confirmed ?? 0
   const checks = run.coverage?.baseline?.checks
-  const failed = failedChecks ?? (checks ? (checks.failed ?? 0) + (checks.flaky ?? 0) : 0)
-  const parts = [confirmed ? `${count(confirmed, 'finding')} confirmed by replay` : '', failed ? `${count(failed, 'baseline check')} failed` : ''].filter(Boolean)
+  // Failed and flaky are counted apart, as in report.md: a flaky check is not a failed one (it earns half credit).
+  const failed = failedChecks ?? checks?.failed ?? 0
+  const flaky = flakyChecks ?? checks?.flaky ?? 0
+  const baseline = failed && flaky ? `${count(failed, 'baseline check')} failed, ${flaky} flaky`
+    : failed ? `${count(failed, 'baseline check')} failed`
+    : flaky ? `${count(flaky, 'baseline check')} ${flaky === 1 ? 'was' : 'were'} flaky` : ''
+  const parts = [confirmed ? `${count(confirmed, 'finding')} confirmed by replay` : '', baseline].filter(Boolean)
   if (parts.length) return `${parts.join(' and ')}${insufficient(run.breakdown) ? '; too little applicable was tested to score it' : ''}.`
   if (insufficient(run.breakdown)) return 'Too little was tested to score this run, and nothing broke in what was tried.'
   return 'Nothing broke in what was tested.'

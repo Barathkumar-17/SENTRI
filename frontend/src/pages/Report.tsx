@@ -62,13 +62,16 @@ function Shell({ id, crumbs, children }: { id: number; crumbs: { label: string; 
 
 const confirmedOf = (fs: Finding[]) => fs.filter((f) => f.verdict === 'fail' || f.verdict === 'flaky')
 const failingCells = (g: Grid) => g.cells.filter((c) => c.score_verdict === 'fail' || c.score_verdict === 'flaky')
+const cellsOf = (g: Grid, verdict: string) => g.cells.filter((c) => c.score_verdict === verdict).length
+/** "7 failed, 1 flaky": the same split as report.md, so a flaky check is never counted as a failed one. */
+const failingHint = (g: Grid) =>
+  [cellsOf(g, 'fail') ? `${cellsOf(g, 'fail')} failed` : '', cellsOf(g, 'flaky') ? `${cellsOf(g, 'flaky')} flaky` : ''].filter(Boolean).join(', ')
 
 function Summary({ run, findings, grid }: { run: Run; findings: Finding[]; grid: Grid }) {
   const b = run.breakdown
   const confirmed = confirmedOf(findings).length
-  const failing = failingCells(grid).length
   const stop = quotaStopped(run)
-  const line = outcomeLine(run, confirmed, failing)
+  const line = outcomeLine(run, confirmed, cellsOf(grid, 'fail'), cellsOf(grid, 'flaky'))
   return (
     <Card title="Summary" hint="observed">
       <div className="stack">
@@ -114,9 +117,9 @@ function Broke({ run, grid, findings }: { run: Run; grid: Grid; findings: Findin
         )}
       </Card>
       {(failing.length > 0 || grid.cells.length > 0) && (
-        <Card title="Baseline checks that failed" hint={grid.cells.length ? `${count(failing.length, 'check')} of ${grid.cells.length}` : undefined} flush>
+        <Card title="Baseline checks that failed or were flaky" hint={grid.cells.length ? `${failingHint(grid) || 'none'} of ${count(grid.cells.length, 'check')}` : undefined} flush>
           {!failing.length ? (
-            <Empty title="No baseline check failed">Every applicable fixed attack passed (see what was tested below).</Empty>
+            <Empty title="No baseline check failed or was flaky">Every applicable fixed attack passed (see what was tested below).</Empty>
           ) : (
             <div className="table-wrap">
               <table>
@@ -276,7 +279,7 @@ function suggestionsFor(run: Run, grid: Grid, findings: Finding[]): { text: Reac
   const confirmed = confirmedOf(findings)
   const failing = failingCells(grid)
   if (confirmed.length || failing.length) {
-    out.push({ text: <>Fix what broke, then run again: Sentri re-checks every confirmed finding and open bug on later runs. Open bugs are in <a href={href('findings', { view: 'bugs', status: 'open' })}>Bugs across runs</a>.</>, why: `${count(confirmed.length, 'confirmed finding')} and ${count(failing.length, 'failing baseline check')} in this run` })
+    out.push({ text: <>Fix what broke, then run again: Sentri re-checks every confirmed finding and open bug on later runs. Open bugs are in <a href={href('findings', { view: 'bugs', status: 'open' })}>Bugs across runs</a>.</>, why: `${count(confirmed.length, 'confirmed finding')}, ${count(cellsOf(grid, 'fail'), 'failed baseline check')} and ${cellsOf(grid, 'flaky')} flaky in this run` })
     out.push({ text: <>If a break is the app working as designed, mark its bug intended on the bug's page, with a reason.</>, why: 'only a person can mark a bug intended' })
   }
   if (!grid.cells.length) out.push({ text: <>Add attacked flows to the contract so the six fixed attacks can run and the run gets a comparable readiness score.</>, why: 'no baseline check ran' })

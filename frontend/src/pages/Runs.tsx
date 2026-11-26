@@ -80,7 +80,7 @@ function RunsTable({ runs }: { runs: Run[] }) {
                   {ag && <span className="sub">of {count(ag.candidates ?? 0, 'candidate')}</span>}
                 </td>
                 <td>
-                  {checks ? `${num(checks.passed)} pass · ${num(checks.failed)} fail` : <span className="faint">not run</span>}
+                  {checks ? `${num(checks.passed)} pass · ${num(checks.failed)} fail${checks.flaky ? ` · ${num(checks.flaky)} flaky` : ''}` : <span className="faint">not run</span>}
                   {checks && <span className="sub">{num(checks.inapplicable)} n/a{r.breakdown?.regressed ? ` · ${count(r.breakdown.regressed, 'regression')}` : ''}</span>}
                 </td>
                 <td>
