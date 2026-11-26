@@ -208,7 +208,23 @@ and [models](documentation/models.md).
 Exit codes: 0 finished, 1 gate failed (`--fail-under`, `--fail-on-regression`), 2 contract or config error, 3 app
 failed to start, 4 infrastructure missing.
 
-## Limitations and status
+## Testing and limits
+
+### Run the tests
+
+```bash
+pip install -e ".[dev]" && sentri setup
+ruff check src tests scripts examples
+ruff format --check src tests scripts examples
+mypy src                         # strict on the verdict package
+pytest                           # fast tests (unit, verdict, trust boundary)
+python scripts/smoke_test.py     # the CLI and the web workflow end to end
+pytest -m integration            # browser and demo-app tests, including the full baseline grid (minutes)
+```
+
+More detail, including the Docker lifecycle check: [development](documentation/development.md).
+
+### What has and has not been verified
 
 Sentri is an early MVP (version 0.1.0, not yet released). What has actually been run:
 
