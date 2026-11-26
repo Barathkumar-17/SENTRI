@@ -256,6 +256,13 @@ permission to test.**
 Full documentation: [`documentation/`](documentation/README.md). Report security issues privately as
 described in [SECURITY.md](SECURITY.md). Changes are listed in the [changelog](CHANGELOG.md).
 
+## Team
+
+| Member | GitHub |
+|---|---|
+| Barathkumar | [@Barathkumar-17](https://github.com/Barathkumar-17) |
+| Gokul K | [@Gokul-2k7](https://github.com/Gokul-2k7) |
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
