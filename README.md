@@ -265,7 +265,7 @@ creates 2 accounts and a rapid repeat that creates 4, HTTP 500s from `POST /task
 bad file and rapid repeats, and an HTTP 500 from `POST /api/comments` on empty input in 1 of 3 replays (flaky).
 
 <p align="center">
-  <img src="documentation/images/hero.png" alt="Sentri run report for the demo app: readiness 61 of 100, 11 of 19 applicable checks passed, 1 flaky, and 8 baseline checks failed" width="100%">
+  <img src="documentation/images/hero.png" alt="Sentri run report for the demo app: readiness 61 of 100, 11 of 19 applicable checks passed, 7 baseline checks failed and 1 was flaky" width="100%">
   <br><sub><b>Run report.</b> The readiness score with its formula, what broke and the evidence behind it.</sub>
 </p>
 
