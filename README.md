@@ -10,13 +10,11 @@ attacks, but plain, deterministic code decides every pass or fail, and every bug
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 [![CI](https://github.com/Barathkumar-17/SENTRI/actions/workflows/ci.yml/badge.svg)](https://github.com/Barathkumar-17/SENTRI/actions/workflows/ci.yml)
 
-## Why Sentri
+## Problem and solution
 
-Demo-day apps usually break on the path nobody scripted: an empty form, a second click, a stale tab, a user
-opening someone else's record by its id. Hand-written tests only cover the paths you thought of, and an AI
-agent on its own will happily report bugs that are not there. Sentri lets a model explore beyond your scripts,
-then makes plain code prove each break three times before it reaches the report, and tracks it from commit to
-commit.
+| Problem | Solution |
+|---|---|
+| Web apps break in front of users or in a live demo because nobody tested them like a hostile user: an empty form, a second click, a stale tab, a bad file, a slow network, a user opening someone else's record by its id. Hand-written tests only cover the paths you thought of, and an AI agent on its own will happily report bugs that are not there. | Sentri attacks the running app in a disposable sandbox (a Docker container, or a local process when Docker is not available). The AI plans the attacks; plain code decides pass or fail from measured evidence. Every suspected break is replayed 3 times before it reaches the report, and bugs go into a ledger that is re-checked from commit to commit, with a readiness score for each run. |
 
 ## How it works
 
