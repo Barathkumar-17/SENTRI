@@ -134,13 +134,6 @@ Open `report.md`, or list the bugs with `sentri bug list`. To let a model explor
 `--llm-provider claude_code` (a signed-in Claude Code) or `--ollama qwen2.5:7b` (a local model). See
 [getting started](documentation/getting-started.md) for Docker mode and your own app.
 
-<!--
-Screenshots to add (save under documentation/images/ and link them here):
-  1. web-app-home.png     - `sentri ui`, Home page after the quickstart run
-  2. run-report.png       - the run's report page in the web app (score, failing checks)
-  3. finding-replay.png   - a finding page showing the 3/3 replay evidence
--->
-
 ## Features
 
 - **Agentic exploration** with recon, an app-specific strategy and step-by-step browser and HTTP actions.
@@ -216,6 +209,36 @@ and [models](documentation/models.md).
 
 Exit codes: 0 finished, 1 gate failed (`--fail-under`, `--fail-on-regression`), 2 contract or config error, 3 app
 failed to start, 4 infrastructure missing.
+
+## Demo
+
+The screenshots are from a real run of the [Quickstart](#quickstart) on the bundled demo app
+(`examples/buggy-app`, which has planted bugs), from a fresh clone of `main` at `0a576b2`, with no model:
+
+```bash
+git clone https://github.com/Barathkumar-17/SENTRI.git && cd SENTRI
+pip install -e ".[dev]"
+sentri setup
+sentri contract approve examples/buggy-app/contract.yaml --as "Your Name" --out examples/buggy-app/approved.yaml
+sentri run --contract examples/buggy-app/approved.yaml --out report.md
+sentri ui
+```
+
+The run scored **readiness 61** (`score = 100 x (11 + 0.5 x 1) / 19 = 61`): 11 checks passed, 7 failed, 1 was
+flaky and 5 did not apply, and it took 5 min 8 s on a Windows 11 machine. For example, submitting the signup form
+empty made `POST /api/signup` return HTTP 500 in 3 of 3 replays (BUG-001). It also found a double submit that
+creates 2 accounts and a rapid repeat that creates 4, HTTP 500s from `POST /tasks/new` on an expired session, a
+bad file and rapid repeats, and an HTTP 500 from `POST /api/comments` on empty input in 1 of 3 replays (flaky).
+
+<p align="center">
+  <img src="documentation/images/hero.png" alt="Sentri run report for the demo app: readiness 61 of 100, 11 of 19 applicable checks passed, 1 flaky, and 8 baseline checks failed" width="100%">
+  <br><sub><b>Run report.</b> The readiness score with its formula, what broke and the evidence behind it.</sub>
+</p>
+
+<p align="center">
+  <img src="documentation/images/home.png" alt="Sentri Home page after the demo run: the latest run at readiness 61 of 100, the recent runs table and 11 open bugs that need a decision" width="100%">
+  <br><sub><b>Home.</b> The latest run, recent runs and the open bugs that need a human decision.</sub>
+</p>
 
 ## Testing and limits
 
