@@ -21,58 +21,37 @@ attacks, but plain, deterministic code decides every pass or fail, and every bug
 | **Provider-swappable model** | Claude Code, Codex CLI, Gemini CLI, the Anthropic API, any OpenAI-compatible API or Ollama, or no model at all. |
 | **Local dashboard** | `sentri ui` starts runs, follows them live and shows reports and replay evidence, listening on localhost only. |
 
-## Problem and solution
+## Features
 
-| Problem | Solution |
+- **Agentic exploration** with recon, an app-specific strategy and step-by-step browser and HTTP actions.
+- **Replay confirmation**: a suspicion only becomes a bug after plain code sees it reproduce.
+- **Two test identities** (`a`, `b`) to check logged-out access and cross-user data exposure.
+- **Code-owned checks**: Sentri marks what each test user writes and opens their records as the other user and
+  logged out, independent of the model.
+- **Baseline suite** of six fixed attacks and a readiness score comparable across commits.
+- **Bug ledger** across commits, with regressions flagged and human decisions recorded (`sentri bug mark`).
+- **Bring your own model, or none**: Claude Code, Codex CLI, Gemini CLI, Anthropic API, any OpenAI-compatible
+  API, or Ollama. Per-run token, call, step, time and budget limits.
+- **Local web app** (`sentri ui`) to start runs, follow them live, read reports and inspect replay evidence. It
+  listens on localhost only.
+- **GitHub Action** that comments the score and regressions on pull requests, with optional merge gates.
+- **Optional fixer** (`sentri fix`) for baseline crash bugs with a stack trace: it proposes a patch, runs a fixed
+  gate and opens a draft pull request only if the gate passes.
+- **Safety by default**: browser traffic is fenced to the app's origin, and API keys and provider account ids
+  are scrubbed from the ledger, evidence, reports, logs and the web app.
+
+## Tech stack
+
+| Area | Used |
 |---|---|
-| Web apps break in front of users or in a live demo because nobody tested them like a hostile user: an empty form, a second click, a stale tab, a bad file, a slow network, a user opening someone else's record by its id. Hand-written tests only cover the paths you thought of, and an AI agent on its own will happily report bugs that are not there. | Sentri attacks the running app in a disposable sandbox (a Docker container, or a local process when Docker is not available). The AI plans the attacks; plain code decides pass or fail from measured evidence. Every suspected break is replayed 3 times before it reaches the report, and bugs go into a ledger that is re-checked from commit to commit, with a readiness score for each run. |
-
-## How it works
-
-```mermaid
-flowchart LR
-    A[Your app in a sandbox<br/>Docker or local process] --> B[Recon<br/>pages, forms, API map]
-    B --> C[Strategy<br/>model plans app-specific attacks]
-    C --> D[Exploration<br/>model drives browser and HTTP]
-    D --> E[Replay 3x<br/>from the first step]
-    E --> F[11 deterministic oracles<br/>plain code decides]
-    F --> G[(SQLite bug ledger)]
-    G --> H[Readiness score<br/>and report]
-```
-
-1. **Sandbox.** Sentri starts your app in a throwaway Docker container, or as a local process when Docker is not
-   available, and resets it between attempts.
-2. **Recon (code only).** It crawls every reachable page, form and link, logged out and as a signed-in test
-   user, reads the OpenAPI spec when there is one, and maps which pages and endpoints need login.
-3. **Strategy (model).** A model reads that map and plans attacks for *this* app. Hypotheses that do not point
-   at real pages or endpoints are dropped.
-4. **Exploration (model proposes).** The model drives a real browser and raw HTTP requests step by step and
-   picks each next move from what happened.
-5. **Replay 3x.** Every suspected break is replayed three times from the first step of the session, each from a
-   restarted app (an app you only give as a URL is replayed on its live state, and the report says so).
-6. **11 deterministic oracles** judge each replay: HTTP 5xx, stack traces in responses, browser console errors,
-   duplicate records, hangs, logged-out access to protected data, one user seeing another's data, unescaped
-   reflected input (XSS), state changes accepted without their CSRF token, duplicates from replays or races,
-   and state corruption. A finding is **fail** at 3 of 3, **flaky** at 1 or 2 of 3.
-7. **Ledger and score.** Confirmed bugs go into a SQLite ledger that is re-checked on later runs, so regressions
-   are flagged. A fixed baseline suite of six attacks gives a **readiness score** that stays comparable across
-   commits.
-
-With no model configured, Sentri skips steps 2 to 4 and runs only the baseline suite (empty input, double
-submit, expired session, slow network, bad file, rapid repeat).
-
-Details: [how Sentri works](documentation/how-it-works.md).
-
-## Key design principle: the model proposes, code decides
-
-The model can suggest attacks and drive the browser, but it never decides a verdict. The verdict, ledger and
-report code may not import any model, attacker, planner or fixer code, and the replay and confirmation path may
-not reach it through any chain of imports. This is enforced by a test,
-[`tests/test_trust_boundary.py`](tests/test_trust_boundary.py), which runs with the normal test suite. Only a
-human can mark a bug as intended.
-
-Sentri also tests as a **black box**: the model sees the running app's pages, requests and responses, never its
-source code, README, database or server logs. App content reaches the model only as fenced, untrusted data.
+| Engine and CLI | Python 3.12+, Typer, Pydantic, Rich |
+| Browser automation | Playwright (Chromium) |
+| Sandbox | Docker SDK for Python, or a local process |
+| Ledger | SQLite |
+| Local server and API | FastAPI, Uvicorn |
+| Web app | React, TypeScript, Vite (built into the package, no Node needed to use it) |
+| Models | Anthropic SDK, OpenAI-compatible HTTP via httpx, Claude Code / Codex / Gemini CLIs, Ollama |
+| Quality | pytest, Ruff, mypy (strict on the verdict package), GitHub Actions |
 
 ## Quickstart
 
@@ -134,59 +113,6 @@ Open `report.md`, or list the bugs with `sentri bug list`. To let a model explor
 `--llm-provider claude_code` (a signed-in Claude Code) or `--ollama qwen2.5:7b` (a local model). See
 [getting started](documentation/getting-started.md) for Docker mode and your own app.
 
-## Features
-
-- **Agentic exploration** with recon, an app-specific strategy and step-by-step browser and HTTP actions.
-- **Replay confirmation**: a suspicion only becomes a bug after plain code sees it reproduce.
-- **Two test identities** (`a`, `b`) to check logged-out access and cross-user data exposure.
-- **Code-owned checks**: Sentri marks what each test user writes and opens their records as the other user and
-  logged out, independent of the model.
-- **Baseline suite** of six fixed attacks and a readiness score comparable across commits.
-- **Bug ledger** across commits, with regressions flagged and human decisions recorded (`sentri bug mark`).
-- **Bring your own model, or none**: Claude Code, Codex CLI, Gemini CLI, Anthropic API, any OpenAI-compatible
-  API, or Ollama. Per-run token, call, step, time and budget limits.
-- **Local web app** (`sentri ui`) to start runs, follow them live, read reports and inspect replay evidence. It
-  listens on localhost only.
-- **GitHub Action** that comments the score and regressions on pull requests, with optional merge gates.
-- **Optional fixer** (`sentri fix`) for baseline crash bugs with a stack trace: it proposes a patch, runs a fixed
-  gate and opens a draft pull request only if the gate passes.
-- **Safety by default**: browser traffic is fenced to the app's origin, and API keys and provider account ids
-  are scrubbed from the ledger, evidence, reports, logs and the web app.
-
-## Tech stack
-
-| Area | Used |
-|---|---|
-| Engine and CLI | Python 3.12+, Typer, Pydantic, Rich |
-| Browser automation | Playwright (Chromium) |
-| Sandbox | Docker SDK for Python, or a local process |
-| Ledger | SQLite |
-| Local server and API | FastAPI, Uvicorn |
-| Web app | React, TypeScript, Vite (built into the package, no Node needed to use it) |
-| Models | Anthropic SDK, OpenAI-compatible HTTP via httpx, Claude Code / Codex / Gemini CLIs, Ollama |
-| Quality | pytest, Ruff, mypy (strict on the verdict package), GitHub Actions |
-
-## Project structure
-
-```text
-src/sentri/
-  agent/        recon, strategy, exploration and replay confirmation
-  attacks/      the six baseline attacks
-  verdict/      deterministic oracles, verdict engine and readiness score (no model code)
-  ledger/       SQLite bug ledger
-  report/       markdown report
-  sandbox/      Docker and local-process sandboxes
-  llm/          model providers
-  dashboard/    FastAPI server and the built web app
-  fixer/        optional patch proposer and gate
-  cli.py        the `sentri` command
-frontend/       web app source (React, Vite, TypeScript)
-examples/       demo apps with planted bugs, CI example, saved proof runs
-documentation/  user and developer guides
-tests/          unit, verdict, integration and trust-boundary tests
-action.yml      the GitHub Action
-```
-
 ## Configuration
 
 **A model is optional.** With none, Sentri runs the baseline suite with built-in payloads; it needs no account
@@ -209,6 +135,80 @@ and [models](documentation/models.md).
 
 Exit codes: 0 finished, 1 gate failed (`--fail-under`, `--fail-on-regression`), 2 contract or config error, 3 app
 failed to start, 4 infrastructure missing.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Your app in a sandbox<br/>Docker or local process] --> B[Recon<br/>pages, forms, API map]
+    B --> C[Strategy<br/>model plans app-specific attacks]
+    C --> D[Exploration<br/>model drives browser and HTTP]
+    D --> E[Replay 3x<br/>from the first step]
+    E --> F[11 deterministic oracles<br/>plain code decides]
+    F --> G[(SQLite bug ledger)]
+    G --> H[Readiness score<br/>and report]
+```
+
+1. **Sandbox.** Sentri starts your app in a throwaway Docker container, or as a local process when Docker is not
+   available, and resets it between attempts.
+2. **Recon (code only).** It crawls every reachable page, form and link, logged out and as a signed-in test
+   user, reads the OpenAPI spec when there is one, and maps which pages and endpoints need login.
+3. **Strategy (model).** A model reads that map and plans attacks for *this* app. Hypotheses that do not point
+   at real pages or endpoints are dropped.
+4. **Exploration (model proposes).** The model drives a real browser and raw HTTP requests step by step and
+   picks each next move from what happened.
+5. **Replay 3x.** Every suspected break is replayed three times from the first step of the session, each from a
+   restarted app (an app you only give as a URL is replayed on its live state, and the report says so).
+6. **11 deterministic oracles** judge each replay: HTTP 5xx, stack traces in responses, browser console errors,
+   duplicate records, hangs, logged-out access to protected data, one user seeing another's data, unescaped
+   reflected input (XSS), state changes accepted without their CSRF token, duplicates from replays or races,
+   and state corruption. A finding is **fail** at 3 of 3, **flaky** at 1 or 2 of 3.
+7. **Ledger and score.** Confirmed bugs go into a SQLite ledger that is re-checked on later runs, so regressions
+   are flagged. A fixed baseline suite of six attacks gives a **readiness score** that stays comparable across
+   commits.
+
+With no model configured, Sentri skips steps 2 to 4 and runs only the baseline suite (empty input, double
+submit, expired session, slow network, bad file, rapid repeat).
+
+Details: [how Sentri works](documentation/how-it-works.md).
+
+## Key design principle: the model proposes, code decides
+
+The model can suggest attacks and drive the browser, but it never decides a verdict. The verdict, ledger and
+report code may not import any model, attacker, planner or fixer code, and the replay and confirmation path may
+not reach it through any chain of imports. This is enforced by a test,
+[`tests/test_trust_boundary.py`](tests/test_trust_boundary.py), which runs with the normal test suite. Only a
+human can mark a bug as intended.
+
+Sentri also tests as a **black box**: the model sees the running app's pages, requests and responses, never its
+source code, README, database or server logs. App content reaches the model only as fenced, untrusted data.
+
+## Project layout
+
+```text
+src/sentri/
+  agent/        recon, strategy, exploration and replay confirmation
+  attacks/      the six baseline attacks
+  verdict/      deterministic oracles, verdict engine and readiness score (no model code)
+  ledger/       SQLite bug ledger
+  report/       markdown report
+  sandbox/      Docker and local-process sandboxes
+  llm/          model providers
+  dashboard/    FastAPI server and the built web app
+  fixer/        optional patch proposer and gate
+  cli.py        the `sentri` command
+frontend/       web app source (React, Vite, TypeScript)
+examples/       demo apps with planted bugs, CI example, saved proof runs
+documentation/  user and developer guides
+tests/          unit, verdict, integration and trust-boundary tests
+action.yml      the GitHub Action
+```
+
+## Problem and solution
+
+| Problem | Solution |
+|---|---|
+| Web apps break in front of users or in a live demo because nobody tested them like a hostile user: an empty form, a second click, a stale tab, a bad file, a slow network, a user opening someone else's record by its id. Hand-written tests only cover the paths you thought of, and an AI agent on its own will happily report bugs that are not there. | Sentri attacks the running app in a disposable sandbox (a Docker container, or a local process when Docker is not available). The AI plans the attacks; plain code decides pass or fail from measured evidence. Every suspected break is replayed 3 times before it reaches the report, and bugs go into a ledger that is re-checked from commit to commit, with a readiness score for each run. |
 
 ## Demo
 
@@ -276,6 +276,13 @@ Sentri is an early MVP (version 0.1.0, not yet released). What has actually been
 The full list is in [limitations](documentation/limitations.md). **Only run Sentri on apps you own or have
 permission to test.**
 
+## Team
+
+| Member | GitHub |
+|---|---|
+| Barathkumar | [@Barathkumar-17](https://github.com/Barathkumar-17) |
+| Gokul K | [@Gokul-2k7](https://github.com/Gokul-2k7) |
+
 ## Roadmap
 
 - Run Sentri on more apps beyond the fixtures and the two proof apps, and publish the reports.
@@ -288,20 +295,13 @@ permission to test.**
 Full documentation: [`documentation/`](documentation/README.md). Report security issues privately as
 described in [SECURITY.md](SECURITY.md). Changes are listed in the [changelog](CHANGELOG.md).
 
-## Team
-
-| Member | GitHub |
-|---|---|
-| Barathkumar | [@Barathkumar-17](https://github.com/Barathkumar-17) |
-| Gokul K | [@Gokul-2k7](https://github.com/Gokul-2k7) |
-
-## License
-
-MIT. See [LICENSE](LICENSE).
-
 ## Acknowledgements
 
 - [PentestGPT](https://github.com/GreyDGL/PentestGPT), for showing how an LLM can drive multi-stage testing.
 - [MAPTA](https://arxiv.org/abs/2508.20816) (Multi-Agent Penetration Testing AI for the Web), for the idea that
   every finding needs end-to-end validation before it counts.
 - [Playwright](https://playwright.dev), which drives the browser.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
