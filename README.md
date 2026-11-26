@@ -26,6 +26,24 @@ The AI plans the attacks; plain code decides pass or fail from measured evidence
 
 </div>
 
+> Scope: verified on the included demo apps (`examples/buggy-app` and the `examples/flow-shop` shop) and two short
+> proof runs; this is not a general reliability claim. See [Testing and limits](#testing-and-limits).
+
+> [!TIP]
+> Reviewing this project? Start with [Problem and solution](#problem-and-solution), then [Demo](#demo), then [Testing and limits](#testing-and-limits).
+
+## Contents
+
+**What you get** &nbsp;·&nbsp; [Highlights](#highlights) · [Features](#features) · [Tech stack](#tech-stack)
+
+**Run it** &nbsp;·&nbsp; [Quickstart](#quickstart) · [Configuration](#configuration)
+
+**Under the hood** &nbsp;·&nbsp; [How it works](#how-it-works) · [Key design principle](#key-design-principle-the-model-proposes-code-decides) · [Project layout](#project-layout)
+
+**For reviewers** &nbsp;·&nbsp; [Problem and solution](#problem-and-solution) · [Demo](#demo) · [Testing and limits](#testing-and-limits) · [Team](#team)
+
+**About** &nbsp;·&nbsp; [Roadmap](#roadmap) · [Documentation](#documentation) · [Acknowledgements](#acknowledgements) · [License](#license)
+
 ## Highlights
 
 | | |
