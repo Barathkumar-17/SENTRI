@@ -235,13 +235,10 @@ permission to test.**
 - Test small local models for driving exploration (currently untested).
 - Tag the first release.
 
-## Contributing
+## Documentation
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the checks to run and the commit
-style, and follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues privately as described in
-[SECURITY.md](SECURITY.md). Changes are listed in the [changelog](CHANGELOG.md).
-
-Full documentation: [`documentation/`](documentation/README.md).
+Full documentation: [`documentation/`](documentation/README.md). Report security issues privately as
+described in [SECURITY.md](SECURITY.md). Changes are listed in the [changelog](CHANGELOG.md).
 
 ## License
 
